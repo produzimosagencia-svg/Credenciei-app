@@ -30,7 +30,9 @@
 
 import { hmac } from '@noble/hashes/hmac'
 import { sha256 } from '@noble/hashes/sha2'
-import type { FaseDoDia } from './janelas.js'
+// `Veredito` vem de janelas: um veredito é a mesma coisa em todo o domínio, e
+// declarar de novo aqui criaria dois tipos idênticos disputando o mesmo nome.
+import type { FaseDoDia, Veredito } from './janelas.js'
 
 /*
  * Versão do formato:
@@ -172,8 +174,6 @@ export const NOME_DA_FASE: Record<FaseDoDia, string> = {
   evento: 'dia do evento',
   desmontagem: 'desmontagem',
 }
-
-export type Veredito = { ok: true } | { ok: false; erro: string }
 
 /**
  * A etapa do QR serve para a etapa de hoje?

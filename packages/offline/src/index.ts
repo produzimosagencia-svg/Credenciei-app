@@ -6,7 +6,8 @@
  * mesma fila no celular (SQLite) e no navegador (localStorage).
  */
 export { FilaDeBatidas, recuoDaTentativa } from './fila.js'
+export type { OpcoesDaFila } from './fila.js'
 export type {
-  Armazem, BatidaPendente, EstadoBatida, OpcoesDaFila,
+  Armazem, BatidaPendente, EstadoBatida,
   Relogio, ResultadoEnvio, TipoBatida, Transporte,
 } from './tipos.js'

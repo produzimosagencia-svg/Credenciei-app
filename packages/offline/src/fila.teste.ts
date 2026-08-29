@@ -26,7 +26,9 @@ function relogioFalso(inicio = Date.parse('2026-08-29T14:00:00-03:00')) {
 }
 
 /** Um servidor de mentira, programável cenário a cenário. */
-function servidorFalso(respostas: ResultadoEnvio[] | ((b: BatidaPendente) => ResultadoEnvio)) {
+type Resposta = ResultadoEnvio | Promise<ResultadoEnvio>
+
+function servidorFalso(respostas: ResultadoEnvio[] | ((b: BatidaPendente) => Resposta)) {
   const recebidas: BatidaPendente[] = []
   let i = 0
   return {

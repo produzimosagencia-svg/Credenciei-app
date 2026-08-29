@@ -398,10 +398,11 @@ export function liberacaoDoQR(
   const futuras = validas
     .map(([inicio]) => new Date(inicio).getTime() - folga)
     .filter(x => x > t)
-    .sort((a, b) => a - b)
 
+  // `Math.min` em vez de ordenar e pegar o primeiro: dispensa o índice, que o
+  // TypeScript não consegue provar seguro nem depois de conferir o tamanho.
   return futuras.length
-    ? { liberado: false, liberaEm: new Date(futuras[0]).toISOString() }
+    ? { liberado: false, liberaEm: new Date(Math.min(...futuras)).toISOString() }
     : { liberado: false, liberaEm: null } // o dia já passou
 }
 
