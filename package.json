@@ -1,0 +1,8 @@
+{
+  "name": "credenciei-plataforma",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "teste": "npm run teste --workspaces --if-present"
+  }
+}
