@@ -1,0 +1,22 @@
+{
+  "name": "@credenciei/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/servidor.ts",
+    "teste": "tsx --test src/**/*.teste.ts"
+  },
+  "dependencies": {
+    "@credenciei/contrato": "*",
+    "@credenciei/dominio": "*",
+    "@supabase/supabase-js": "^2.45.0",
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
