@@ -1,6 +1,6 @@
 # Backlog
 
-**252 tasks · 139 no MVP · 48 concluídas (19%)**
+**252 tasks · 139 no MVP · 61 concluídas (24%)**
 
 O percentual reportado ao Juan sai daqui. Nunca estimar: contar.
 
@@ -15,18 +15,18 @@ Atualizado em 30/08/2026.
 | 1 | Modelo de dados | 3 | 16 | ✓ | SQL escrito, nada executado |
 | 2 | Fundação | 5 | 12 | ✓ | Workspace e domínio prontos |
 | 3 | API v1 | 18 | 32 | ✓ | Lógica completa; falta foto e rotas de admin |
-| 4 | Conta do colaborador | 7 | 18 | ✓ | Login e código de evento prontos |
-| 5 | App base | 0 | 14 | ✓ | Não começou |
-| 6 | QR | 4 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
+| 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
+| 5 | App base | 10 | 14 | ✓ | Roda no navegador e no celular |
+| 6 | QR | 4 | 15 | ✓ | Falta a TELA, Ed25519, código giratório, captura |
 | 7 | Offline | 10 | 19 | ✓ | Fila pronta; falta foto e integração com o app |
-| 8 | Ponto no app | 0 | 13 | ✓ | Depende do app base |
+| 8 | Ponto no app | 0 | 13 | ✓ | Destravado: o app base existe |
 | 9 | Histórico | 1 | 11 | — | A API já devolve; falta a tela |
 | 10 | Supervisor | 1 | 15 | — | Painel na API; falta a tela |
 | 11 | Push | 0 | 12 | — | Depende da conta Apple |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
-| 15 | Testes | 5 | 14 | — | 151 testes rodando |
+| 15 | Testes | 6 | 14 | — | 186 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 
 ---
@@ -62,6 +62,20 @@ Atualizado em 30/08/2026.
 - Login por WhatsApp, com código de uso único
 - Formulário do evento com campos configuráveis
 - Guarda de "já está neste evento"
+- Tela de entrar, em dois passos (número e código)
+- Tela de entrar no evento, montando o formulário que o evento mandou
+
+**Epic 5 — App base**
+- Projeto Expo (SDK 57) dentro do workspace
+- Metro ensinado a ler os pacotes compartilhados, que são TypeScript
+- Navegação por arquivos, com uma pasta inteira protegida por sessão
+- Tema: cor, espaço, tipografia e alvo mínimo de toque, pensados para sol e pressa
+- Componentes base: botão, campo, escolha, cartão, aviso, selo, carregando
+- Cofre do aparelho — chaveiro do sistema no celular, armazenamento do site na web
+- Sessão que sobrevive a fechar o app
+- Renovação automática, com giro do token e uma renovação por vez
+- "Sem rede" e "sem sessão" tratados como coisas diferentes, e ditos na tela
+- Carregando, erro e "tentar de novo" resolvidos num lugar só
 
 **Epic 6 — QR**
 - Formato por etapa (`c3`), com `c2` aceito na transição
@@ -81,16 +95,22 @@ Atualizado em 30/08/2026.
 - Limite de tentativas no código de evento e no login
 - Rotação do token de renovação
 
+**Epic 15 — Testes**
+- 31 testes do app, sem emulador e sem rede
+
 ---
 
 ## Próximas, pela ordem
 
-1. **App Expo — telas do colaborador** (Epic 5). Roda contra o `ClienteFalso`,
-   que já existe. Não depende de mais nada.
+1. **A credencial na tela** (Epic 6 + 8). O QR do dia e os três botões de bater
+   ponto, ligados à fila offline que já existe. É o que o app existe para fazer,
+   e é a última peça grande que não depende de ninguém de fora.
 2. **Upload de foto** (Epic 3 + 7). Compressão, guarda offline, envio direto
    ao storage sem passar pela API — é o caminho que não aguenta pico.
-3. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.
-4. **Rodar as migrações** (Epic 1). Precisa do banco de homologação.
+3. **Cliente HTTP de verdade** (Epic 3). Hoje o app fala com o `ClienteFalso`;
+   trocar é um arquivo só, mas o cliente ainda não existe.
+4. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.
+5. **Rodar as migrações** (Epic 1). Precisa do banco de homologação.
 
 ---
 

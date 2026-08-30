@@ -40,12 +40,18 @@ uma regra só.
 ```
 packages/dominio     a regra de negócio, pura — 34 testes
 packages/offline     a fila de batidas sem internet — 22 testes
-packages/contrato    o que o app pode pedir + servidor falso — 24 testes
+packages/contrato    o que o app pode pedir + servidor falso — 28 testes
 apps/api             a API HTTP completa — 71 testes
+apps/app             o aplicativo, em React Native + Expo — 31 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**151 testes.** `npm run teste --workspaces` roda todos, sem banco e sem rede.
+**186 testes.** `npm run teste --workspaces` roda todos, sem banco e sem rede.
+
+Para VER o app: `npm run web --workspace=@credenciei/app` abre no navegador, sem
+instalar nada. No celular, `npm run start --workspace=@credenciei/app` gera um QR
+para o aplicativo **Expo Go** (grátis, na loja). O app fala hoje com o servidor
+falso, e ele se anuncia como demonstração na própria tela.
 
 O commit mais importante é o primeiro: a assinatura do QR do pacote novo
 **bate byte a byte** com a que o sistema web produz hoje. Se divergisse, toda
@@ -115,6 +121,11 @@ jeito de varrer ids e descobrir quais existem.
 três horas depois entraria no relatório com hora errada, contra a pessoa, no
 dado que serve para pagar. Relógio suspeito é MARCADO, nunca barrado — barrar
 puniria quem está com o fuso errado e deixaria a pessoa sem registro.
+
+**Recusa apaga a sessão; falta de rede, não.** Para entrar de novo a pessoa
+precisa de um código no WhatsApp — ou seja, da internet que ela não tem.
+Deslogar por falha de transporte a tranca para fora do próprio crachá, no
+portão, sem saída. Ver `docs/decisoes/006`.
 
 **Idempotência antes das regras.** A pessoa bateu às 20:00, dentro da janela; a
 resposta se perdeu; o celular reenvia às 23:58, depois de a janela fechar. Se a
