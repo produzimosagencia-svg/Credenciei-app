@@ -268,3 +268,56 @@ test('o painel da equipe aponta a pendência atual', async () => {
   assert.equal(depois.presentes, 1)
   assert.equal(depois.pessoas[0]!.pendencia, 'meio')
 })
+
+// ─── Renovação ──────────────────────────────────────────────────────────────
+
+test('renovar devolve uma sessão inteira, e não um remendo', async () => {
+  const c = await logado()
+  const { sessao } = await c.renovar('renovacao-de-mentira')
+
+  assert.ok(sessao, 'a renovação com o token certo tinha que passar')
+  assert.ok(sessao.token, 'sem token a sessão não serve para nada')
+  assert.ok(sessao.renovacao)
+  assert.equal(sessao.papel, 'colaborador')
+})
+
+test('o token de renovação gira: o de antes para de valer', async () => {
+  /*
+   * É a mesma regra da API real. Está aqui para o app ser obrigado a guardar o
+   * token NOVO — se ele guardar o antigo, a segunda renovação falha e a pessoa
+   * cai para fora sozinha, provavelmente no meio do evento.
+   */
+  const c = await logado()
+  const primeira = await c.renovar('renovacao-de-mentira')
+  assert.ok(primeira.sessao)
+
+  const repetida = await c.renovar('renovacao-de-mentira')
+  assert.equal(repetida.sessao, undefined)
+  assert.ok(repetida.erro)
+
+  const comONovo = await c.renovar(primeira.sessao.renovacao)
+  assert.ok(comONovo.sessao, 'o token devolvido na renovação anterior tem que valer')
+})
+
+test('o app reabre com a sessão que estava guardada no aparelho', async () => {
+  const antes = await logado()
+  const guardada = (await antes.renovar('renovacao-de-mentira')).sessao!
+
+  // Outro processo: é o app sendo aberto de novo, depois de fechado.
+  const depois = new ClienteFalso({ sessaoInicial: guardada })
+  const eu = await depois.eu()
+  assert.equal(eu.pessoaId, 'p-1')
+
+  const renovada = await depois.renovar(guardada.renovacao)
+  assert.ok(renovada.sessao, 'a renovação guardada tem que continuar valendo')
+})
+
+test('renovação recusada é decisão, não falha de rede', async () => {
+  const c = new ClienteFalso()
+  const r = await c.renovar('token-inventado')
+
+  // Resposta com erro, e não exceção: quem chama precisa saber que insistir
+  // não adianta — é para pedir o login de novo, não para tentar mais tarde.
+  assert.equal(r.sessao, undefined)
+  assert.ok(r.erro)
+})

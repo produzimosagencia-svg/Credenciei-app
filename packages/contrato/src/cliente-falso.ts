@@ -40,6 +40,14 @@ export type ComportamentoFalso = {
   falhaDeRede?: number
   /** Relógio injetável — sem ele não dá para testar horário sem esperar. */
   agora?: () => number
+  /**
+   * A sessão que o aparelho já tinha guardada, de uma abertura anterior.
+   *
+   * O falso guarda a sessão na memória; um app de verdade guarda no aparelho e
+   * continua de onde parou. Sem isto, fechar e reabrir o app pediria login de
+   * novo — e o app seria escrito acreditando que isso é normal.
+   */
+  sessaoInicial?: Sessao
 }
 
 const EVENTO = {
@@ -79,11 +87,26 @@ export class ClienteFalso implements ClienteApi {
   /** Os ids já recebidos — é isto que faz a idempotência ser real. */
   private idsRecebidos = new Set<string>()
   private codigoPedido: string | null = null
+  /**
+   * Só ESTE token de renovação vale. Ele MUDA a cada renovação — o de antes
+   * para de funcionar na hora.
+   *
+   * O falso gira porque o servidor de verdade gira (há teste na API sobre
+   * isso). Um falso que aceitasse sempre o mesmo deixaria o app ser escrito
+   * sem guardar o token novo, e a pessoa cairia para fora na segunda renovação
+   * — no evento, não aqui.
+   */
+  private renovacaoValida = 'renovacao-de-mentira'
+  private renovacoesFeitas = 0
 
   constructor(c: ComportamentoFalso = {}) {
     this.atrasoMs = c.atrasoMs ?? 0
     this.falhaDeRede = c.falhaDeRede ?? 0
     this.agora = c.agora ?? (() => Date.now())
+    if (c.sessaoInicial) {
+      this.sessao = c.sessaoInicial
+      this.renovacaoValida = c.sessaoInicial.renovacao
+    }
   }
 
   /** Toda chamada passa por aqui: é onde a rede ruim é simulada. */
@@ -112,10 +135,12 @@ export class ClienteFalso implements ClienteApi {
     if (codigo.replace(/\D/g, '') !== this.codigoPedido) {
       return { erro: 'Código incorreto. Confira a mensagem que chegou no WhatsApp.' }
     }
+    this.renovacaoValida = 'renovacao-de-mentira'
+    this.renovacoesFeitas = 0
     this.sessao = {
       token: 'token-de-mentira',
       expiraEm: new Date(this.agora() + 3600e3).toISOString(),
-      renovacao: 'renovacao-de-mentira',
+      renovacao: this.renovacaoValida,
       papel: 'colaborador',
     }
     void telefone
@@ -124,8 +149,19 @@ export class ClienteFalso implements ClienteApi {
 
   async renovar(renovacao: string) {
     await this.rede()
-    if (renovacao !== 'renovacao-de-mentira') return { erro: 'Sessão expirada. Entre de novo.' }
-    this.sessao = { ...this.sessao!, expiraEm: new Date(this.agora() + 3600e3).toISOString() }
+    if (renovacao !== this.renovacaoValida) return { erro: 'Sessão expirada. Entre de novo.' }
+
+    // A sessão é montada inteira, e não remendada sobre a que existia: quando o
+    // app reabre depois de fechado, não existe sessão anterior aqui dentro — e
+    // um objeto pela metade viraria um token `undefined` viajando nas chamadas.
+    this.renovacoesFeitas += 1
+    this.renovacaoValida = `renovacao-de-mentira-${this.renovacoesFeitas}`
+    this.sessao = {
+      token: 'token-de-mentira',
+      expiraEm: new Date(this.agora() + 3600e3).toISOString(),
+      renovacao: this.renovacaoValida,
+      papel: this.sessao?.papel ?? 'colaborador',
+    }
     return { sessao: this.sessao }
   }
 
