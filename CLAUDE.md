@@ -1,0 +1,162 @@
+# Credenciei — plataforma (app + API)
+
+> Este arquivo é lido automaticamente por qualquer sessão aberta nesta pasta.
+> Ele existe porque o contexto NÃO passa de uma conversa para outra: tudo que
+> foi decidido precisa estar escrito aqui, não na cabeça de quem estava junto.
+
+O dono do projeto é o **Juan** (agência Produzimos, Vitória/ES). Ele nunca
+desenvolveu um aplicativo antes e pediu explicitamente para ser orientado a
+cada decisão — não só receber código pronto. Explique o que é, por que
+precisa, quanto custa, qual a alternativa e o que você recomenda.
+
+---
+
+## 🚫 A regra que não se quebra
+
+**NÃO TOQUE em `c:\Dev\credenciei`.**
+
+É o sistema em produção, com eventos reais acontecendo. O Juan foi enfático
+mais de uma vez. Arquivos vêm por **cópia**, nunca por movimentação, e
+qualquer alteração lá exige autorização explícita dele, pedida na hora.
+
+Isso vale inclusive quando parecer óbvio ou pequeno.
+
+---
+
+## Os dois sistemas
+
+| Como ele fala | O que é | Onde |
+|---|---|---|
+| **credenciei-web** | O sistema atual, em produção | `c:\Dev\credenciei` |
+| **credenciei-app** | O que estamos construindo | `c:\Dev\credenciei-app` (aqui) |
+
+Os dois usam **o mesmo banco Supabase**. Isso é decisão dele: uma base só,
+uma regra só.
+
+---
+
+## O que já está construído
+
+```
+packages/dominio     a regra de negócio, pura — 34 testes
+packages/offline     a fila de batidas sem internet — 22 testes
+packages/contrato    o que o app pode pedir + servidor falso — 24 testes
+apps/api             a API HTTP completa — 71 testes
+db/migracoes         três migrações escritas, NENHUMA executada
+```
+
+**151 testes.** `npm run teste --workspaces` roda todos, sem banco e sem rede.
+
+O commit mais importante é o primeiro: a assinatura do QR do pacote novo
+**bate byte a byte** com a que o sistema web produz hoje. Se divergisse, toda
+credencial em circulação seria recusada no portão. Há um teste que compara com
+o `node:crypto` real — não com um valor escrito à mão.
+
+---
+
+## Decisões travadas pelo Juan
+
+| Decisão | Escolha | Por quê |
+|---|---|---|
+| Onde vive a API | **Repositório separado**, mesmo banco | Produção fora de risco durante o desenvolvimento |
+| App do colaborador | **Sim**, conta permanente | Ele decidiu contra a minha recomendação. O código de evento resolve boa parte do risco de adoção |
+| Stack mobile | **React Native + Expo** | A regra existe uma vez só, em TypeScript |
+| Login do colaborador | **WhatsApp** | SMS custaria R$ 2–4 mil para 20 mil contas; e-mail muita gente não abre |
+| Foto do meio | **Apagar em 90 dias** | A batida fica para sempre; só a imagem sai |
+| Escala alvo | **20.000 colaboradores** | Muda o modelo de dados, não só a infraestrutura |
+| Conta Apple / Supabase Pro | **Adiados** | "Vamos desenvolvendo o código primeiro" |
+| Repositório remoto | **Não criar** | Os commits ficam só nesta máquina, por escolha dele |
+
+As decisões arquiteturais estão em `docs/decisoes/` — uma por arquivo, com o
+motivo e a alternativa descartada.
+
+---
+
+## O achado que define o projeto
+
+**A pessoa não existe no banco.** `funcionarios` guarda uma pessoa DENTRO de
+um setor DE um evento:
+
+```
+Juan Muzy · CPF 154.321.447-94
+  linha 1   Fantástico Mundo do Lukão / Bar    qr_token A   histórico A
+  linha 2   Manos da Vila / Produção           qr_token B   histórico B
+```
+
+Nenhuma linha diz "Juan Muzy, a pessoa". Conta permanente exige separar
+`pessoas` (permanente) de `participacoes` (do evento). A coluna
+`funcionarios.pessoa_id` **já existe, vazia e sem tabela do outro lado** —
+alguém começou isto antes e parou.
+
+`apps/api/src/dados/supabase.ts` traduz entre os dois modelos e é o único
+arquivo que conhece o schema antigo. Quando o banco migrar, a tradução some
+dali e nenhum endpoint muda.
+
+---
+
+## Princípios que o código segue
+
+Não são preferências — cada um veio de algo que deu errado de verdade.
+
+**Recusa é diferente de falha de rede.** O servidor DIZER NÃO (fora da janela,
+cadastro inativo) é decisão: a fila descarta e explica. O servidor NÃO
+RESPONDER é transporte: a fila guarda e tenta de novo. Confundir os dois faz o
+aparelho insistir para sempre em algo que nunca vai passar, ou jogar fora uma
+batida que a pessoa fez.
+
+**Nenhuma rota aceita id de pessoa vindo de fora.** O token resolve em
+`pessoaId` e é ele que as rotas recebem. Fecha o IDOR por construção, não por
+disciplina.
+
+**"Não encontrado" e "não é seu" respondem igual.** Diferenciar entrega um
+jeito de varrer ids e descobrir quais existem.
+
+**O horário que vale é o do aparelho**, não o da chegada. Uma batida que sobe
+três horas depois entraria no relatório com hora errada, contra a pessoa, no
+dado que serve para pagar. Relógio suspeito é MARCADO, nunca barrado — barrar
+puniria quem está com o fuso errado e deixaria a pessoa sem registro.
+
+**Idempotência antes das regras.** A pessoa bateu às 20:00, dentro da janela; a
+resposta se perdeu; o celular reenvia às 23:58, depois de a janela fechar. Se a
+idempotência viesse depois, ela seria recusada — bateu no horário e perderia o
+registro por causa da rede dela.
+
+**Comentário explica o PORQUÊ**, não o quê. Metade das regras deste sistema
+nasceu de um erro em evento real; sem o motivo escrito, alguém "simplifica" e
+o erro volta.
+
+---
+
+## Limitações conhecidas, obrigatórias antes de produção
+
+- **Sessões e limite de tentativas vivem na memória do processo.** Reiniciar
+  desconecta todo mundo; com várias instâncias cada uma conta separado. As
+  interfaces já estão certas — trocar por tabela é substituir a implementação.
+- **A conta fica amarrada ao número de WhatsApp.** Quem troca de número perde o
+  acesso e o histórico. Falta um caminho de recuperação.
+- **Se a conta de WhatsApp for restringida** (já aconteceu neste projeto), o
+  login para junto com os avisos. Ponto único de falha.
+- **`created_at` guarda o horário da batida** e não há coluna separada para o
+  de recebimento — a divergência de relógio só fica detectável depois da
+  migração 003.
+
+---
+
+## Como acompanhar
+
+O Juan pede status assim: *"como estamos?"*. Responda com **percentual real do
+backlog** (252 tasks, 139 no MVP) — nunca invente número. O que está feito por
+epic está em `docs/backlog.md`.
+
+Ao terminar um dia de trabalho, ele espera um resumo: feito, alterado, testado,
+problemas, pendências, próximo passo.
+
+---
+
+## Onde está o resto
+
+```
+docs/contexto.md      a história completa: como chegamos aqui
+docs/decisoes/        uma decisão por arquivo, com o motivo
+db/migracoes/         SQL escrito, não executado — leia o cabeçalho antes
+```
