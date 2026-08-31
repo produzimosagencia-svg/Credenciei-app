@@ -1,15 +1,25 @@
-// A porta do app: entrar com o número de WhatsApp.
+// A porta do app.
 //
-// ─── POR QUE WHATSAPP, E NÃO SENHA ──────────────────────────────────────────
+// ─── ESTA TELA É A DO SISTEMA WEB ───────────────────────────────────────────
 //
-// Senha exigiria a pessoa lembrar de uma senha usada três vezes por ano. SMS
-// custaria entre R$ 2 mil e R$ 4 mil para vinte mil contas. E-mail muita gente
-// simplesmente não abre. O WhatsApp é o único canal que todo mundo tem aberto —
-// e o sistema atual já manda por lá.
+// Fundo quase-preto arroxeado (#0a0918), a marca em roxo com o QR, "Entrar" em
+// branco e grande, campo claro sem borda, botão roxo. É a cópia da tela de
+// `c:\Dev\credenciei\app\login\page.tsx` — quem já usa o painel reconhece.
 //
-// A decisão está escrita em `docs/decisoes/002-login-por-whatsapp.md`, com o
-// risco que ela carrega: se a conta de WhatsApp for restringida, o login para
-// junto.
+// ─── O QUE MUDA, E POR QUÊ ──────────────────────────────────────────────────
+//
+// No site, entra-se com CPF e senha. Aqui, com o número de WhatsApp e um código
+// de seis dígitos. A razão é o COLABORADOR: são vinte mil pessoas contratadas
+// por um dia, que não vão criar nem lembrar de senha. SMS custaria de R$ 2 a
+// R$ 4 mil por lote; e-mail muita gente não abre. WhatsApp todo mundo tem
+// aberto, e o sistema já manda por lá.
+//
+// A decisão está em `docs/decisoes/002-login-por-whatsapp.md`, com o risco que
+// carrega: se a conta de WhatsApp for restringida, o login para junto.
+//
+// FALTA DECIDIR: se quem tem conta de painel (admin, supervisor) entra aqui por
+// CPF e senha, como no site, ou também por WhatsApp. Hoje só o caminho do
+// WhatsApp existe.
 
 import { useState } from 'react'
 import { Redirect } from 'expo-router'
@@ -18,10 +28,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { mensagemDoErro } from '../src/dados/pedido'
 import { DEMONSTRACAO } from '../src/dados/cliente'
 import { useSessao } from '../src/sessao/contexto'
-import {
-  Aviso, Botao, Campo, Corpo, Legenda, Respiro, Tela,
-} from '../src/ui/componentes'
-import { cor, espaco, fonte } from '../src/ui/tema'
+import { Marca } from '../src/ui/marca'
+import { Botao, Campo, CodigoSegmentado } from '../src/ui/componentes'
+import { cor, espaco, raio, texto, tipo } from '../src/ui/tema'
 import { mascararTelefone, telefoneParaEnvio, telefoneValido } from '../src/telefone'
 
 type Etapa = 'telefone' | 'codigo'
@@ -76,23 +85,26 @@ export default function Entrar() {
   }
 
   return (
-    <View style={e.fora}>
-      <View style={[e.topo, { paddingTop: insets.top + espaco.gg }]}>
-        <Text style={e.marca}>Credenciei</Text>
-        <Text style={e.chamada}>Sua credencial e seu ponto, no celular.</Text>
-      </View>
+    <View style={[e.fora, { paddingTop: insets.top + espaco.ggg, paddingBottom: insets.bottom + espaco.gg }]}>
+      <View style={e.miolo}>
+        <View style={e.identidade}>
+          <Marca tamanho={36} />
+          <Text style={e.nomeDaMarca}>Credenciei</Text>
+        </View>
 
-      <Tela>
-        {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
+        <Text style={e.titulo}>Entrar</Text>
+        <Text style={e.chamada}>
+          {etapa === 'telefone'
+            ? 'Sua credencial e seu ponto, no celular'
+            : `Código enviado para ${telefone}`}
+        </Text>
+
+        {erro ? <Text style={e.erro}>{erro}</Text> : null}
 
         {etapa === 'telefone' ? (
           <>
-            <Corpo>
-              Digite o número de WhatsApp que você usa. Vamos mandar um código
-              de seis dígitos por lá.
-            </Corpo>
-            <Respiro />
             <Campo
+              escuro
               rotulo="Seu WhatsApp"
               value={telefone}
               onChangeText={t => setTelefone(mascararTelefone(t))}
@@ -100,7 +112,6 @@ export default function Entrar() {
               keyboardType="phone-pad"
               autoComplete="tel"
               textContentType="telephoneNumber"
-              ajuda="Com DDD. Se colar com +55, a gente entende."
               maxLength={15}
             />
             <Botao
@@ -112,68 +123,75 @@ export default function Entrar() {
           </>
         ) : (
           <>
-            <Corpo>
-              Mandamos um código para <Corpo forte>{telefone}</Corpo>. Ele chega
-              como mensagem no WhatsApp.
-            </Corpo>
-            <Respiro />
-            <Campo
-              rotulo="Código de seis dígitos"
-              value={codigo}
-              onChangeText={t => setCodigo(t.replace(/\D/g, '').slice(0, 6))}
-              placeholder="000000"
-              keyboardType="number-pad"
-              autoComplete="one-time-code"
-              textContentType="oneTimeCode"
-              autoFocus
-              maxLength={6}
-              style={e.codigo}
-            />
+            <CodigoSegmentado valor={codigo} aoMudar={setCodigo} autoFoco />
             <Botao
               titulo="Entrar"
               onPress={confirmar}
               ocupado={ocupado}
               desabilitado={codigo.length !== 6}
             />
-            <Respiro altura={espaco.s} />
-            <Botao titulo="Não chegou? Pedir de novo" onPress={pedirCodigo} tipo="texto" desabilitado={ocupado} />
-            <Botao
-              titulo="Usar outro número"
-              onPress={() => { setEtapa('telefone'); setErro(null) }}
-              tipo="texto"
-              desabilitado={ocupado}
-            />
+            <View style={e.alternativas}>
+              <Botao titulo="Não chegou? Pedir de novo" onPress={pedirCodigo} tipo="fantasma" desabilitado={ocupado} />
+              <Botao
+                titulo="Usar outro número"
+                onPress={() => { setEtapa('telefone'); setErro(null) }}
+                tipo="fantasma"
+                desabilitado={ocupado}
+              />
+            </View>
           </>
         )}
 
         {DEMONSTRACAO ? (
-          <>
-            <Respiro altura={espaco.gg} />
-            <Aviso tipo="atencao">
-              Modo demonstração: nada é gravado de verdade. Qualquer número com
-              DDD funciona, e o código é sempre 123456.
-            </Aviso>
-          </>
+          <Text style={e.demonstracao}>
+            Servidor de demonstração — nada é gravado. Qualquer número com DDD
+            entra, e o código é 123456.
+          </Text>
         ) : null}
+      </View>
 
-        <Respiro altura={espaco.gg} />
-        <Legenda>
-          Ao entrar, você concorda que seus registros de ponto fiquem guardados
-          para o cálculo do pagamento.
-        </Legenda>
-      </Tela>
+      <Text style={e.rodape}>Credenciei © {new Date().getFullYear()} — Produzimos</Text>
     </View>
   )
 }
 
 const e = StyleSheet.create({
-  fora: { flex: 1, backgroundColor: cor.fundo },
-  topo: {
-    backgroundColor: cor.marca,
-    paddingHorizontal: espaco.g,
-    paddingBottom: espaco.gg,
+  fora: {
+    flex: 1,
+    backgroundColor: cor.fundoEscuro,
+    paddingHorizontal: espaco.gg,
+    justifyContent: 'space-between',
   },
-  marca: { color: cor.sobreEscuro, fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
-  chamada: { color: '#C9D6E8', fontSize: fonte.destaque, marginTop: espaco.xs },
-  codigo: { fontSize: 28, letterSpacing: 8, textAlign: 'center', fontWeight: '700' },
+  miolo: { flex: 1 },
+
+  identidade: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, marginBottom: espaco.gggg },
+  nomeDaMarca: { fontFamily: tipo.forte, fontSize: 18, letterSpacing: -0.4, color: '#ffffff' },
+
+  titulo: { fontFamily: tipo.forte, fontSize: 30, lineHeight: 36, letterSpacing: -0.7, color: '#ffffff' },
+  chamada: { ...texto.base, color: cor.neutro400, marginTop: 6, marginBottom: espaco.ggg },
+
+  /* O erro do site: texto claro sobre vermelho translúcido, com fio da cor. */
+  erro: {
+    ...texto.corpo,
+    color: '#fca5a5',
+    backgroundColor: 'rgba(220,38,38,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(220,38,38,0.30)',
+    borderRadius: raio.folha,
+    paddingHorizontal: espaco.g,
+    paddingVertical: 10,
+    marginBottom: espaco.g,
+  },
+
+  alternativas: { marginTop: espaco.s, gap: espaco.xs },
+
+  demonstracao: {
+    ...texto.xs,
+    fontFamily: tipo.regular,
+    color: cor.neutro500,
+    marginTop: espaco.gg,
+    lineHeight: 18,
+  },
+
+  rodape: { ...texto.xs, fontFamily: tipo.regular, color: cor.neutro500, textAlign: 'center' },
 })

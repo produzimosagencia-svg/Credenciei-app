@@ -3,9 +3,13 @@
   "compilerOptions": {
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    /*
+     * `types` explícito porque o app tem DOIS mundos no mesmo projeto: as telas,
+     * que rodam no celular, e os testes de `src/`, que rodam no Node com
+     * `tsx --test`. Sem listar `node` aqui, o compilador não reconhece
+     * `node:test` e todo arquivo de teste vira erro.
+     */
+    "types": ["node", "react"]
   },
   "include": [
     "**/*.ts",

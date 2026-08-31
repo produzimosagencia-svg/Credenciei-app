@@ -20,9 +20,10 @@ import { camposFaltando, fraseDoQueFalta, mascararData } from '../../src/campos'
 import { mensagemDoErro } from '../../src/dados/pedido'
 import { useSessao } from '../../src/sessao/contexto'
 import {
-  Aviso, Botao, Campo, Cartao, Corpo, Escolha, Legenda, Respiro, Tela, Titulo,
+  Aviso, Botao, Campo, Cartao, Corpo, Escolha, Legenda, Respiro, Tela,
+  TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
-import { cor, espaco, fonte } from '../../src/ui/tema'
+import { cor, espaco, texto, tipo } from '../../src/ui/tema'
 
 /**
  * Quantos caracteres o código tem sem os traços: sigla (3) + ano (4) + sorteio
@@ -104,6 +105,9 @@ export default function NovoEvento() {
 
   return (
     <Tela>
+      <TituloDaTela>Entrar num evento</TituloDaTela>
+      <Respiro />
+
       {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
 
       {!convite ? (
@@ -137,7 +141,7 @@ export default function NovoEvento() {
           <Cartao>
             <Legenda>{convite.organizacaoNome}</Legenda>
             <Respiro altura={espaco.xs} />
-            <Titulo>{convite.eventoNome}</Titulo>
+            <TituloDeCartao>{convite.eventoNome}</TituloDeCartao>
             <Respiro altura={espaco.s} />
             <Corpo>
               {formatarBR(convite.dataInicio, 'data')}
@@ -146,7 +150,7 @@ export default function NovoEvento() {
           </Cartao>
 
           {convite.exigeAprovacao ? (
-            <Aviso tipo="atencao">
+            <Aviso tipo="aviso">
               Este evento confere as inscrições antes de liberar. Você entra na
               lista agora e recebe um aviso no WhatsApp quando for aprovado.
             </Aviso>
@@ -175,7 +179,7 @@ export default function NovoEvento() {
           <Botao
             titulo="Não é este evento"
             onPress={() => { setConvite(null); setErro(null) }}
-            tipo="texto"
+            tipo="fantasma"
             desabilitado={ocupado}
           />
         </>
@@ -233,11 +237,11 @@ function CampoDoEvento({
 
 const e = StyleSheet.create({
   codigo: {
-    fontSize: fonte.titulo,
+    ...texto.tituloTela,
+    fontFamily: tipo.forte,
     letterSpacing: 2,
     textAlign: 'center',
-    fontWeight: '700',
-    color: cor.marca,
+    color: cor.acento700,
   },
   grupo: { marginBottom: espaco.g },
 })

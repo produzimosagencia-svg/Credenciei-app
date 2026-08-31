@@ -7,7 +7,7 @@
 
 import { Redirect, Stack } from 'expo-router'
 import { useSessao } from '../../src/sessao/contexto'
-import { cor } from '../../src/ui/tema'
+import { cor, tipo, uso } from '../../src/ui/tema'
 
 export default function Dentro() {
   const { sessao } = useSessao()
@@ -17,13 +17,17 @@ export default function Dentro() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: cor.marca },
-        headerTintColor: cor.sobreEscuro,
-        headerTitleStyle: { fontWeight: '700' },
+        // Cabeçalho branco com fio embaixo, como a barra superior do painel.
+        headerStyle: { backgroundColor: uso.superficie },
+        headerTintColor: cor.neutro800,
+        headerTitleStyle: { fontFamily: tipo.semi, fontSize: 16, color: cor.neutro800 },
+        headerShadowVisible: false,
         contentStyle: { backgroundColor: cor.fundo },
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'Meus eventos' }} />
+      {/* O título já está dentro da tela, como no painel — repetir no cabeçalho
+          diria a mesma coisa duas vezes na mesma dobra. */}
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="novo-evento" options={{ title: 'Entrar num evento' }} />
     </Stack>
   )

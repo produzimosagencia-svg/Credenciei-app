@@ -7,31 +7,90 @@
 //                 não aparece no endereço
 //
 // Quem decide para onde a pessoa vai é `(dentro)/_layout.tsx`. Aqui em cima
-// ficam só as coisas que valem para o app inteiro.
+// ficam as três coisas que valem para o app inteiro: a fonte, a coluna e a
+// sessão.
 
+import { useEffect } from 'react'
+import { Platform, StyleSheet, View } from 'react-native'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { useFonts } from 'expo-font'
+import * as SplashScreen from 'expo-splash-screen'
+import {
+  Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
+} from '@expo-google-fonts/inter'
 import { ProvedorDeSessao } from '../src/sessao/contexto'
-import { cor } from '../src/ui/tema'
+import { cor, LARGURA_MAXIMA, sombra, tipo, uso } from '../src/ui/tema'
+
+// A tela de abertura fica no ar até a fonte estar carregada. Sem isto, o app
+// aparece com a fonte do sistema e troca sozinho meio segundo depois — o
+// "pulo" que denuncia aplicativo mal acabado.
+void SplashScreen.preventAutoHideAsync()
 
 export default function Raiz() {
+  // Inter, a mesma do sistema web. É ela que faz o app parecer o mesmo produto.
+  const [fontesProntas] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  })
+
+  useEffect(() => {
+    if (fontesProntas) void SplashScreen.hideAsync()
+  }, [fontesProntas])
+
+  if (!fontesProntas) return null
+
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
-      <ProvedorDeSessao>
-        <Stack
-          screenOptions={{
-            headerStyle: { backgroundColor: cor.marca },
-            headerTintColor: cor.sobreEscuro,
-            headerTitleStyle: { fontWeight: '700' },
-            contentStyle: { backgroundColor: cor.fundo },
-          }}
-        >
-          <Stack.Screen name="entrar" options={{ headerShown: false }} />
-          <Stack.Screen name="(dentro)" options={{ headerShown: false }} />
-        </Stack>
-      </ProvedorDeSessao>
+      <Coluna>
+        <ProvedorDeSessao>
+          <Stack
+            screenOptions={{
+              headerStyle: { backgroundColor: uso.superficie },
+              headerTintColor: cor.neutro800,
+              headerTitleStyle: { fontFamily: tipo.semi, fontSize: 16, color: cor.neutro800 },
+              headerShadowVisible: false,
+              contentStyle: { backgroundColor: cor.fundo },
+            }}
+          >
+            <Stack.Screen name="entrar" options={{ headerShown: false }} />
+            <Stack.Screen name="(dentro)" options={{ headerShown: false }} />
+          </Stack>
+        </ProvedorDeSessao>
+      </Coluna>
     </SafeAreaProvider>
   )
 }
+
+/**
+ * A coluna de largura de celular.
+ *
+ * No celular isto não faz nada — a tela já é mais estreita que o limite. No
+ * navegador é o que impede o app de virar um formulário esticado de mil e
+ * quatrocentos pixels: o que estamos construindo é um aplicativo, e a janela do
+ * navegador é só uma prévia dele.
+ */
+function Coluna({ children }: { children: React.ReactNode }) {
+  if (Platform.OS !== 'web') return <>{children}</>
+
+  return (
+    <View style={e.paginaWeb}>
+      <View style={e.colunaWeb}>{children}</View>
+    </View>
+  )
+}
+
+const e = StyleSheet.create({
+  paginaWeb: { flex: 1, backgroundColor: cor.neutro300, alignItems: 'center' },
+  colunaWeb: {
+    flex: 1,
+    width: '100%',
+    maxWidth: LARGURA_MAXIMA,
+    backgroundColor: cor.fundo,
+    ...sombra.lg,
+  },
+})
