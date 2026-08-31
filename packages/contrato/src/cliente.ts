@@ -11,12 +11,25 @@
 
 import type {
   ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  FinanceiroDaParticipacao, PainelDaEquipe, RespostaDeBatida,
+  FinanceiroDaParticipacao, Painel, PainelDaEquipe, RespostaDeBatida,
   ResumoParticipacao, Sessao,
 } from './tipos.js'
 
 export interface ClienteApi {
   // ── Identidade ──────────────────────────────────────────────────────────
+  /**
+   * O caminho de quem tem conta de painel: CPF ou e-mail, mais senha.
+   *
+   * É o mesmo login do sistema web. Existe em paralelo ao do WhatsApp porque
+   * são duas populações diferentes: dezenas de pessoas com conta permanente e
+   * senha, e dezenas de MILHARES contratadas por um dia, que não vão criar nem
+   * lembrar de senha nenhuma.
+   *
+   * A resposta é sempre a mesma quando falha — "CPF ou senha incorretos" —,
+   * nunca "esse CPF não existe": diferenciar entregaria uma forma de descobrir
+   * quem tem conta no sistema.
+   */
+  entrarComSenha(identificador: string, senha: string): Promise<{ sessao?: Sessao; erro?: string }>
   /** Pede o código de acesso por WhatsApp. */
   pedirCodigo(telefone: string): Promise<{ enviado: boolean; erro?: string }>
   /** Troca o código recebido por uma sessão. */
@@ -43,6 +56,16 @@ export interface ClienteApi {
   // ── Bater ponto ─────────────────────────────────────────────────────────
   /** Lança exceção em falha de transporte; devolve `recusado` em decisão. */
   registrarBatida(envio: EnvioDeBatida): Promise<RespostaDeBatida>
+
+  // ── Painel ──────────────────────────────────────────────────────────────
+  /**
+   * A tela inicial de quem tem conta de painel.
+   *
+   * Não recebe organização nem evento: o servidor decide o recorte pelo papel
+   * de quem está pedindo. Um `painel(organizacaoId)` seria um convite a trocar
+   * o id e ver a operação de outro cliente.
+   */
+  painel(): Promise<Painel>
 
   // ── Supervisor ──────────────────────────────────────────────────────────
   painelDaEquipe(eventoId: string): Promise<PainelDaEquipe>

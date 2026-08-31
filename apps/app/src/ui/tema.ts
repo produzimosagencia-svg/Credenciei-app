@@ -110,6 +110,28 @@ export const gradiente = {
 
 export type TomDeIndicador = keyof typeof gradiente
 
+/**
+ * O cartão do evento que está acontecendo agora.
+ *
+ * Escuro e grande de propósito: é a única coisa da tela que exige ação NESTE
+ * momento, e precisa disputar atenção com quatro indicadores coloridos logo
+ * acima. Valores copiados de `.evento-vivo`.
+ */
+export const eventoAoVivo = {
+  degrade: ['#2c2456', '#1b1830', '#131120'],
+  posicoes: [0, 0.55, 1],
+  borda: '#3a3168',
+  brilho: 'rgba(139, 109, 255, 0.16)',
+  sombra: { boxShadow: '0 8px 24px rgba(28, 20, 64, 0.24)' },
+  /** Verde claro, para o rótulo "AO VIVO" ser legível sobre o roxo escuro. */
+  vivo: '#7ee2a8',
+  ponto: '#22c55e',
+  barra: ['#22c55e', '#16a34a'],
+  trilho: 'rgba(255,255,255,0.12)',
+  texto: 'rgba(255,255,255,0.60)',
+  textoFraco: 'rgba(255,255,255,0.45)',
+} as const
+
 // ─── Tipografia ─────────────────────────────────────────────────────────────
 
 /**
@@ -219,5 +241,6 @@ export const ALVO_MINIMO = 52
 export const LARGURA_MAXIMA = 460
 
 export const tema = {
-  cor, uso, gradiente, tipo, texto, espaco, raio, sombra, ALVO_MINIMO, LARGURA_MAXIMA,
+  cor, uso, gradiente, eventoAoVivo, tipo, texto, espaco, raio, sombra,
+  ALVO_MINIMO, LARGURA_MAXIMA,
 }

@@ -2,28 +2,29 @@
 //
 // ─── ESTA TELA É A DO SISTEMA WEB ───────────────────────────────────────────
 //
-// Fundo quase-preto arroxeado (#0a0918), a marca em roxo com o QR, "Entrar" em
-// branco e grande, campo claro sem borda, botão roxo. É a cópia da tela de
+// Fundo quase-preto arroxeado (#0a0918), a marca com o QR, "Entrar" em branco e
+// grande, campo claro sem borda, botão roxo. É a cópia da tela de
 // `c:\Dev\credenciei\app\login\page.tsx` — quem já usa o painel reconhece.
 //
-// ─── O QUE MUDA, E POR QUÊ ──────────────────────────────────────────────────
+// ─── POR QUE HÁ DOIS CAMINHOS ───────────────────────────────────────────────
 //
-// No site, entra-se com CPF e senha. Aqui, com o número de WhatsApp e um código
-// de seis dígitos. A razão é o COLABORADOR: são vinte mil pessoas contratadas
-// por um dia, que não vão criar nem lembrar de senha. SMS custaria de R$ 2 a
-// R$ 4 mil por lote; e-mail muita gente não abre. WhatsApp todo mundo tem
-// aberto, e o sistema já manda por lá.
+// Porque são duas populações, e nenhuma solução serve para as duas.
 //
-// A decisão está em `docs/decisoes/002-login-por-whatsapp.md`, com o risco que
-// carrega: se a conta de WhatsApp for restringida, o login para junto.
+//   conta de painel     dezenas de pessoas: master, admin, supervisor. Entram
+//                       com CPF ou e-mail e senha, como já entram no site.
 //
-// FALTA DECIDIR: se quem tem conta de painel (admin, supervisor) entra aqui por
-// CPF e senha, como no site, ou também por WhatsApp. Hoje só o caminho do
-// WhatsApp existe.
+//   colaborador         VINTE MIL pessoas contratadas para um dia. Não vão
+//                       criar nem lembrar de senha. SMS custaria de R$ 2 a
+//                       R$ 4 mil por lote e e-mail muita gente não abre —
+//                       sobra o WhatsApp, que o sistema já usa.
+//
+// A escolha fica no topo, em dois botões. A alternativa seria adivinhar pelo
+// que a pessoa digitou (parece CPF? parece telefone?), e adivinhar errado
+// mandaria alguém para o caminho errado sem explicação.
 
 import { useState } from 'react'
 import { Redirect } from 'expo-router'
-import { StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { mensagemDoErro } from '../src/dados/pedido'
 import { DEMONSTRACAO } from '../src/dados/cliente'
@@ -31,35 +32,44 @@ import { useSessao } from '../src/sessao/contexto'
 import { Marca } from '../src/ui/marca'
 import { Botao, Campo, CodigoSegmentado } from '../src/ui/componentes'
 import { cor, espaco, raio, texto, tipo } from '../src/ui/tema'
+import { formatCpfCnpj } from '@credenciei/dominio'
 import { mascararTelefone, telefoneParaEnvio, telefoneValido } from '../src/telefone'
 
+type Caminho = 'painel' | 'equipe'
 type Etapa = 'telefone' | 'codigo'
 
 export default function Entrar() {
   const { sessao, cliente, entrar } = useSessao()
   const insets = useSafeAreaInsets()
 
+  const [caminho, setCaminho] = useState<Caminho>('painel')
+  const [erro, setErro] = useState<string | null>(null)
+  const [ocupado, setOcupado] = useState(false)
+
+  const [identificador, setIdentificador] = useState('')
+  const [senha, setSenha] = useState('')
+
   const [etapa, setEtapa] = useState<Etapa>('telefone')
   const [telefone, setTelefone] = useState('')
   const [codigo, setCodigo] = useState('')
-  const [erro, setErro] = useState<string | null>(null)
-  const [ocupado, setOcupado] = useState(false)
 
   // Quem já tem sessão não vê esta tela. Declarativo, e não `router.replace`:
   // assim não existe o instante em que as duas telas disputam a navegação.
   if (sessao) return <Redirect href="/" />
 
-  async function pedirCodigo() {
+  function trocarCaminho(novo: Caminho) {
+    setCaminho(novo)
+    setErro(null)
+    setEtapa('telefone')
+  }
+
+  /** Tudo que chama o servidor passa por aqui: o erro é tratado num lugar só. */
+  async function tentar(acao: () => Promise<string | null>) {
     setErro(null)
     setOcupado(true)
     try {
-      const r = await cliente.pedirCodigo(telefoneParaEnvio(telefone))
-      if (!r.enviado) {
-        setErro(r.erro ?? 'Não conseguimos enviar o código.')
-        return
-      }
-      setCodigo('')
-      setEtapa('codigo')
+      const problema = await acao()
+      if (problema) setErro(problema)
     } catch (e) {
       setErro(mensagemDoErro(e))
     } finally {
@@ -67,25 +77,35 @@ export default function Entrar() {
     }
   }
 
-  async function confirmar() {
-    setErro(null)
-    setOcupado(true)
-    try {
-      const r = await cliente.entrar(telefoneParaEnvio(telefone), codigo)
-      if (!r.sessao) {
-        setErro(r.erro ?? 'Não conseguimos entrar.')
-        return
-      }
-      await entrar(r.sessao)
-    } catch (e) {
-      setErro(mensagemDoErro(e))
-    } finally {
-      setOcupado(false)
-    }
-  }
+  const entrarComSenha = () => tentar(async () => {
+    const r = await cliente.entrarComSenha(identificador.trim(), senha)
+    if (!r.sessao) return r.erro ?? 'Não conseguimos entrar.'
+    await entrar(r.sessao)
+    return null
+  })
+
+  const pedirCodigo = () => tentar(async () => {
+    const r = await cliente.pedirCodigo(telefoneParaEnvio(telefone))
+    if (!r.enviado) return r.erro ?? 'Não conseguimos enviar o código.'
+    setCodigo('')
+    setEtapa('codigo')
+    return null
+  })
+
+  const confirmarCodigo = () => tentar(async () => {
+    const r = await cliente.entrar(telefoneParaEnvio(telefone), codigo)
+    if (!r.sessao) return r.erro ?? 'Não conseguimos entrar.'
+    await entrar(r.sessao)
+    return null
+  })
 
   return (
-    <View style={[e.fora, { paddingTop: insets.top + espaco.ggg, paddingBottom: insets.bottom + espaco.gg }]}>
+    <View
+      style={[
+        e.fora,
+        { paddingTop: insets.top + espaco.ggg, paddingBottom: insets.bottom + espaco.g },
+      ]}
+    >
       <View style={e.miolo}>
         <View style={e.identidade}>
           <Marca tamanho={36} />
@@ -94,14 +114,48 @@ export default function Entrar() {
 
         <Text style={e.titulo}>Entrar</Text>
         <Text style={e.chamada}>
-          {etapa === 'telefone'
-            ? 'Sua credencial e seu ponto, no celular'
-            : `Código enviado para ${telefone}`}
+          {caminho === 'painel'
+            ? 'Acesse o painel do seu evento'
+            : etapa === 'telefone'
+              ? 'Sua credencial e seu ponto, no celular'
+              : `Código enviado para ${telefone}`}
         </Text>
+
+        <SeletorDeCaminho valor={caminho} aoTrocar={trocarCaminho} desabilitado={ocupado} />
 
         {erro ? <Text style={e.erro}>{erro}</Text> : null}
 
-        {etapa === 'telefone' ? (
+        {caminho === 'painel' ? (
+          <>
+            <Campo
+              escuro
+              rotulo="CPF ou e-mail"
+              value={identificador}
+              onChangeText={t => setIdentificador(t.includes('@') ? t : formatCpfCnpj(t))}
+              placeholder="000.000.000-00"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="username"
+            />
+            <Campo
+              escuro
+              rotulo="Senha"
+              value={senha}
+              onChangeText={setSenha}
+              placeholder="••••••••"
+              secureTextEntry
+              autoComplete="current-password"
+              onSubmitEditing={entrarComSenha}
+              returnKeyType="go"
+            />
+            <Botao
+              titulo="Entrar"
+              onPress={entrarComSenha}
+              ocupado={ocupado}
+              desabilitado={!identificador.trim() || !senha}
+            />
+          </>
+        ) : etapa === 'telefone' ? (
           <>
             <Campo
               escuro
@@ -126,7 +180,7 @@ export default function Entrar() {
             <CodigoSegmentado valor={codigo} aoMudar={setCodigo} autoFoco />
             <Botao
               titulo="Entrar"
-              onPress={confirmar}
+              onPress={confirmarCodigo}
               ocupado={ocupado}
               desabilitado={codigo.length !== 6}
             />
@@ -144,13 +198,55 @@ export default function Entrar() {
 
         {DEMONSTRACAO ? (
           <Text style={e.demonstracao}>
-            Servidor de demonstração — nada é gravado. Qualquer número com DDD
-            entra, e o código é 123456.
+            {caminho === 'painel'
+              ? 'Demonstração: entre com master, admin ou supervisor — a senha é 123456 nos três. O menu muda conforme o papel.'
+              : 'Demonstração: qualquer número com DDD entra, e o código é sempre 123456.'}
           </Text>
         ) : null}
       </View>
 
       <Text style={e.rodape}>Credenciei © {new Date().getFullYear()} — Produzimos</Text>
+    </View>
+  )
+}
+
+/**
+ * Os dois caminhos, lado a lado.
+ *
+ * Um seletor e não uma adivinhação: dá para tentar deduzir pelo que foi
+ * digitado — parece CPF, parece telefone —, mas errar manda a pessoa para o
+ * caminho errado sem nenhuma explicação, e ela não tem como saber que existia
+ * outro.
+ */
+function SeletorDeCaminho({
+  valor, aoTrocar, desabilitado,
+}: {
+  valor: Caminho
+  aoTrocar: (c: Caminho) => void
+  desabilitado?: boolean
+}) {
+  const opcoes: { chave: Caminho; rotulo: string }[] = [
+    { chave: 'painel', rotulo: 'Tenho conta' },
+    { chave: 'equipe', rotulo: 'Sou da equipe' },
+  ]
+
+  return (
+    <View style={e.seletor}>
+      {opcoes.map(o => {
+        const ativa = o.chave === valor
+        return (
+          <Pressable
+            key={o.chave}
+            onPress={() => aoTrocar(o.chave)}
+            disabled={desabilitado}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: ativa }}
+            style={[e.seletorItem, ativa && e.seletorItemAtivo]}
+          >
+            <Text style={[e.seletorRotulo, ativa && e.seletorRotuloAtivo]}>{o.rotulo}</Text>
+          </Pressable>
+        )
+      })}
     </View>
   )
 }
@@ -164,11 +260,30 @@ const e = StyleSheet.create({
   },
   miolo: { flex: 1 },
 
-  identidade: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, marginBottom: espaco.gggg },
+  identidade: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, marginBottom: espaco.ggg },
   nomeDaMarca: { fontFamily: tipo.forte, fontSize: 18, letterSpacing: -0.4, color: '#ffffff' },
 
   titulo: { fontFamily: tipo.forte, fontSize: 30, lineHeight: 36, letterSpacing: -0.7, color: '#ffffff' },
-  chamada: { ...texto.base, color: cor.neutro400, marginTop: 6, marginBottom: espaco.ggg },
+  chamada: { ...texto.base, color: cor.neutro400, marginTop: 6, marginBottom: espaco.gg },
+
+  seletor: {
+    flexDirection: 'row',
+    gap: espaco.xs,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: raio.peca,
+    padding: espaco.xs,
+    marginBottom: espaco.gg,
+  },
+  seletorItem: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: raio.campoPequeno,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  seletorItemAtivo: { backgroundColor: cor.acento500 },
+  seletorRotulo: { ...texto.corpoForte, color: cor.neutro400 },
+  seletorRotuloAtivo: { color: '#ffffff' },
 
   /* O erro do site: texto claro sobre vermelho translúcido, com fio da cor. */
   erro: {

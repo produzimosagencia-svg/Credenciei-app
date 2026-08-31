@@ -1,0 +1,93 @@
+// Os ícones — os mesmos do sistema web.
+//
+// O painel usa `lucide-react`; aqui é `lucide-react-native`, que é a mesma
+// biblioteca desenhando em SVG. Assim o "Escanear QR" do celular tem o mesmo
+// desenho do "Escanear QR" do computador.
+//
+// ─── POR QUE CADA ÍCONE VEM DO PRÓPRIO ARQUIVO ──────────────────────────────
+//
+// `import { Home } from 'lucide-react-native'` funciona — e traz os MIL E
+// OITOCENTOS ícones da biblioteca para dentro do pacote do app, porque o
+// empacotador do React Native não descarta o que não é usado. Medido aqui: de
+// 881 para 2.692 módulos, só por causa dessa linha.
+//
+// Importando de `lucide-react-native/icons/<nome>`, entra um arquivo por ícone.
+// O nome do arquivo é o nome CANÔNICO, em minúsculas com traço — e nem sempre é
+// o que a gente chama: `Home` virou `house`, e `MoreHorizontal` virou
+// `ellipsis`. Os apelidos antigos só existem no índice completo.
+
+import type { ColorValue } from 'react-native'
+import type { LucideIcon } from 'lucide-react-native'
+import Activity from 'lucide-react-native/icons/activity'
+import Building2 from 'lucide-react-native/icons/building-2'
+import CalendarDays from 'lucide-react-native/icons/calendar-days'
+import Check from 'lucide-react-native/icons/check'
+import ChevronRight from 'lucide-react-native/icons/chevron-right'
+import ClipboardCheck from 'lucide-react-native/icons/clipboard-check'
+import Clock from 'lucide-react-native/icons/clock'
+import Ellipsis from 'lucide-react-native/icons/ellipsis'
+import Hammer from 'lucide-react-native/icons/hammer'
+import House from 'lucide-react-native/icons/house'
+import IdCard from 'lucide-react-native/icons/id-card'
+import LogOut from 'lucide-react-native/icons/log-out'
+import MapPin from 'lucide-react-native/icons/map-pin'
+import MessageCircle from 'lucide-react-native/icons/message-circle'
+import QrCode from 'lucide-react-native/icons/qr-code'
+import Radio from 'lucide-react-native/icons/radio'
+import ScanLine from 'lucide-react-native/icons/scan-line'
+import UserCheck from 'lucide-react-native/icons/user-check'
+import UserSearch from 'lucide-react-native/icons/user-search'
+import Users from 'lucide-react-native/icons/users'
+import Wallet from 'lucide-react-native/icons/wallet'
+import { cor } from './tema'
+
+/**
+ * O inventário de ícones do app.
+ *
+ * As chaves são os nomes que o menu usa — os mesmos do `AppShell.tsx` do
+ * sistema web, para as duas listas poderem ser comparadas lado a lado.
+ */
+const ICONES: Record<string, LucideIcon> = {
+  Activity,
+  Building2,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  ClipboardCheck,
+  Clock,
+  Hammer,
+  Home: House,
+  IdCard,
+  LogOut,
+  MapPin,
+  MessageCircle,
+  MoreHorizontal: Ellipsis,
+  QrCode,
+  Radio,
+  ScanLine,
+  UserCheck,
+  UserSearch,
+  Users,
+  Wallet,
+}
+
+export function Icone({
+  nome, tamanho = 20, tom = cor.neutro500, espessura = 2,
+}: {
+  nome: string
+  tamanho?: number
+  /**
+   * `ColorValue` e não `string` porque a barra de abas entrega a cor já
+   * resolvida — pode ser um valor opaco da plataforma, e não um texto como
+   * '#6d46ff'.
+   */
+  tom?: ColorValue
+  espessura?: number
+}) {
+  // Ícone desconhecido vira um relógio em vez de derrubar a tela: um nome
+  // escrito errado no menu não pode apagar o app inteiro.
+  const Desenho = ICONES[nome] ?? Clock
+  return <Desenho size={tamanho} color={tom as string} strokeWidth={espessura} />
+}
+
+export const NOMES_DE_ICONE = Object.keys(ICONES)

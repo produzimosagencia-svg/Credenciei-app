@@ -16,7 +16,10 @@
 // perguntando pelo token, e responde sobre essa pessoa. É a diferença entre
 // "quem está pedindo pode ver isto?" e "isto existe?".
 
+import type { Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
+
+export type { Papel }
 
 // ─── Identidade ─────────────────────────────────────────────────────────────
 
@@ -29,15 +32,6 @@ export type Sessao = {
   renovacao: string
   papel: Papel
 }
-
-/**
- * Os papéis, iguais aos do sistema atual.
- *
- * `colaborador` é novo: hoje essa pessoa não tem login nenhum, ela acessa por
- * um link com o token da credencial dentro. Com conta permanente, passa a ser
- * um papel de verdade — e o mais restrito de todos.
- */
-export type Papel = 'master' | 'admin' | 'supervisor' | 'colaborador'
 
 export type Eu = {
   pessoaId: string
@@ -168,4 +162,65 @@ export type PainelDaEquipe = {
   total: number
   presentes: number
   pessoas: PessoaNaEquipe[]
+}
+
+// ─── O painel ───────────────────────────────────────────────────────────────
+//
+// É a tela inicial de quem tem conta de painel — a mesma do sistema web, em
+// formato de app. O RECORTE dos números vem do servidor, nunca da tela: o
+// master soma todas as organizações, o admin só a dele, o supervisor só o
+// próprio setor. Se a tela filtrasse, bastaria adulterar o pedido para ver o
+// que não é seu.
+
+/**
+ * Um número do topo do painel.
+ *
+ * O `tom` vem do SIGNIFICADO do número — o que precisa de atenção é laranja, o
+ * que está bem é verde, o que só conta coisa é azul — nunca da posição na
+ * fileira. Quem decide é o servidor, porque é ele que sabe se 65 pessoas fora
+ * é normal às 9h e preocupante às 19h.
+ */
+export type IndicadorDoPainel = {
+  chave: string
+  rotulo: string
+  valor: number
+  sub?: string
+  tom: 'acento' | 'sucesso' | 'aviso' | 'info' | 'erro' | 'neutro'
+}
+
+export type EventoDoPainel = {
+  eventoId: string
+  nome: string
+  dataInicio: string
+  local: string | null
+  setores: number
+  /** Quantas pessoas o evento espera hoje. */
+  equipe: number
+  presentes: number
+  /** Está acontecendo agora? É o que ganha a marca "AO VIVO". */
+  aoVivo: boolean
+}
+
+/** Uma batida que acabou de acontecer. É o pulso da operação. */
+export type AtividadeRecente = {
+  id: string
+  nome: string
+  setor: string | null
+  tipo: TipoBatida
+  em: string
+}
+
+export type Painel = {
+  /** A data vem do SERVIDOR, não do relógio do aparelho — fusos divergem. */
+  data: string
+  indicadores: IndicadorDoPainel[]
+  eventos: EventoDoPainel[]
+  atividade: AtividadeRecente[]
+  /**
+   * De que janela falam os números, escrito para a pessoa ler.
+   *
+   * Sem isto, "Batidas na janela: 0" é ambíguo: ninguém bateu, ou a janela
+   * ainda não abriu? A frase resolve, e é a mesma que o painel web mostra.
+   */
+  legendaDaJanela: string | null
 }

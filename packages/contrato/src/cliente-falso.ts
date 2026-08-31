@@ -28,10 +28,11 @@ import {
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
 import type {
-  ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  FinanceiroDaParticipacao, PainelDaEquipe, RespostaDeBatida,
+  AtividadeRecente, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
+  FinanceiroDaParticipacao, Painel, PainelDaEquipe, RespostaDeBatida,
   ResumoParticipacao, Sessao,
 } from './tipos.js'
+import type { Papel } from '@credenciei/dominio'
 
 export type ComportamentoFalso = {
   /** Atraso artificial, em ms. Zero nos testes, 600 na demonstração. */
@@ -72,6 +73,67 @@ const DIAS: { data: string; tipo: 'principal' | 'preparacao' }[] = [
   { data: '2026-09-06', tipo: 'preparacao' },
 ]
 
+/**
+ * Os três eventos do painel.
+ *
+ * São os mesmos que aparecem no sistema de verdade hoje — inclusive os números.
+ * Não é enfeite: com dados reconhecíveis, o Juan olha a tela e vê na hora se
+ * algo está no lugar errado. Com "Evento 1 / Evento 2" ele teria que imaginar.
+ */
+const EVENTOS_DO_PAINEL = [
+  {
+    eventoId: 'ev-1',
+    nome: 'Henrique e Juliano - Kleber Andrade',
+    dataInicio: '2026-09-05T18:30:00-03:00',
+    local: 'Kleber Andrade',
+    setores: 21,
+    equipe: 61,
+    presentes: 0,
+    aoVivo: true,
+  },
+  {
+    eventoId: 'ev-2',
+    nome: 'Manos da Vila',
+    dataInicio: '2026-08-29T20:00:00-03:00',
+    local: 'Lagun',
+    setores: 2,
+    equipe: 3,
+    presentes: 1,
+    aoVivo: true,
+  },
+  {
+    eventoId: 'ev-3',
+    nome: 'Fantastico Mundo do Lukao',
+    dataInicio: '2026-08-22T19:00:00-03:00',
+    local: null,
+    setores: 6,
+    equipe: 2,
+    presentes: 0,
+    aoVivo: true,
+  },
+]
+
+/**
+ * As contas de demonstração, uma por papel.
+ *
+ * Existem para o menu poder ser visto mudando: o supervisor não tem "Escanear
+ * QR", o master tem o bloco "Plataforma" e o admin não. Sem três contas, essa
+ * parte do sistema só seria conferida em produção.
+ */
+const CONTAS_DE_DEMONSTRACAO: Record<string, { nome: string; papel: Papel }> = {
+  master: { nome: 'Juan Muzy', papel: 'master' },
+  admin: { nome: 'Marina Alves', papel: 'admin' },
+  supervisor: { nome: 'Carlos Silva', papel: 'supervisor' },
+}
+
+const SENHA_DE_DEMONSTRACAO = '123456'
+
+/** O pulso da operação: as últimas batidas que chegaram. */
+const ATIVIDADE_DE_MENTIRA: AtividadeRecente[] = [
+  { id: 'a-1', nome: 'Juan', setor: 'Produção', tipo: 'meio', em: '2026-08-30T18:04:00-03:00' },
+  { id: 'a-2', nome: 'Juan', setor: 'Produção', tipo: 'entrada', em: '2026-08-30T13:47:00-03:00' },
+]
+
 const SEGREDO_DE_MENTIRA = 'segredo-do-cliente-falso'
 
 type BatidaGravada = { id: string; tipo: string; em: string; data: string }
@@ -98,6 +160,8 @@ export class ClienteFalso implements ClienteApi {
    */
   private renovacaoValida = 'renovacao-de-mentira'
   private renovacoesFeitas = 0
+  /** Quem está logado. Muda `eu()` e o que o painel devolve. */
+  private quemEntrou: { nome: string; papel: Papel } = { nome: 'João da Silva', papel: 'colaborador' }
 
   constructor(c: ComportamentoFalso = {}) {
     this.atrasoMs = c.atrasoMs ?? 0
@@ -121,6 +185,27 @@ export class ClienteFalso implements ClienteApi {
 
   // ── Identidade ────────────────────────────────────────────────────────────
 
+  async entrarComSenha(identificador: string, senha: string) {
+    await this.rede()
+
+    const chave = (identificador ?? '').trim().toLowerCase().split('@')[0] ?? ''
+    const conta = CONTAS_DE_DEMONSTRACAO[chave]
+
+    /*
+     * A MESMA recusa para os dois casos: conta que não existe e senha errada.
+     *
+     * Se a resposta fosse diferente, alguém descobriria quais CPFs têm conta no
+     * sistema tentando um por um — e essa lista é justamente a de quem tem
+     * acesso ao painel. É a mesma regra que a API já segue nas participações.
+     */
+    if (!conta || senha !== SENHA_DE_DEMONSTRACAO) {
+      return { erro: 'CPF ou senha incorretos.' }
+    }
+
+    this.quemEntrou = conta
+    return { sessao: this.abrirSessao(conta.papel) }
+  }
+
   async pedirCodigo(telefone: string) {
     await this.rede()
     const digitos = (telefone ?? '').replace(/\D/g, '')
@@ -135,16 +220,9 @@ export class ClienteFalso implements ClienteApi {
     if (codigo.replace(/\D/g, '') !== this.codigoPedido) {
       return { erro: 'Código incorreto. Confira a mensagem que chegou no WhatsApp.' }
     }
-    this.renovacaoValida = 'renovacao-de-mentira'
-    this.renovacoesFeitas = 0
-    this.sessao = {
-      token: 'token-de-mentira',
-      expiraEm: new Date(this.agora() + 3600e3).toISOString(),
-      renovacao: this.renovacaoValida,
-      papel: 'colaborador',
-    }
+    this.quemEntrou = { nome: 'João da Silva', papel: 'colaborador' }
     void telefone
-    return { sessao: this.sessao }
+    return { sessao: this.abrirSessao('colaborador') }
   }
 
   async renovar(renovacao: string) {
@@ -170,11 +248,11 @@ export class ClienteFalso implements ClienteApi {
     this.exigirSessao()
     return {
       pessoaId: 'p-1',
-      nome: 'João da Silva',
+      nome: this.quemEntrou.nome,
       cpfFinal: '**94',
       telefone: '27999255959',
       fotoUrl: null,
-      papel: 'colaborador',
+      papel: this.quemEntrou.papel,
     }
   }
 
@@ -339,6 +417,85 @@ export class ClienteFalso implements ClienteApi {
     this.idsRecebidos.add(envio.id)
     this.batidas.push({ id: envio.id, tipo: envio.tipo, em: envio.registradoEm, data })
     return { situacao: 'registrado', em: envio.registradoEm }
+  }
+
+  /** Monta a sessão inteira e reinicia o giro do token longo. */
+  private abrirSessao(papel: Papel): Sessao {
+    this.renovacaoValida = 'renovacao-de-mentira'
+    this.renovacoesFeitas = 0
+    this.sessao = {
+      token: 'token-de-mentira',
+      expiraEm: new Date(this.agora() + 3600e3).toISOString(),
+      renovacao: this.renovacaoValida,
+      papel,
+    }
+    return this.sessao
+  }
+
+  // ── Painel ────────────────────────────────────────────────────────────────
+
+  async painel(): Promise<Painel> {
+    await this.rede()
+    this.exigirSessao()
+
+    /*
+     * O colaborador não tem painel, e a recusa é do SERVIDOR.
+     *
+     * O app já não mostra o menu para ele — mas menu escondido não é
+     * segurança, é arrumação. Quem decide é quem tem os dados.
+     */
+    if (this.sessao!.papel === 'colaborador') {
+      throw new Error('Você não tem acesso ao painel.')
+    }
+
+    /*
+     * O supervisor cuida de UM setor. Ele vê o próprio evento e a própria
+     * equipe, e não a operação inteira — o recorte é feito aqui, no servidor,
+     * e não na tela: se a tela filtrasse, bastaria adulterar o pedido.
+     */
+    const meus = this.sessao!.papel === 'supervisor'
+      ? EVENTOS_DO_PAINEL.filter(e => e.eventoId === 'ev-2')
+      : EVENTOS_DO_PAINEL
+
+    const equipe = meus.reduce((a, e) => a + e.equipe, 0)
+    const presentes = meus.reduce((a, e) => a + e.presentes, 0)
+
+    return {
+      data: new Date(this.agora()).toISOString(),
+      indicadores: [
+        {
+          chave: 'eventos_ativos',
+          rotulo: 'Eventos ativos',
+          valor: meus.length,
+          sub: `de ${meus.length} no total`,
+          tom: 'acento',
+        },
+        {
+          chave: 'presentes',
+          rotulo: 'Presentes agora',
+          valor: presentes,
+          sub: equipe ? `de ${equipe} na equipe` : 'equipe não cadastrada',
+          tom: 'sucesso',
+        },
+        {
+          chave: 'nao_chegaram',
+          rotulo: 'Ainda não chegaram',
+          valor: Math.max(0, equipe - presentes),
+          tom: 'aviso',
+        },
+        {
+          chave: 'batidas',
+          rotulo: 'Batidas na janela',
+          valor: this.batidas.length,
+          sub: 'entrada, meio e saída',
+          tom: 'info',
+        },
+      ],
+      eventos: meus,
+      atividade: ATIVIDADE_DE_MENTIRA,
+      legendaDaJanela:
+        'Henrique e Juliano - Kleber Andrade · das 07:00 de 05/09/2026 às 08:00 de 06/09/2026',
+    }
   }
 
   // ── Supervisor ────────────────────────────────────────────────────────────

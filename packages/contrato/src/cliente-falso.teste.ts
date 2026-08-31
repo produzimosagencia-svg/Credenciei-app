@@ -321,3 +321,77 @@ test('renovação recusada é decisão, não falha de rede', async () => {
   assert.equal(r.sessao, undefined)
   assert.ok(r.erro)
 })
+
+// ─── Entrar com senha ───────────────────────────────────────────────────────
+
+test('a conta de painel entra com senha e recebe o papel dela', async () => {
+  const c = new ClienteFalso()
+  const r = await c.entrarComSenha('supervisor@produzimos.com.br', '123456')
+
+  assert.ok(r.sessao, r.erro ?? 'era para entrar')
+  assert.equal(r.sessao.papel, 'supervisor')
+  assert.equal((await c.eu()).papel, 'supervisor')
+})
+
+test('conta que não existe e senha errada dizem a MESMA coisa', async () => {
+  /*
+   * Se a recusa fosse diferente, alguém descobriria quais CPFs têm conta
+   * tentando um por um — e essa é justamente a lista de quem acessa o painel.
+   */
+  const c = new ClienteFalso()
+  const inexistente = await c.entrarComSenha('ninguem@lugar.nenhum', '123456')
+  const senhaErrada = await c.entrarComSenha('admin@produzimos.com.br', 'chutei')
+
+  assert.equal(inexistente.sessao, undefined)
+  assert.equal(senhaErrada.sessao, undefined)
+  assert.equal(inexistente.erro, senhaErrada.erro)
+})
+
+// ─── Painel ─────────────────────────────────────────────────────────────────
+
+test('o colaborador não tem painel, e quem recusa é o servidor', async () => {
+  // O app já esconde o menu dele — mas menu escondido é arrumação, não
+  // segurança. Quem decide é quem tem os dados.
+  const c = await logado()
+  await assert.rejects(() => c.painel(), /não tem acesso/i)
+})
+
+test('o painel do admin traz os quatro números e os eventos', async () => {
+  const c = new ClienteFalso()
+  await c.entrarComSenha('admin', '123456')
+  const p = await c.painel()
+
+  assert.equal(p.indicadores.length, 4)
+  assert.deepEqual(
+    p.indicadores.map(i => i.chave),
+    ['eventos_ativos', 'presentes', 'nao_chegaram', 'batidas'],
+  )
+  assert.equal(p.eventos.length, 3)
+  assert.ok(p.legendaDaJanela, 'sem a legenda, "0 batidas" fica ambíguo')
+})
+
+test('presentes e ainda-não-chegaram somam a equipe', async () => {
+  // Os dois números saem da MESMA contagem. Se viessem de contas diferentes,
+  // a tela mostraria 1 presente e 65 faltando numa equipe de 70.
+  const c = new ClienteFalso()
+  await c.entrarComSenha('admin', '123456')
+  const p = await c.painel()
+
+  const presentes = p.indicadores.find(i => i.chave === 'presentes')!
+  const faltando = p.indicadores.find(i => i.chave === 'nao_chegaram')!
+  const equipe = p.eventos.reduce((a, e) => a + e.equipe, 0)
+
+  assert.equal(presentes.valor + faltando.valor, equipe)
+})
+
+test('o supervisor vê só o próprio setor, e o recorte é do servidor', async () => {
+  const c = new ClienteFalso()
+  await c.entrarComSenha('supervisor', '123456')
+  const p = await c.painel()
+
+  assert.equal(p.eventos.length, 1, 'ele não pode enxergar a operação inteira')
+
+  const admin = new ClienteFalso()
+  await admin.entrarComSenha('admin', '123456')
+  assert.equal((await admin.painel()).eventos.length, 3)
+})
