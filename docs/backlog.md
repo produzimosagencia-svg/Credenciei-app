@@ -1,6 +1,6 @@
 # Backlog
 
-**272 tasks · 159 no MVP · 69 concluídas (25%)**
+**272 tasks · 159 no MVP · 75 concluídas (28%)**
 
 > **30/08/2026 — o escopo cresceu, e o total mudou junto.** O Juan pediu que o
 > app tenha as mesmas telas e a mesma lógica do sistema que já está no ar, e
@@ -32,9 +32,9 @@ Atualizado em 30/08/2026.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
-| 15 | Testes | 6 | 14 | — | 215 testes rodando |
+| 15 | Testes | 6 | 14 | — | 238 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 6 | 20 | ✓ | Espelhar o sistema web; falta a API |
+| 17 | Painel no app | 12 | 20 | ✓ | Painel, scanner e ponto; falta a API |
 
 ---
 
@@ -112,6 +112,12 @@ Atualizado em 30/08/2026.
 - Painel: os quatro indicadores, com degradê e brilho
 - Painel: cartões de evento ao vivo, com a barra de presença
 - Painel: atividade recente e a janela do fluxo
+- Escanear QR: câmera contínua, evento e momento, aviso em tela cheia
+- Escanear QR: crachá de outra etapa com decisão, e não com "inválido"
+- Conferência pelo CPF quando o crachá não passa
+- Registrar ponto: busca por CPF ou nome, com escolha entre homônimos
+- Registrar ponto: foto obrigatória e etapa decidida pelo servidor
+- Câmera de rosto, com permissão explicada e foto já reduzida
 
 ---
 
@@ -121,13 +127,13 @@ O Juan escolheu **telas primeiro, com dados de mentira**: o app inteiro fica
 navegável contra o servidor falso, ele olha e corrige, e só depois a API real
 entra por baixo. Nenhuma tela muda na troca.
 
-1. **Escanear QR** (Epic 17). A câmera lendo a credencial e registrando
-   presença. É a tela mais usada no dia do evento.
-2. **Registrar ponto** (Epic 17). Achar a pessoa pelo nome ou CPF e bater por
-   ela — para quem chegou sem celular ou perdeu o horário.
+1. **Atividades do evento** (Epic 17). O que aconteceu no evento em ordem —
+   quem chegou, quem bateu o meio, quem saiu.
+2. **Acessos** (Epic 17). Quem tem conta, e com qual papel.
 3. **A credencial na tela** (Epic 6 + 8). O QR do dia e os três botões de bater
    ponto, ligados à fila offline que já existe.
-4. **Atividades do evento e Acessos** (Epic 17).
+4. **Organizações, Base de funcionários, Encontre colaborador, WhatsApp**
+   (Epic 17). O bloco Plataforma, que só o master vê.
 5. **Cliente HTTP de verdade** (Epic 3 + 17). Trocar o falso pelo real é um
    arquivo só, mas ele ainda não existe — e faltam os endpoints do painel.
 6. **Upload de foto** (Epic 3 + 7). Compressão, guarda offline, envio direto
