@@ -569,3 +569,92 @@ export type EventoDetalhado = {
   setores: SetorDetalhado[]
   totalPessoas: number
 }
+
+
+// ─── A equipe de um setor ───────────────────────────────────────────────────
+
+/**
+ * Como está uma etapa para uma pessoa, AGORA.
+ *
+ *   feito        ela registrou;
+ *   aberto       ainda dá tempo — ou a etapa é livre, sem horário;
+ *   fechado      o prazo passou e ela não registrou. É a pendência;
+ *   indefinido   a janela ainda nem abriu.
+ *
+ * Quem calcula é o SERVIDOR, e não a tela: o status depende da janela do
+ * evento, do dia, e — no caso do meio — da entrada de CADA pessoa. Deixar a
+ * tela adivinhar a partir de "tem horário?" faria "livre" virar "indefinido", e
+ * a equipe inteira apareceria cinza.
+ */
+export type StatusDaEtapa = 'feito' | 'aberto' | 'fechado' | 'indefinido'
+
+export type PessoaDoSetor = {
+  participacaoId: string
+  nome: string
+  cpf: string
+  telefone: string | null
+  empresa: string | null
+  funcao: string | null
+  fotoUrl: string | null
+  /**
+   * Ativada no evento?
+   *
+   * Quem não foi ativada não registra presença. Ela aparece na lista de
+   * propósito — sumir faria parecer que o cadastro não chegou.
+   */
+  ativo: boolean
+  valorReceber: number
+  pago: boolean
+  entrada: string | null
+  meio: string | null
+  fim: string | null
+  statusEntrada: StatusDaEtapa
+  statusMeio: StatusDaEtapa
+  statusFim: StatusDaEtapa
+}
+
+export type EquipeDoSetor = {
+  setorId: string
+  setorNome: string
+  eventoId: string
+  eventoNome: string
+  /** Total · Com pendências · A receber (equipe). */
+  indicadores: IndicadorDoPainel[]
+  progresso: ProgressoDaEtapa[]
+  pessoas: PessoaDoSetor[]
+}
+
+// ─── Planilhas ──────────────────────────────────────────────────────────────
+//
+// Importar, baixar o modelo e exportar são três operações da MESMA ideia — a
+// equipe entrando ou saindo por arquivo. No computador elas cabem lado a lado;
+// num celular, três botões numa fileira já quebram a linha e escondem o que
+// importa. Por isso a tela tem um botão só, e as três opções aparecem dentro.
+
+export type ArquivoDePlanilha = {
+  /** O nome com extensão, como a pessoa vai ver ao salvar. */
+  nome: string
+  /**
+   * Onde baixar.
+   *
+   * Um endereço, e não os bytes: a planilha de um evento grande passa de um
+   * megabyte, e trafegá-la dentro da resposta JSON dobraria o tamanho dela em
+   * base64 numa rede de estádio.
+   */
+  url: string
+}
+
+export type ResultadoDaImportacao = {
+  criados: number
+  atualizados: number
+  /** Linhas puladas — duplicadas, ou sem os campos obrigatórios. */
+  ignorados: number
+  /**
+   * O que deu errado, linha a linha.
+   *
+   * Uma planilha com trinta linhas e dois erros precisa importar as vinte e
+   * oito e DIZER quais duas ficaram de fora. Recusar o arquivo inteiro por
+   * causa de duas linhas obriga a pessoa a caçar o erro sem nenhuma pista.
+   */
+  erros: string[]
+}

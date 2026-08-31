@@ -29,10 +29,11 @@ import type { ClienteApi } from './cliente.js'
 import type {
   Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaLocalizada,
-  FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
-  NovoAcesso, Painel, PainelDaEquipe, Portaria, ResultadoDaLeitura,
-  RespostaDeBatida, ResumoParticipacao, SetorDetalhado, Sessao,
+  ArquivoDePlanilha, EquipeDoSetor, EventoComSetores, EventoDetalhado,
+  EventoEscaneavel, FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao,
+  ListaDeAcessos, MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe,
+  Portaria, ResultadoDaImportacao, ResultadoDaLeitura, RespostaDeBatida,
+  ResumoParticipacao, SetorDetalhado, Sessao,
 } from './tipos.js'
 
 export type OpcoesDoClienteHttp = {
@@ -411,6 +412,30 @@ export class ClienteHttp implements ClienteApi {
   ): Promise<{ setor?: SetorDetalhado; erro?: string }> {
     void _eventoId; void _dados
     throw new AindaNaoNaApi('criarSetor')
+  }
+
+  async equipeDoSetor(_setorId: string): Promise<EquipeDoSetor> {
+    void _setorId
+    throw new AindaNaoNaApi('equipeDoSetor')
+  }
+
+  // ─── Planilhas ────────────────────────────────────────────────────────────
+
+  async baixarModelo(): Promise<ArquivoDePlanilha> {
+    throw new AindaNaoNaApi('baixarModelo')
+  }
+
+  async exportarEquipe(_setorId: string, _op?: { dia?: string }): Promise<ArquivoDePlanilha> {
+    void _setorId; void _op
+    throw new AindaNaoNaApi('exportarEquipe')
+  }
+
+  async importarPlanilha(
+    _setorId: string,
+    _arquivo: { nome: string; base64: string },
+  ): Promise<{ resultado?: ResultadoDaImportacao; erro?: string }> {
+    void _setorId; void _arquivo
+    throw new AindaNaoNaApi('importarPlanilha')
   }
 
   // ─── Acessos ──────────────────────────────────────────────────────────────

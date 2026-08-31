@@ -1,8 +1,8 @@
 # Backlog
 
-**277 tasks · 164 no MVP · 114 concluídas (41%)**
+**277 tasks · 164 no MVP · 121 concluídas (44%)**
 
-**Só o MVP: 97 de 164 (59%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 100 de 164 (61%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -36,14 +36,14 @@ Atualizado em 31/08/2026.
 | 7 | Offline | 13 | 19 | ✓ | Fila ligada ao app; falta o envio da foto ao storage |
 | 8 | Ponto no app | 4 | 13 | ✓ | O meio com selfie; falta o resto do ciclo |
 | 9 | Histórico | 4 | 11 | — | Meus dias e Meu pagamento prontos |
-| 10 | Supervisor | 1 | 15 | — | Painel na API; falta a tela |
+| 10 | Supervisor | 5 | 15 | — | Equipe do setor pronta, com filtros e planilha |
 | 11 | Push | 0 | 12 | — | Depende da conta Apple |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
-| 15 | Testes | 8 | 14 | — | 310 testes rodando |
+| 15 | Testes | 8 | 14 | — | 321 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 22 | 25 | ✓ | Falta o bloco Plataforma e a API |
+| 17 | Painel no app | 25 | 25 | ✓ | Pronto; falta o bloco Plataforma e a API |
 
 ---
 
@@ -127,6 +127,12 @@ Atualizado em 31/08/2026.
 - Resumo com dias trabalhados, faltados, incompletos e horas
 - Meu pagamento: valor previsto, com a conta de onde ele vem
 
+**Epic 10 — Supervisor**
+- Equipe do setor, com o estado de cada pessoa em cada etapa
+- Busca por nome, CPF (com ou sem pontuação), empresa e função
+- Filtros: todos, com pendências, presentes, ausentes, não ativados
+- Importação que diz o que entrou E o que ficou de fora
+
 **Epic 14 — Segurança**
 - Isolamento por pessoa em todos os endpoints
 - Respostas idênticas para "não existe" e "não é seu"
@@ -159,6 +165,8 @@ Atualizado em 31/08/2026.
 - Criar setor, com nome único e teto de pessoas
 - Setor com link próprio de cadastro e supervisores vinculados
 - O cartão do painel abre a configuração do evento
+- Equipe do setor: lista, busca e os cinco filtros rápidos
+- Planilha: um botão só, com importar, baixar modelo e exportar dentro
 
 ---
 

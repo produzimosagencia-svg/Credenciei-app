@@ -5,15 +5,12 @@
 // os setores, quem cuida de cada um, e a porta por onde entra quem não estava
 // na lista.
 //
-// ─── O QUE FICA NO COMPUTADOR, E POR QUÊ ────────────────────────────────────
+// ─── AS PLANILHAS FICAM ATRÁS DE UM BOTÃO SÓ ────────────────────────────────
 //
-// Importar planilha, baixar modelo e exportar planilha não vieram. Não é
-// esquecimento: são operações de arquivo, feitas antes do evento, sentado. Um
-// botão "Importar planilha" no celular ou não funciona ou funciona mal, e um
-// botão que decepciona é pior que a ausência dele — a tela diz onde eles estão.
-//
-// O que veio é o que se usa EM PÉ: ver como está, abrir e fechar a portaria,
-// mandar o link de um setor para alguém, criar um setor que faltou.
+// Importar, baixar o modelo e exportar são três operações da mesma ideia — a
+// equipe entrando ou saindo por arquivo. No computador elas cabem lado a lado;
+// num celular, três botões na fileira quebram a linha e empurram para baixo o
+// que se usa o tempo todo. Um botão, e as três dentro. Ver `src/ui/planilha.tsx`.
 
 import { useState } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -29,6 +26,7 @@ import {
   Respiro, Selo, Separador, Tela, TituloDaTela, TituloDeCartao,
 } from '../../../src/ui/componentes'
 import { Icone } from '../../../src/ui/icone'
+import { BotaoDePlanilha } from '../../../src/ui/planilha'
 import { CartaoDaPortaria } from '../../../src/ui/portaria'
 import { cor, corDaEtapa, espaco, raio, texto, tipo, uso } from '../../../src/ui/tema'
 
@@ -219,18 +217,12 @@ export default function ConfiguracaoDoEvento() {
               <CartaoDoSetor
                 key={s.setorId}
                 setor={s}
-                aoVerEquipe={() => router.push('/ponto')}
+                aoVerEquipe={() => router.push(`/setor/${s.setorId}` as never)}
+                aoImportar={() => setVersao(v => v + 1)}
               />
             ))
           )}
 
-          <Separador />
-          <Text style={e.noComputador}>
-            Importar planilha, baixar modelo e exportar planilha ficam no
-            computador. São operações de arquivo, feitas antes do evento — no
-            celular elas funcionariam mal, e um botão que decepciona é pior que
-            a ausência dele.
-          </Text>
         </>
       ) : null}
     </Tela>
@@ -279,8 +271,8 @@ function BarraDaEtapa({
  * uma barra sem escala.
  */
 function CartaoDoSetor({
-  setor, aoVerEquipe,
-}: { setor: SetorDetalhado; aoVerEquipe: () => void }) {
+  setor, aoVerEquipe, aoImportar,
+}: { setor: SetorDetalhado; aoVerEquipe: () => void; aoImportar: () => void }) {
   const [copiado, setCopiado] = useState(false)
   const pct = setor.estimado && setor.estimado > 0
     ? Math.min(100, Math.round((setor.pessoas / setor.estimado) * 100))
@@ -331,11 +323,20 @@ function CartaoDoSetor({
       <Respiro altura={espaco.m} />
       <Botao titulo="Ver equipe" onPress={aoVerEquipe} tipo="secundario" />
       <Respiro altura={espaco.s} />
-      <Botao
-        titulo={copiado ? 'Link copiado' : 'Copiar link do formulário'}
-        onPress={copiarLink}
-        tipo="secundario"
-      />
+      <View style={e.acoesDoSetor}>
+        <View style={e.acaoLarga}>
+          <Botao
+            titulo={copiado ? 'Link copiado' : 'Copiar link'}
+            onPress={copiarLink}
+            tipo="secundario"
+          />
+        </View>
+        {/* Um botão só para as três operações de planilha — três na fileira
+            quebrariam a linha e empurrariam para baixo o que se usa sempre. */}
+        <View style={e.acaoLarga}>
+          <BotaoDePlanilha setorId={setor.setorId} aoImportar={aoImportar} />
+        </View>
+      </View>
 
       <Separador />
 
@@ -467,6 +468,7 @@ const e = StyleSheet.create({
   supervisoresTitulo: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   rotuloPequeno: { ...texto.etiqueta, color: uso.tintaFraca },
   supervisor: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
+  acoesDoSetor: { flexDirection: 'row', gap: espaco.s },
+  acaoLarga: { flex: 1 },
 
-  noComputador: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, lineHeight: 18 },
 })

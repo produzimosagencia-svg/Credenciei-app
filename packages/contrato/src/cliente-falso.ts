@@ -29,13 +29,14 @@ import {
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
 import type {
-  Acesso, AtividadeRecente, AtividadesDoEvento, BatidaAssistida,
-  CandidatoLocalizado, ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao,
-  EnvioDeBatida, Eu, EventoComSetores, EventoDetalhado, EventoEscaneavel,
-  FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, LinhaDaAtividade,
-  ListaDeAcessos, MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe,
-  PessoaDaLista, Portaria, ResultadoDaLeitura, RespostaDeBatida,
-  ResumoParticipacao, SetorDetalhado, Sessao,
+  Acesso, ArquivoDePlanilha, AtividadeRecente, AtividadesDoEvento,
+  BatidaAssistida, CandidatoLocalizado, ConferenciaPorCpf, ConviteDoEvento,
+  DiaDaParticipacao, EnvioDeBatida, EquipeDoSetor, Eu, EventoComSetores,
+  EventoDetalhado, EventoEscaneavel, FichaLocalizada, FiltroDeAcessos,
+  FinanceiroDaParticipacao, LinhaDaAtividade, ListaDeAcessos, MomentoDaLeitura,
+  NovoAcesso, Painel, PainelDaEquipe, PessoaDaLista, PessoaDoSetor, Portaria,
+  ResultadoDaImportacao, ResultadoDaLeitura, RespostaDeBatida,
+  ResumoParticipacao, SetorDetalhado, StatusDaEtapa, Sessao,
 } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
@@ -343,6 +344,75 @@ const ENDERECO_DA_PORTARIA = 'https://credenciei.vercel.app/portaria'
 
 /** Onde a equipe se cadastra sozinha, um por setor. */
 const ENDERECO_DO_FORMULARIO = 'https://credenciei.vercel.app/form'
+
+/**
+ * O poço de nomes da equipe de mentira.
+ *
+ * Nomes brasileiros comuns, e vários com sobrenome repetido de propósito — é
+ * assim que a busca por "Silva" devolve seis pessoas, que é o caso real. Uma
+ * lista de nomes todos diferentes faria a tela de escolha nunca aparecer.
+ */
+const NOMES_DA_EQUIPE = [
+  'Alice Araujo Mendonça', 'Alice Paiva Marchesi', 'Aline Raquel Reis de Oliveira',
+  'Ana Luiza Caiado Richa', 'Ana Tereza Martins Fialho', 'Anderson Luiz Costa',
+  'André Luiz Zambom', 'Andressa Silva Sousa', 'Bruno Cardoso Silva',
+  'Camila Ferreira Nunes', 'Carlos Eduardo Prado', 'Daniela Rocha Silva',
+  'Diego Martins de Araujo', 'Eduardo Bittencourt', 'Fernanda Alves Pires',
+  'Gabriel Santos Silva', 'Helena Moraes Duarte', 'Igor Nascimento Lima',
+  'Juliana Campos Freire', 'Leandro Oliveira Silva', 'Mariana Teixeira Gomes',
+  'Nathalia Barros Peixoto', 'Otávio Ramos Vieira', 'Patrícia Lopes Machado',
+  'Rafael Andrade Silva', 'Stelvian Cardoso Gatti', 'Tatiane Moreira Braga',
+  'Vinícius Prado Coelho',
+]
+
+const EMPRESAS_DE_MENTIRA = ['Time Kiki', 'Credenciamento', 'Eletricista', null]
+
+/**
+ * A equipe de cada setor, montada a partir do poço.
+ *
+ * Determinística: o mesmo setor gera sempre as mesmas pessoas, com os mesmos
+ * CPFs e telefones. Sem isso, cada recarga da tela trocaria a equipe inteira e
+ * nada do que se visse duas vezes seria comparável.
+ */
+function equipeDoSetorDeMentira(setorId: string, quantas: number): PessoaDoSetor[] {
+  // Uma semente estável tirada do id do setor: setores diferentes começam em
+  // pontos diferentes do poço, e o mesmo setor sempre no mesmo ponto.
+  let semente = 0
+  for (const c of setorId) semente = (semente * 31 + c.charCodeAt(0)) % 997
+
+  return Array.from({ length: quantas }, (_, i) => {
+    const n = (semente + i * 7) % NOMES_DA_EQUIPE.length
+    const nome = NOMES_DA_EQUIPE[n]!
+    const digitos = String((semente * 1000 + i * 137) % 100000000000).padStart(11, '0')
+    const empresa = EMPRESAS_DE_MENTIRA[(semente + i) % EMPRESAS_DE_MENTIRA.length] ?? null
+
+    // Uma em cada nove ainda não foi ativada: é o caso que a tela precisa saber
+    // mostrar, e que some se todo mundo estiver ativo.
+    const ativo = (semente + i) % 9 !== 0
+
+    return {
+      participacaoId: `${setorId}-p${i}`,
+      nome,
+      cpf: digitos,
+      telefone: `27${String(900000000 + ((semente * 31 + i * 517) % 99999999))}`,
+      empresa,
+      funcao: empresa === 'Eletricista' ? 'Eletricista' : null,
+      fotoUrl: null,
+      ativo,
+      valorReceber: 0,
+      pago: false,
+      entrada: null,
+      meio: null,
+      fim: null,
+      statusEntrada: 'aberto' as StatusDaEtapa,
+      statusMeio: 'aberto' as StatusDaEtapa,
+      statusFim: 'aberto' as StatusDaEtapa,
+    }
+  })
+}
+
+/** O modelo de importação e as exportações apontam para o sistema web. */
+const ENDERECO_DE_ARQUIVOS = 'https://credenciei.vercel.app'
 
 const SEGREDO_DE_MENTIRA = 'segredo-do-cliente-falso'
 
@@ -1264,6 +1334,103 @@ export class ClienteFalso implements ClienteApi {
       linkDoFormulario: `${ENDERECO_DO_FORMULARIO}/${s.token}`,
       supervisores: s.supervisores,
     }
+  }
+
+  async equipeDoSetor(setorId: string): Promise<EquipeDoSetor> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeAcompanhar, 'ver a equipe do setor')
+
+    let achado: { eventoId: string; setor: (typeof SETORES_DE_MENTIRA)[string][number] } | null = null
+    for (const [eventoId, setores] of Object.entries(SETORES_DE_MENTIRA)) {
+      const setor = setores.find(x => x.setorId === setorId)
+      if (setor) { achado = { eventoId, setor }; break }
+    }
+    if (!achado) throw new Error('Não encontramos este setor.')
+
+    const evento = EVENTOS_DO_PAINEL.find(e => e.eventoId === achado.eventoId)!
+    const pessoas = equipeDoSetorDeMentira(setorId, achado.setor.pessoas).map(p => ({
+      ...p,
+      valorReceber: achado.setor.valorPorPessoa ?? 0,
+    }))
+
+    const contar = (campo: 'entrada' | 'meio' | 'fim') => pessoas.filter(p => p[campo]).length
+    const comPendencia = pessoas.filter(
+      p => p.statusEntrada === 'fechado' || p.statusMeio === 'fechado' || p.statusFim === 'fechado',
+    ).length
+    const aReceber = pessoas.reduce((a, p) => a + p.valorReceber, 0)
+
+    return {
+      setorId,
+      setorNome: achado.setor.nome,
+      eventoId: achado.eventoId,
+      eventoNome: evento.nome,
+      indicadores: [
+        { chave: 'total', rotulo: 'Total', valor: pessoas.length, tom: 'info' },
+        { chave: 'pendencias', rotulo: 'Com pendências', valor: comPendencia, tom: 'aviso' },
+        { chave: 'a_receber', rotulo: 'A receber (equipe)', valor: aReceber, tom: 'acento' },
+      ],
+      progresso: [
+        { etapa: 'entrada', feitos: contar('entrada'), total: pessoas.length },
+        { etapa: 'meio', feitos: contar('meio'), total: pessoas.length },
+        { etapa: 'fim', feitos: contar('fim'), total: pessoas.length },
+      ],
+      pessoas,
+    }
+  }
+
+  // ── Planilhas ─────────────────────────────────────────────────────────────
+
+  async baixarModelo(): Promise<ArquivoDePlanilha> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'baixar o modelo')
+    return {
+      nome: 'modelo-importacao.xlsx',
+      url: `${ENDERECO_DE_ARQUIVOS}/modelo-importacao.xlsx`,
+    }
+  }
+
+  async exportarEquipe(setorId: string, op: { dia?: string } = {}): Promise<ArquivoDePlanilha> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeAcompanhar, 'exportar a equipe')
+
+    const nome = op.dia ? `equipe-${setorId}-${op.dia}.xlsx` : `equipe-${setorId}.xlsx`
+    return { nome, url: `${ENDERECO_DE_ARQUIVOS}/exportar/${setorId}${op.dia ? `?dia=${op.dia}` : ''}` }
+  }
+
+  async importarPlanilha(setorId: string, arquivo: { nome: string; base64: string }) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'importar planilha')
+
+    if (!arquivo.base64) return { erro: 'O arquivo veio vazio. Escolha de novo.' }
+    if (!/\.(xlsx|xls|csv)$/i.test(arquivo.nome)) {
+      return { erro: 'Só aceitamos planilha: .xlsx, .xls ou .csv.' }
+    }
+
+    const lista = Object.values(SETORES_DE_MENTIRA).flat().find(x => x.setorId === setorId)
+    if (!lista) return { erro: 'Não encontramos este setor.' }
+
+    /*
+     * A importação de mentira sempre deixa uma linha de fora.
+     *
+     * É de propósito: o caminho em que TUDO entra esconde a parte que mais
+     * importa da tela — dizer o que ficou de fora e por quê. Com trinta linhas
+     * e duas erradas, recusar o arquivo inteiro obrigaria a pessoa a caçar o
+     * erro sem nenhuma pista.
+     */
+    const criados = 8
+    lista.pessoas += criados
+
+    const resultado: ResultadoDaImportacao = {
+      criados,
+      atualizados: 2,
+      ignorados: 1,
+      erros: ['Linha 7: CPF com 10 dígitos — confira se falta um número.'],
+    }
+    return { resultado }
   }
 
   // ── Acessos ───────────────────────────────────────────────────────────────

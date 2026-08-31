@@ -28,8 +28,12 @@ import Check from 'lucide-react-native/icons/check'
 import ChevronRight from 'lucide-react-native/icons/chevron-right'
 import ClipboardCheck from 'lucide-react-native/icons/clipboard-check'
 import Clock from 'lucide-react-native/icons/clock'
+import Download from 'lucide-react-native/icons/download'
 import Ellipsis from 'lucide-react-native/icons/ellipsis'
 import EyeOff from 'lucide-react-native/icons/eye-off'
+import FileDown from 'lucide-react-native/icons/file-down'
+import FileSpreadsheet from 'lucide-react-native/icons/file-spreadsheet'
+import FileUp from 'lucide-react-native/icons/file-up'
 import Hammer from 'lucide-react-native/icons/hammer'
 import House from 'lucide-react-native/icons/house'
 import IdCard from 'lucide-react-native/icons/id-card'
@@ -71,7 +75,11 @@ const ICONES: Record<string, LucideIcon> = {
   ChevronRight,
   ClipboardCheck,
   Clock,
+  Download,
   EyeOff,
+  FileDown,
+  FileSpreadsheet,
+  FileUp,
   Hammer,
   Home: House,
   IdCard,

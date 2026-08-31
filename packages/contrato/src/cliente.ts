@@ -12,10 +12,11 @@
 import type {
   Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaLocalizada,
-  FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
-  NovoAcesso, Painel, PainelDaEquipe, Portaria, ResultadoDaLeitura,
-  RespostaDeBatida, ResumoParticipacao, SetorDetalhado, Sessao,
+  ArquivoDePlanilha, EquipeDoSetor, EventoComSetores, EventoDetalhado,
+  EventoEscaneavel, FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao,
+  ListaDeAcessos, MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe,
+  Portaria, ResultadoDaImportacao, ResultadoDaLeitura, RespostaDeBatida,
+  ResumoParticipacao, SetorDetalhado, Sessao,
 } from './tipos.js'
 
 export interface ClienteApi {
@@ -157,6 +158,32 @@ export interface ClienteApi {
     eventoId: string,
     dados: { nome: string; estimado?: number | null; valorPorPessoa?: number | null },
   ): Promise<{ setor?: SetorDetalhado; erro?: string }>
+
+  /** A equipe de um setor, com o estado de cada pessoa em cada etapa. */
+  equipeDoSetor(setorId: string): Promise<EquipeDoSetor>
+
+  // ── Planilhas ───────────────────────────────────────────────────────────
+  /** O modelo em branco, com as colunas que a importação espera. */
+  baixarModelo(): Promise<ArquivoDePlanilha>
+
+  /**
+   * A equipe do setor em planilha.
+   *
+   * `dia` recorta a exportação para um dia específico — é o formato que a
+   * produção manda para o cliente no fechamento. Sem ele, sai a equipe inteira.
+   */
+  exportarEquipe(setorId: string, op?: { dia?: string }): Promise<ArquivoDePlanilha>
+
+  /**
+   * Importa a equipe de uma planilha.
+   *
+   * Devolve o que entrou E o que ficou de fora. Recusar o arquivo inteiro por
+   * causa de duas linhas erradas obriga a pessoa a caçar o erro sem pista.
+   */
+  importarPlanilha(
+    setorId: string,
+    arquivo: { nome: string; base64: string },
+  ): Promise<{ resultado?: ResultadoDaImportacao; erro?: string }>
 
   // ── Acessos ─────────────────────────────────────────────────────────────
   /** Quem consegue entrar no sistema. Não é a equipe do evento. */
