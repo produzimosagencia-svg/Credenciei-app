@@ -6,6 +6,8 @@
  */
 export type { ClienteApi } from './cliente.js'
 export { ClienteFalso } from './cliente-falso.js'
+export { ClienteHttp, FalhaDeTransporte, AindaNaoNaApi } from './cliente-http.js'
+export type { OpcoesDoClienteHttp } from './cliente-http.js'
 export type { ComportamentoFalso, ContaDeDemonstracao } from './cliente-falso.js'
 export { CONTAS_DE_DEMONSTRACAO, SENHA_DE_DEMONSTRACAO } from './cliente-falso.js'
 export { credenciaisDeDemonstracao } from './cliente-falso.js'

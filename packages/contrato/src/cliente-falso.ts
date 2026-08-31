@@ -499,6 +499,18 @@ export class ClienteFalso implements ClienteApi {
       return { erro: 'Não encontramos um evento com este código. Confira com quem te enviou.' }
     }
 
+    /*
+     * Já está dentro: a API recusa aqui, e o falso passa a recusar também.
+     *
+     * A divergência foi encontrada pelo teste que roda o mesmo roteiro nos dois
+     * clientes. O falso deixava consultar e reentrar; a API não. Um falso mais
+     * permissivo que o servidor ensina o app a fazer coisa errada — a tela
+     * seria escrita acreditando que dá, e a falha só apareceria contra a API.
+     */
+    if (this.participacao && this.participacao.eventoId === EVENTO.id) {
+      return { erro: 'Você já está neste evento. Ele aparece na sua tela inicial.' }
+    }
+
     const convite: ConviteDoEvento = {
       eventoId: EVENTO.id,
       eventoNome: EVENTO.nome,

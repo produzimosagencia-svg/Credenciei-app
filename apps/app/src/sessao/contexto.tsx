@@ -63,13 +63,34 @@ export function ProvedorDeSessao({ children }: { children: ReactNode }) {
     [],
   )
 
+  /**
+   * Monta o cliente já ligado na guarda.
+   *
+   * O cliente pergunta o token à guarda a CADA chamada, em vez de receber uma
+   * cópia. É o que faz a renovação valer para as chamadas seguintes: o token
+   * gira, e uma cópia guardada dentro do cliente ficaria velha na primeira
+   * renovação.
+   *
+   * Está numa função porque o cliente é montado em DOIS momentos — na abertura
+   * e depois de sair. Duplicar a ligação faria o cliente pós-logout nascer sem
+   * saber pegar token, e a pessoa entraria de novo para ver tudo falhar.
+   */
+  const montarCliente = useCallback((guardada?: Sessao) => criarCliente({
+    ...(guardada ? { sessao: guardada } : {}),
+    credencial: async () => {
+      const c = await guarda.credencial()
+      return c.ok ? c.token : null
+    },
+    aoPerderSessao: () => { void guarda.sair() },
+  }), [guarda])
+
   useEffect(() => {
     let vivo = true
     const desassinar = guarda.assinar(s => { if (vivo) setSessao(s) })
 
     void (async () => {
       const guardada = await guarda.carregar()
-      const novo = criarCliente({ sessao: guardada ?? undefined })
+      const novo = montarCliente(guardada ?? undefined)
       clienteRef.current = novo
 
       if (guardada) {
@@ -84,7 +105,7 @@ export function ProvedorDeSessao({ children }: { children: ReactNode }) {
     })()
 
     return () => { vivo = false; desassinar() }
-  }, [guarda])
+  }, [guarda, montarCliente])
 
   const entrar = useCallback(async (nova: Sessao) => {
     await guarda.abrir(nova)
@@ -95,11 +116,11 @@ export function ProvedorDeSessao({ children }: { children: ReactNode }) {
     await guarda.sair()
     // Cliente novo: o antigo carrega a sessão da pessoa anterior na memória, e
     // reaproveitá-lo deixaria o próximo login vendo dados que não são dele.
-    const limpo = criarCliente()
+    const limpo = montarCliente()
     clienteRef.current = limpo
     setCliente(limpo)
     setSemRede(false)
-  }, [guarda])
+  }, [guarda, montarCliente])
 
   const valor = useMemo<ValorDaSessao | null>(
     () => cliente ? { sessao, cliente, semRede, entrar, sair } : null,
