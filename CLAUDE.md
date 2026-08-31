@@ -40,13 +40,13 @@ uma regra só.
 ```
 packages/dominio     a regra de negócio, pura — 42 testes
 packages/offline     a fila de batidas sem internet — 22 testes
-packages/contrato    o que o app pode pedir + servidor falso — 54 testes
+packages/contrato    o que o app pode pedir + servidor falso — 73 testes
 apps/api             a API HTTP completa — 71 testes
 apps/app             o aplicativo, em React Native + Expo — 49 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**238 testes.** `npm run teste --workspaces` roda todos, sem banco e sem rede.
+**257 testes.** `npm run teste --workspaces` roda todos, sem banco e sem rede.
 
 Para VER o app: `npm run web --workspace=@credenciei/app` abre no navegador, sem
 instalar nada. No celular, `npm run start --workspace=@credenciei/app` gera um QR

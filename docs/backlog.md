@@ -1,6 +1,6 @@
 # Backlog
 
-**272 tasks · 159 no MVP · 75 concluídas (28%)**
+**272 tasks · 159 no MVP · 80 concluídas (29%)**
 
 > **30/08/2026 — o escopo cresceu, e o total mudou junto.** O Juan pediu que o
 > app tenha as mesmas telas e a mesma lógica do sistema que já está no ar, e
@@ -32,9 +32,9 @@ Atualizado em 30/08/2026.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
-| 15 | Testes | 6 | 14 | — | 238 testes rodando |
+| 15 | Testes | 6 | 14 | — | 257 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 12 | 20 | ✓ | Painel, scanner e ponto; falta a API |
+| 17 | Painel no app | 17 | 20 | ✓ | Falta o bloco Plataforma e a API |
 
 ---
 
@@ -118,6 +118,11 @@ Atualizado em 30/08/2026.
 - Registrar ponto: busca por CPF ou nome, com escolha entre homônimos
 - Registrar ponto: foto obrigatória e etapa decidida pelo servidor
 - Câmera de rosto, com permissão explicada e foto já reduzida
+- Atividades: log com QR, foto e registro assistido separados
+- Atividades: filtro por etapa, com contador vindo da mesma lista
+- Atividades: quem não chegou e quem está no evento, nome por nome
+- Acessos: lista com abas, busca e bloquear sem apagar histórico
+- Criar acesso de supervisor, preso a um setor de um evento
 
 ---
 
@@ -127,12 +132,10 @@ O Juan escolheu **telas primeiro, com dados de mentira**: o app inteiro fica
 navegável contra o servidor falso, ele olha e corrige, e só depois a API real
 entra por baixo. Nenhuma tela muda na troca.
 
-1. **Atividades do evento** (Epic 17). O que aconteceu no evento em ordem —
-   quem chegou, quem bateu o meio, quem saiu.
-2. **Acessos** (Epic 17). Quem tem conta, e com qual papel.
-3. **A credencial na tela** (Epic 6 + 8). O QR do dia e os três botões de bater
-   ponto, ligados à fila offline que já existe.
-4. **Organizações, Base de funcionários, Encontre colaborador, WhatsApp**
+1. **A credencial na tela** (Epic 6 + 8). O QR do dia e os três botões de bater
+   ponto, ligados à fila offline que já existe. É o lado do colaborador, e o
+   único pedaço grande que ainda falta do MVP.
+2. **Organizações, Base de funcionários, Encontre colaborador, WhatsApp**
    (Epic 17). O bloco Plataforma, que só o master vê.
 5. **Cliente HTTP de verdade** (Epic 3 + 17). Trocar o falso pelo real é um
    arquivo só, mas ele ainda não existe — e faltam os endpoints do painel.
