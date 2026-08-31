@@ -66,11 +66,11 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
   // à própria equipe.
   if (podeAcompanhar(papel)) {
     principal.push({ rota: '/ponto', rotulo: 'Registrar ponto', icone: 'ClipboardCheck', pronta: true })
-    principal.push({ rota: '/atividades', rotulo: 'Atividades do evento', icone: 'Activity', pronta: false })
+    principal.push({ rota: '/atividades', rotulo: 'Atividades do evento', icone: 'Activity', pronta: true })
   }
 
   if (podeGerenciarUsuarios(papel)) {
-    principal.push({ rota: '/acessos', rotulo: 'Acessos', icone: 'Users', pronta: false })
+    principal.push({ rota: '/acessos', rotulo: 'Acessos', icone: 'Users', pronta: true })
   }
 
   grupos.push({ itens: principal })

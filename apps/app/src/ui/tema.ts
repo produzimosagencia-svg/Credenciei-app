@@ -111,6 +111,19 @@ export const gradiente = {
 export type TomDeIndicador = keyof typeof gradiente
 
 /**
+ * A cor de cada etapa do dia, igual à dos gráficos do sistema web.
+ *
+ * Verde, azul e âmbar — e NÃO verde-amarelo-vermelho: as três etapas não são
+ * bom, mais ou menos e ruim. São momentos diferentes do mesmo dia, e pintar de
+ * semáforo faria a saída parecer um problema.
+ */
+export const corDaEtapa = {
+  entrada: '#16a34a',
+  meio: '#2563eb',
+  fim: '#d97706',
+} as const
+
+/**
  * O cartão do evento que está acontecendo agora.
  *
  * Escuro e grande de propósito: é a única coisa da tela que exige ação NESTE
@@ -241,6 +254,6 @@ export const ALVO_MINIMO = 52
 export const LARGURA_MAXIMA = 460
 
 export const tema = {
-  cor, uso, gradiente, eventoAoVivo, tipo, texto, espaco, raio, sombra,
-  ALVO_MINIMO, LARGURA_MAXIMA,
+  cor, uso, gradiente, corDaEtapa, eventoAoVivo, tipo, texto, espaco, raio,
+  sombra, ALVO_MINIMO, LARGURA_MAXIMA,
 }

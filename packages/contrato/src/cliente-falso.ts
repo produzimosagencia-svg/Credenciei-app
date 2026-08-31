@@ -23,16 +23,18 @@
 // falso e real não passa despercebida.
 
 import {
-  avaliarEntradaSaida, diaBRT, faseConfere, faseDoDia, gerarCodigoQR, janelaMeio,
-  lerCodigoDeEvento, lerCodigoQR, podeEscanear, podeAcompanhar,
+  avaliarEntradaSaida, diaBRT, ehMaster, faseConfere, faseDoDia, formatCpf,
+  gerarCodigoQR, janelaMeio, lerCodigoDeEvento, lerCodigoQR, podeAcompanhar,
+  podeEscanear, podeGerenciarUsuarios,
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
 import type {
-  AtividadeRecente, BatidaAssistida, CandidatoLocalizado, ConferenciaPorCpf,
-  ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu, EventoEscaneavel,
-  FichaLocalizada, FinanceiroDaParticipacao, MomentoDaLeitura, Painel,
-  PainelDaEquipe, ResultadoDaLeitura, RespostaDeBatida, ResumoParticipacao,
-  Sessao,
+  Acesso, AtividadeRecente, AtividadesDoEvento, BatidaAssistida,
+  CandidatoLocalizado, ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao,
+  EnvioDeBatida, Eu, EventoComSetores, EventoEscaneavel, FichaLocalizada,
+  FiltroDeAcessos, FinanceiroDaParticipacao, LinhaDaAtividade, ListaDeAcessos,
+  MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe, PessoaDaLista,
+  ResultadoDaLeitura, RespostaDeBatida, ResumoParticipacao, Sessao,
 } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
@@ -201,6 +203,15 @@ const EQUIPE_DE_MENTIRA = [
   { id: 'f-6', nome: 'Simone Vasconcelos', cpf: '87204953167', funcao: 'Encarregada de limpeza', setor: 'Limpeza', supervisor: 'Marina Alves', ativo: false, token: 'qr-simone' },
 ]
 
+/**
+ * Teto do log de atividades.
+ *
+ * Acima disso a tela fica pesada e ninguém rola até o fim. Quando corta, a tela
+ * DIZ que está mostrando só as mais recentes — senão quem procura uma batida
+ * antiga conclui que ela não existe.
+ */
+const TETO_DO_LOG = 200
+
 /** A ordem em que as etapas do dia acontecem. É ela que define a pendência. */
 const ORDEM_DAS_ETAPAS: TipoBatida[] = ['entrada', 'meio', 'fim']
 
@@ -209,6 +220,95 @@ const ROTULO_DA_ETAPA: Record<TipoBatida, string> = {
   meio: 'Meio',
   fim: 'Saída',
 }
+
+/**
+ * Quem tem acesso ao sistema.
+ *
+ * Não é a equipe do evento: quem só trabalha no dia está em `EQUIPE_DE_MENTIRA`
+ * e não entra em lugar nenhum. Aqui é quem faz login — e são poucos, sempre.
+ *
+ * Um deles está inativo de propósito: é o caso de quem saiu da equipe e cujo
+ * histórico precisa continuar existindo. Sem ele na lista, a aba "Inativos"
+ * nunca seria vista durante o desenvolvimento.
+ */
+const ACESSOS_DE_MENTIRA: {
+  id: string
+  nome: string
+  identificador: string
+  papel: Papel
+  ativo: boolean
+  setorNome: string | null
+  eventos: number
+  criadoEm: string
+}[] = [
+  { id: 'u-1', nome: 'Juan Muzy', identificador: 'juan@produzimos.com.br', papel: 'master', ativo: true, setorNome: null, eventos: 3, criadoEm: '2025-11-04T10:00:00-03:00' },
+  { id: 'u-2', nome: 'Marina Alves', identificador: 'marina@produzimos.com.br', papel: 'admin', ativo: true, setorNome: null, eventos: 3, criadoEm: '2026-02-17T09:30:00-03:00' },
+  { id: 'u-3', nome: 'Carlos Silva', identificador: 'carlos@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Produção', eventos: 1, criadoEm: '2026-06-02T14:12:00-03:00' },
+  { id: 'u-4', nome: 'Débora Antunes', identificador: 'debora@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Camarim', eventos: 1, criadoEm: '2026-07-21T11:45:00-03:00' },
+  { id: 'u-5', nome: 'Fábio Queiroz', identificador: 'fabio@produzimos.com.br', papel: 'supervisor', ativo: false, setorNome: 'Portaria', eventos: 2, criadoEm: '2025-12-09T16:20:00-03:00' },
+]
+
+/** Os setores de cada evento. Todo supervisor nasce preso a um deles. */
+const SETORES_DE_MENTIRA: Record<string, { setorId: string; nome: string }[]> = {
+  'ev-1': [
+    { setorId: 's-1', nome: 'Produção' },
+    { setorId: 's-2', nome: 'Portaria' },
+    { setorId: 's-3', nome: 'Bar' },
+    { setorId: 's-4', nome: 'Camarim' },
+    { setorId: 's-5', nome: 'Limpeza' },
+  ],
+  'ev-2': [
+    { setorId: 's-6', nome: 'Produção' },
+    { setorId: 's-7', nome: 'Portaria' },
+  ],
+  'ev-3': [
+    { setorId: 's-8', nome: 'Produção' },
+  ],
+}
+
+/**
+ * O log de atividades, já com casos que a tela precisa saber desenhar.
+ *
+ * Tem batida por QR, batida com foto do próprio colaborador e batida assistida
+ * — que é a que outra pessoa registrou. Se todas fossem iguais, a distinção
+ * mais importante da tela (como a batida entrou) nunca seria exercitada.
+ */
+const ATIVIDADES_DE_MENTIRA: LinhaDaAtividade[] = [
+  {
+    id: 'r-1', nome: 'Juan Muzy', cpf: '76431520891', setor: 'Produção',
+    etapa: 'meio', em: '2026-08-30T18:04:00-03:00', como: 'foto',
+    local: 'Av. Fernando Ferrari, Goiabeiras', registradoPor: null, justificativa: null,
+  },
+  {
+    id: 'r-2', nome: 'Ana Cláudia Ferreira', cpf: '03748261509', setor: 'Produção',
+    etapa: 'entrada', em: '2026-08-30T14:12:00-03:00', como: 'qr',
+    local: null, registradoPor: null, justificativa: null,
+  },
+  {
+    id: 'r-3', nome: 'Rodrigo Menezes Lima', cpf: '21890647355', setor: 'Portaria',
+    etapa: 'entrada', em: '2026-08-30T13:58:00-03:00', como: 'assistido',
+    local: 'Estádio Kleber Andrade, Cariacica', registradoPor: 'Marina Alves',
+    justificativa: 'Chegou sem celular',
+  },
+  {
+    id: 'r-4', nome: 'Juan Muzy', cpf: '76431520891', setor: 'Produção',
+    etapa: 'entrada', em: '2026-08-30T13:47:00-03:00', como: 'qr',
+    local: null, registradoPor: null, justificativa: null,
+  },
+  {
+    id: 'r-5', nome: 'Patrícia Nogueira Silva', cpf: '49012783644', setor: 'Camarim',
+    etapa: 'fim', em: '2026-08-29T23:40:00-03:00', como: 'qr',
+    local: null, registradoPor: null, justificativa: null,
+  },
+  // A entrada dela, de ontem: sem ela, o log teria uma saída sem entrada — que
+  // é justamente o tipo de incoerência que esta tela existe para revelar, e não
+  // para produzir sozinha.
+  {
+    id: 'r-6', nome: 'Patrícia Nogueira Silva', cpf: '49012783644', setor: 'Camarim',
+    etapa: 'entrada', em: '2026-08-29T15:10:00-03:00', como: 'qr',
+    local: null, registradoPor: null, justificativa: null,
+  },
+]
 
 const SEGREDO_DE_MENTIRA = 'segredo-do-cliente-falso'
 
@@ -875,6 +975,214 @@ export class ClienteFalso implements ClienteApi {
     if (!poder(this.sessao?.papel)) {
       throw new Error(`Você não tem permissão para ${oQue}.`)
     }
+  }
+
+  // ── Atividades do evento ──────────────────────────────────────────────────
+
+  async eventosParaAcompanhar(): Promise<EventoEscaneavel[]> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeAcompanhar, 'acompanhar o evento')
+
+    // O supervisor acompanha só o evento do próprio setor.
+    const meus = this.sessao!.papel === 'supervisor'
+      ? EVENTOS_DO_PAINEL.filter(e => e.eventoId === 'ev-2')
+      : EVENTOS_DO_PAINEL
+    return meus.map(e => ({ eventoId: e.eventoId, nome: e.nome }))
+  }
+
+  async atividades(eventoId: string): Promise<AtividadesDoEvento> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeAcompanhar, 'acompanhar o evento')
+
+    const evento = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+      ?? EVENTOS_DO_PAINEL[0]!
+
+    /*
+     * O log junta o que já estava gravado com o que foi registrado nesta
+     * sessão — pelo scanner ou pela tela de registrar ponto. Sem isso, quem
+     * acabou de bater uma entrada não a veria aparecer aqui, e concluiria que
+     * ela não gravou.
+     */
+    const desteUso: LinhaDaAtividade[] = []
+    for (const [id, etapas] of this.batidasDaEquipe) {
+      const pessoa = EQUIPE_DE_MENTIRA.find(p => p.id === id)
+      if (!pessoa) continue
+      for (const etapa of etapas) {
+        desteUso.push({
+          id: `${id}-${etapa}`,
+          nome: pessoa.nome,
+          cpf: pessoa.cpf,
+          setor: pessoa.setor,
+          etapa,
+          em: new Date(this.agora()).toISOString(),
+          como: 'qr',
+          local: null,
+          registradoPor: null,
+          justificativa: null,
+        })
+      }
+    }
+
+    const linhas = [...desteUso, ...ATIVIDADES_DE_MENTIRA]
+      .sort((a, b) => Date.parse(b.em) - Date.parse(a.em))
+      .slice(0, TETO_DO_LOG)
+
+    const porEtapa: Record<TipoBatida, number> = { entrada: 0, meio: 0, fim: 0 }
+    for (const l of linhas) porEtapa[l.etapa] += 1
+
+    // Quem entrou e ainda não saiu — o número que o produtor pergunta no rádio.
+    const entraram = new Set(linhas.filter(l => l.etapa === 'entrada').map(l => l.cpf))
+    const sairam = new Set(linhas.filter(l => l.etapa === 'fim').map(l => l.cpf))
+
+    const ativos = EQUIPE_DE_MENTIRA.filter(p => p.ativo)
+    const comoLista = (p: (typeof EQUIPE_DE_MENTIRA)[number]): PessoaDaLista => ({
+      id: p.id, nome: p.nome, setor: p.setor, telefone: '27999255959',
+    })
+
+    const naoChegaram = ativos.filter(p => !entraram.has(p.cpf)).map(comoLista)
+    const aindaNoEvento = ativos
+      .filter(p => entraram.has(p.cpf) && !sairam.has(p.cpf))
+      .map(comoLista)
+
+    const hoje = diaBRT(new Date(this.agora()))
+    const batidasHoje = linhas.filter(l => diaBRT(l.em) === hoje).length
+
+    return {
+      eventoId: evento.eventoId,
+      eventoNome: evento.nome,
+      indicadores: [
+        { chave: 'batidas_hoje', rotulo: 'Batidas hoje', valor: batidasHoje, tom: 'acento' },
+        {
+          chave: 'presentes',
+          rotulo: 'Presentes agora',
+          valor: aindaNoEvento.length,
+          sub: `de ${ativos.length} na equipe`,
+          tom: 'sucesso',
+        },
+        { chave: 'nao_chegaram', rotulo: 'Ainda não chegaram', valor: naoChegaram.length, tom: 'aviso' },
+        { chave: 'sairam', rotulo: 'Já saíram', valor: sairam.size, tom: 'info' },
+      ],
+      linhas,
+      porEtapa,
+      naoChegaram,
+      aindaNoEvento,
+      noTeto: linhas.length >= TETO_DO_LOG,
+    }
+  }
+
+  // ── Acessos ───────────────────────────────────────────────────────────────
+
+  async acessos(filtro: FiltroDeAcessos = {}): Promise<ListaDeAcessos> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarUsuarios, 'ver quem tem acesso')
+
+    const eu = ACESSOS_DE_MENTIRA.find(a => a.nome === this.quemEntrou.nome)
+    const todos: Acesso[] = ACESSOS_DE_MENTIRA
+      .filter(a => this.acessosNoAlcance(a))
+      .map(a => ({ ...a, souEu: a.id === eu?.id }))
+
+    const ativos = todos.filter(a => a.ativo).length
+
+    const busca = semAcento((filtro.busca ?? '').trim())
+    const situacao = filtro.situacao ?? 'todos'
+
+    const itens = todos.filter(a => {
+      if (situacao === 'ativos' && !a.ativo) return false
+      if (situacao === 'inativos' && a.ativo) return false
+      if (!busca) return true
+      return semAcento(a.nome).includes(busca) || semAcento(a.identificador).includes(busca)
+    })
+
+    return { itens, total: todos.length, ativos, inativos: todos.length - ativos }
+  }
+
+  async mudarSituacaoDoAcesso(id: string, ativo: boolean) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarUsuarios, 'mudar acessos')
+
+    const alvo = ACESSOS_DE_MENTIRA.find(a => a.id === id)
+    if (!alvo || !this.acessosNoAlcance(alvo)) return { erro: 'Não encontramos este acesso.' }
+
+    /*
+     * Ninguém se tranca para fora.
+     *
+     * Desativar a própria conta deixaria a pessoa sem como voltar — e num
+     * sistema onde só o master cria admins, isso vira uma ligação para a
+     * plataforma no meio do evento.
+     */
+    const eu = ACESSOS_DE_MENTIRA.find(a => a.nome === this.quemEntrou.nome)
+    if (alvo.id === eu?.id) {
+      return { erro: 'Você não pode desativar o próprio acesso.' }
+    }
+
+    alvo.ativo = ativo
+    return {}
+  }
+
+  async eventosComSetores(): Promise<EventoComSetores[]> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarUsuarios, 'criar acessos')
+
+    return EVENTOS_DO_PAINEL.map(e => ({
+      eventoId: e.eventoId,
+      nome: e.nome,
+      setores: SETORES_DE_MENTIRA[e.eventoId] ?? [],
+    }))
+  }
+
+  async criarAcesso(dados: NovoAcesso) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarUsuarios, 'criar acessos')
+
+    const nome = (dados.nome ?? '').trim()
+    const cpf = (dados.cpf ?? '').replace(/\D/g, '')
+
+    if (nome.length < 3) return { erro: 'Digite o nome completo da pessoa.' }
+    if (cpf.length !== 11) return { erro: 'O CPF precisa ter 11 dígitos.' }
+    if (!dados.setorId) return { erro: 'Escolha o setor do supervisor.' }
+
+    // O CPF é a chave de identidade: dois acessos com o mesmo CPF fariam duas
+    // pessoas diferentes entrarem na mesma conta.
+    if (ACESSOS_DE_MENTIRA.some(a => a.identificador.replace(/\D/g, '') === cpf)) {
+      return { erro: 'Já existe um acesso com este CPF.' }
+    }
+
+    const setor = Object.values(SETORES_DE_MENTIRA)
+      .flat()
+      .find(x => x.setorId === dados.setorId)
+
+    const novo: Acesso = {
+      id: `u-${ACESSOS_DE_MENTIRA.length + 1}`,
+      nome,
+      identificador: formatCpf(cpf),
+      papel: 'supervisor',
+      ativo: dados.ativo,
+      setorNome: setor?.nome ?? null,
+      eventos: 1,
+      criadoEm: new Date(this.agora()).toISOString(),
+      souEu: false,
+    }
+
+    ACESSOS_DE_MENTIRA.push({ ...novo })
+    return { acesso: novo }
+  }
+
+  /**
+   * O alcance de quem está olhando.
+   *
+   * O master vê todos os acessos da plataforma; o admin, só a própria
+   * organização — que aqui é tudo menos o master, já que existe uma
+   * organização só. É a mesma régua do resto do sistema.
+   */
+  private acessosNoAlcance(a: { papel: Papel }): boolean {
+    if (ehMaster(this.sessao?.papel)) return true
+    return a.papel !== 'master'
   }
 
   // ── Supervisor ────────────────────────────────────────────────────────────

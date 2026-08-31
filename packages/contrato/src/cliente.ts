@@ -10,10 +10,12 @@
 // tem como devolver as de outra pessoa; `participacoesDe(id)` teria.
 
 import type {
-  BatidaAssistida, CandidatoLocalizado, ConferenciaPorCpf, ConviteDoEvento,
-  DiaDaParticipacao, EnvioDeBatida, Eu, EventoEscaneavel, FichaLocalizada,
-  FinanceiroDaParticipacao, MomentoDaLeitura, Painel, PainelDaEquipe,
-  ResultadoDaLeitura, RespostaDeBatida, ResumoParticipacao, Sessao,
+  Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
+  ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
+  EventoComSetores, EventoEscaneavel, FichaLocalizada, FiltroDeAcessos,
+  FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura, NovoAcesso,
+  Painel, PainelDaEquipe, ResultadoDaLeitura, RespostaDeBatida,
+  ResumoParticipacao, Sessao,
 } from './tipos.js'
 
 export interface ClienteApi {
@@ -114,6 +116,37 @@ export interface ClienteApi {
     participacaoId: string,
     dados: BatidaAssistida,
   ): Promise<{ nome?: string; etapa?: string; erro?: string }>
+
+  // ── Atividades do evento ────────────────────────────────────────────────
+  /**
+   * Os eventos que ESTA pessoa pode acompanhar.
+   *
+   * Lista própria, e não a mesma de `eventosParaEscanear`: acompanhar e
+   * escanear são permissões diferentes. O supervisor acompanha o próprio setor
+   * sem poder escanear — tirar o scanner dele não pode cegá-lo.
+   */
+  eventosParaAcompanhar(): Promise<EventoEscaneavel[]>
+
+  /** O log da operação: cada batida, na ordem em que aconteceu. */
+  atividades(eventoId: string): Promise<AtividadesDoEvento>
+
+  // ── Acessos ─────────────────────────────────────────────────────────────
+  /** Quem consegue entrar no sistema. Não é a equipe do evento. */
+  acessos(filtro?: FiltroDeAcessos): Promise<ListaDeAcessos>
+
+  /**
+   * Bloqueia ou libera o login de alguém, sem apagar o histórico.
+   *
+   * O servidor recusa quando o alvo é quem está pedindo: ninguém se tranca
+   * para fora do sistema por engano.
+   */
+  mudarSituacaoDoAcesso(id: string, ativo: boolean): Promise<{ erro?: string }>
+
+  /** Os eventos com os setores de cada um — todo supervisor nasce num setor. */
+  eventosComSetores(): Promise<EventoComSetores[]>
+
+  /** Cria o acesso de um supervisor, preso a um setor. */
+  criarAcesso(dados: NovoAcesso): Promise<{ acesso?: Acesso; erro?: string }>
 
   // ── Supervisor ──────────────────────────────────────────────────────────
   painelDaEquipe(eventoId: string): Promise<PainelDaEquipe>

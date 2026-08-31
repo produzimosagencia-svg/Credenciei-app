@@ -22,14 +22,22 @@ import { abasDe } from '../../src/navegacao/menu'
 import { Icone } from '../../src/ui/icone'
 import { cor, texto, tipo, uso } from '../../src/ui/tema'
 
-/** Toda tela desta pasta. As que não são aba do papel atual recebem `href: null`. */
+/**
+ * Toda tela desta pasta.
+ *
+ * As que não são aba do papel atual recebem `href: null` — continuam
+ * navegáveis a partir do "Mais", só não ocupam lugar na barra. O `titulo` é o
+ * do cabeçalho quando ela é aberta assim: sem ele, quem chega por "Mais" vê uma
+ * barra vazia e não sabe onde está.
+ */
 const TELAS = [
-  { nome: 'index', rota: '/' },
-  { nome: 'escanear', rota: '/escanear' },
-  { nome: 'ponto', rota: '/ponto' },
-  { nome: 'atividades', rota: '/atividades' },
-  { nome: 'credencial', rota: '/credencial' },
-  { nome: 'meus-dias', rota: '/meus-dias' },
+  { nome: 'index', rota: '/', titulo: 'Início' },
+  { nome: 'escanear', rota: '/escanear', titulo: 'Escanear QR' },
+  { nome: 'ponto', rota: '/ponto', titulo: 'Registrar ponto' },
+  { nome: 'atividades', rota: '/atividades', titulo: 'Atividades do evento' },
+  { nome: 'acessos', rota: '/acessos', titulo: 'Acessos' },
+  { nome: 'credencial', rota: '/credencial', titulo: 'Minha credencial' },
+  { nome: 'meus-dias', rota: '/meus-dias', titulo: 'Meus dias' },
 ] as const
 
 export default function Dentro() {
@@ -72,7 +80,7 @@ export default function Dentro() {
               // barra: é assim que "Atividades" existe para o supervisor sem
               // ocupar aba de quem não a tem entre as três primeiras.
               href: aba ? (tela.rota as never) : null,
-              title: aba?.rotulo ?? '',
+              title: aba?.rotulo ?? tela.titulo,
               headerShown: tela.nome !== 'index',
               tabBarIcon: ({ color, focused }) => (
                 <Icone
@@ -98,8 +106,9 @@ export default function Dentro() {
         }}
       />
 
-      {/* Não é aba: abre a partir da lista de eventos, e volta para ela. */}
+      {/* Não são abas: abrem a partir de uma lista, e voltam para ela. */}
       <Tabs.Screen name="novo-evento" options={{ href: null, title: 'Entrar num evento' }} />
+      <Tabs.Screen name="novo-acesso" options={{ href: null, title: 'Criar acesso' }} />
     </Tabs>
   )
 }

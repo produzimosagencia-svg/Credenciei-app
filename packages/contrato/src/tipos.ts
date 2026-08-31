@@ -350,3 +350,135 @@ export type BatidaAssistida = {
   lng?: number
   dispositivo?: string
 }
+
+
+// ─── Atividades do evento ───────────────────────────────────────────────────
+//
+// Não é o Painel. O Painel responde "como está"; esta tela responde "o que
+// aconteceu, na ordem, e por quem". É a tela que se abre quando alguém contesta
+// uma batida — e a que mostra NOME POR NOME quem ainda não chegou, em vez de só
+// o número.
+
+/**
+ * Como a batida entrou no sistema.
+ *
+ * É a primeira coisa que se olha quando um registro é contestado: uma leitura
+ * de QR no portão e uma batida que outra pessoa fez pelo colaborador têm pesos
+ * diferentes na hora de decidir quem tem razão.
+ */
+export type ComoFoiRegistrada = 'qr' | 'foto' | 'assistido'
+
+export type LinhaDaAtividade = {
+  id: string
+  nome: string
+  cpf: string
+  setor: string
+  etapa: TipoBatida
+  em: string
+  como: ComoFoiRegistrada
+  /** Endereço aproximado, quando o aparelho deu a localização. */
+  local: string | null
+  /** Quem registrou, quando não foi a própria pessoa. */
+  registradoPor: string | null
+  justificativa: string | null
+}
+
+/** Uma pessoa nas listas de "não chegou" e "ainda no evento". */
+export type PessoaDaLista = {
+  id: string
+  nome: string
+  setor: string
+  /**
+   * O telefone aparece na lista de quem não chegou de propósito: é dali que
+   * sai a ligação. Ter que abrir outra tela para achar o número, no meio do
+   * evento, é o que faz ninguém ligar.
+   */
+  telefone: string | null
+}
+
+export type AtividadesDoEvento = {
+  eventoId: string
+  eventoNome: string
+  /** Batidas hoje · Presentes agora · Ainda não chegaram · Já saíram. */
+  indicadores: IndicadorDoPainel[]
+  /** Da mais recente para a mais antiga. */
+  linhas: LinhaDaAtividade[]
+  /** Quantas em cada etapa — é o contador que vai nas abas do filtro. */
+  porEtapa: Record<TipoBatida, number>
+  naoChegaram: PessoaDaLista[]
+  aindaNoEvento: PessoaDaLista[]
+  /**
+   * O log bateu no teto?
+   *
+   * Acima de umas duzentas linhas a tela fica pesada e ninguém rola até o fim.
+   * Quando corta, a tela precisa DIZER que está mostrando só as mais recentes —
+   * senão quem procura uma batida antiga conclui que ela não existe.
+   */
+  noTeto: boolean
+}
+
+// ─── Acessos ────────────────────────────────────────────────────────────────
+//
+// Quem consegue ENTRAR no sistema. Não confundir com a equipe do evento: quem
+// só trabalha no dia aparece dentro do setor, não aqui.
+
+export type Acesso = {
+  id: string
+  nome: string
+  /** E-mail ou CPF, do jeito que a pessoa entra. */
+  identificador: string
+  papel: Papel
+  /**
+   * Inativo é bloqueado no login SEM perder o histórico.
+   *
+   * É o que se usa quando alguém sai da equipe mas os registros antigos
+   * precisam continuar existindo. Excluir apaga; desativar só fecha a porta.
+   */
+  ativo: boolean
+  /** Supervisor mostra o setor; os outros papéis, quantos eventos. */
+  setorNome: string | null
+  eventos: number
+  criadoEm: string
+  /**
+   * É a própria pessoa que está olhando?
+   *
+   * A linha de quem está logado nunca mostra as ações — ninguém remove o
+   * próprio acesso por engano e fica trancado para fora do sistema.
+   */
+  souEu: boolean
+}
+
+export type ListaDeAcessos = {
+  itens: Acesso[]
+  total: number
+  ativos: number
+  inativos: number
+}
+
+export type FiltroDeAcessos = {
+  busca?: string
+  situacao?: 'todos' | 'ativos' | 'inativos'
+}
+
+export type SetorDoEvento = { setorId: string; nome: string }
+
+/** Evento com os setores dele: todo supervisor nasce preso a um setor. */
+export type EventoComSetores = {
+  eventoId: string
+  nome: string
+  setores: SetorDoEvento[]
+}
+
+export type NovoAcesso = {
+  nome: string
+  cpf: string
+  telefone: string
+  eventoId: string
+  setorId: string
+  /**
+   * Criar já ativo, ou bloqueado?
+   *
+   * Bloqueado é útil para deixar tudo pronto na véspera e liberar só no dia.
+   */
+  ativo: boolean
+}

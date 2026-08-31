@@ -642,3 +642,224 @@ test('o colaborador não localiza ninguém', async () => {
   const c = await logado()
   await assert.rejects(() => c.localizarPessoa('Silva'), /permissão/i)
 })
+
+
+// ─── Atividades do evento ───────────────────────────────────────────────────
+
+test('o log vem do mais recente para o mais antigo', async () => {
+  // Quem abre esta tela no meio do evento quer o que acabou de acontecer. Uma
+  // lista em ordem cronológica exigiria rolar até o fim para ver o agora.
+  const c = await noPortao()
+  const a = await c.atividades('ev-1')
+
+  const horarios = a.linhas.map(l => Date.parse(l.em))
+  const ordenado = [...horarios].sort((x, y) => y - x)
+  assert.deepEqual(horarios, ordenado)
+})
+
+test('o log distingue QR, foto e registro assistido', async () => {
+  /*
+   * É a primeira coisa que se olha quando um registro é contestado: uma
+   * leitura no portão e uma batida que outra pessoa fez pelo colaborador têm
+   * pesos diferentes na hora de decidir quem tem razão.
+   */
+  const c = await noPortao()
+  const a = await c.atividades('ev-1')
+
+  const formas = new Set(a.linhas.map(l => l.como))
+  assert.ok(formas.has('qr'))
+  assert.ok(formas.has('foto'))
+  assert.ok(formas.has('assistido'))
+
+  const assistida = a.linhas.find(l => l.como === 'assistido')!
+  assert.ok(assistida.registradoPor, 'batida assistida precisa dizer quem registrou')
+})
+
+test('o que acabou de ser escaneado aparece no log', async () => {
+  // Sem isso, quem bate uma entrada e vai conferir não a encontra — e conclui
+  // que ela não gravou.
+  const c = await noPortao()
+  const antes = await c.atividades('ev-1')
+
+  const cracha = crachaQueServe()
+  await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+
+  const depois = await c.atividades('ev-1')
+  assert.equal(depois.linhas.length, antes.linhas.length + 1)
+  assert.ok(depois.linhas.some(l => l.nome === cracha.nome && l.etapa === 'entrada'))
+})
+
+test('o contador de cada etapa bate com o log', async () => {
+  // As abas mostram esses números. Se viessem de contas diferentes, a aba diria
+  // 4 e a lista mostraria 3.
+  const c = await noPortao()
+  const a = await c.atividades('ev-1')
+
+  for (const etapa of ['entrada', 'meio', 'fim'] as const) {
+    assert.equal(
+      a.porEtapa[etapa],
+      a.linhas.filter(l => l.etapa === etapa).length,
+      etapa,
+    )
+  }
+})
+
+test('quem não chegou aparece com nome e telefone', async () => {
+  /*
+   * O telefone está na lista de propósito: é dali que sai a ligação. Ter que
+   * abrir outra tela para achar o número, no meio do evento, é o que faz
+   * ninguém ligar.
+   */
+  const c = await noPortao()
+  const a = await c.atividades('ev-1')
+
+  assert.ok(a.naoChegaram.length > 0)
+  for (const p of a.naoChegaram) {
+    assert.ok(p.nome)
+    assert.ok(p.telefone, 'sem telefone a lista não serve para nada')
+  }
+})
+
+test('quem bate entrada sai de "não chegaram" e entra em "ainda no evento"', async () => {
+  const c = await noPortao()
+  // Alguém que ainda NÃO tem batida nenhuma no log — os outros já entraram, e o
+  // teste passaria sem provar nada.
+  const cracha = credenciaisDeDemonstracao()
+    .find(x => x.serveHoje && x.nome === 'Wesley dos Santos Silva')!
+
+  const antes = await c.atividades('ev-1')
+  assert.ok(antes.naoChegaram.some(p => p.nome === cracha.nome))
+
+  await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+
+  const depois = await c.atividades('ev-1')
+  assert.equal(depois.naoChegaram.some(p => p.nome === cracha.nome), false)
+  assert.ok(depois.aindaNoEvento.some(p => p.nome === cracha.nome))
+})
+
+test('o colaborador não acompanha o evento', async () => {
+  const c = await logado()
+  await assert.rejects(() => c.atividades('ev-1'), /permissão/i)
+})
+
+test('o supervisor acompanha, e só o evento do setor dele', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const eventos = await c.eventosParaAcompanhar()
+  assert.equal(eventos.length, 1)
+})
+
+// ─── Acessos ────────────────────────────────────────────────────────────────
+
+test('a lista de acessos separa ativos de inativos', async () => {
+  const c = await noPortao()
+  const todos = await c.acessos()
+  assert.equal(todos.ativos + todos.inativos, todos.total)
+
+  const inativos = await c.acessos({ situacao: 'inativos' })
+  assert.ok(inativos.itens.length > 0, 'faltou alguém inativo para a aba existir')
+  assert.ok(inativos.itens.every(a => !a.ativo))
+})
+
+test('a busca acha por nome e por identificador, sem acento', async () => {
+  const c = await noPortao()
+  assert.equal((await c.acessos({ busca: 'debora' })).itens.length, 1)
+  assert.equal((await c.acessos({ busca: 'DEBORA' })).itens.length, 1)
+  assert.equal((await c.acessos({ busca: 'marina@produzimos' })).itens.length, 1)
+})
+
+test('a própria linha vem marcada', async () => {
+  // É ela que não mostra as ações — ninguém remove o próprio acesso por engano.
+  const c = await noPortao()
+  const lista = await c.acessos()
+  const eu = lista.itens.filter(a => a.souEu)
+  assert.equal(eu.length, 1)
+  assert.equal(eu[0]!.nome, 'Marina Alves')
+})
+
+test('ninguém desativa o próprio acesso', async () => {
+  /*
+   * Ficaria trancado para fora — e, num sistema onde só o master cria admins,
+   * isso vira uma ligação para a plataforma no meio do evento.
+   */
+  const c = await noPortao()
+  const lista = await c.acessos()
+  const eu = lista.itens.find(a => a.souEu)!
+
+  const r = await c.mudarSituacaoDoAcesso(eu.id, false)
+  assert.ok(r.erro)
+})
+
+test('desativar bloqueia o login sem apagar a pessoa', async () => {
+  const c = await noPortao()
+  const alvo = (await c.acessos()).itens.find(a => !a.souEu && a.ativo)!
+
+  assert.equal((await c.mudarSituacaoDoAcesso(alvo.id, false)).erro, undefined)
+
+  const depois = await c.acessos()
+  assert.equal(depois.total, (await c.acessos()).total, 'não podia sumir da lista')
+  assert.equal(depois.itens.find(a => a.id === alvo.id)?.ativo, false)
+
+  // E dá para voltar atrás.
+  await c.mudarSituacaoDoAcesso(alvo.id, true)
+  assert.equal((await c.acessos()).itens.find(a => a.id === alvo.id)?.ativo, true)
+})
+
+test('o admin não enxerga o acesso do master', async () => {
+  // É a mesma régua do resto do sistema: admin vê a própria organização.
+  const c = await noPortao()
+  const doAdmin = await c.acessos()
+  assert.equal(doAdmin.itens.some(a => a.papel === 'master'), false)
+
+  const m = new ClienteFalso()
+  await entrarComo(m, 'master')
+  assert.ok((await m.acessos()).itens.some(a => a.papel === 'master'))
+})
+
+test('o supervisor não vê a tela de acessos', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  await assert.rejects(() => c.acessos(), /permissão/i)
+})
+
+test('criar acesso exige nome, CPF e setor', async () => {
+  const c = await noPortao()
+  const base = { nome: 'Larissa Prado', cpf: '11122233344', eventoId: 'ev-1', setorId: 's-2', ativo: true }
+
+  assert.ok((await c.criarAcesso({ ...base, nome: 'La' })).erro)
+  assert.ok((await c.criarAcesso({ ...base, cpf: '123' })).erro)
+  assert.ok((await c.criarAcesso({ ...base, setorId: '' })).erro)
+})
+
+test('o acesso criado nasce supervisor, preso a um setor', async () => {
+  const c = await noPortao()
+  const r = await c.criarAcesso({
+    nome: 'Larissa Prado', cpf: '65498732100', telefone: '27999887766',
+    eventoId: 'ev-1', setorId: 's-2', ativo: true,
+  })
+
+  assert.ok(r.acesso, r.erro)
+  assert.equal(r.acesso.papel, 'supervisor')
+  assert.equal(r.acesso.setorNome, 'Portaria')
+  assert.ok((await c.acessos({ busca: 'Larissa' })).itens.length === 1)
+})
+
+test('CPF repetido é recusado', async () => {
+  // Dois acessos com o mesmo CPF fariam duas pessoas entrarem na mesma conta.
+  const c = await noPortao()
+  const dados = {
+    nome: 'Outra Pessoa', cpf: '99988877766', telefone: '27999887766',
+    eventoId: 'ev-1', setorId: 's-2', ativo: true,
+  }
+  assert.ok((await c.criarAcesso(dados)).acesso)
+  assert.ok((await c.criarAcesso({ ...dados, nome: 'Mais Outra' })).erro)
+})
+
+test('todo evento oferecido para criar acesso tem setor', async () => {
+  // Supervisor sem setor não escaneia nem gerencia ninguém: seria um acesso
+  // que não serve para nada.
+  const c = await noPortao()
+  for (const e of await c.eventosComSetores()) {
+    assert.ok(e.setores.length > 0, `${e.nome} ficou sem setor`)
+  }
+})
