@@ -996,3 +996,128 @@ test('setor sem nome é recusado', async () => {
   const c = await noPortao()
   assert.ok((await c.criarSetor('ev-1', { nome: ' ' })).erro)
 })
+
+// ─── Editar o evento ────────────────────────────────────────────────────────
+
+test('a configuração traz os horários e os dias marcados', async () => {
+  const c = await noPortao()
+  const cfg = await c.configuracaoDoEvento('ev-1')
+
+  assert.equal(cfg.batidaLivre, true, 'o Henrique e Juliano é por escala rotativa')
+  assert.ok(cfg.janelaEntradaInicio)
+  assert.ok(cfg.diaPrincipal)
+  assert.ok(cfg.dias.some(d => d.tipo === 'principal'))
+  assert.ok(cfg.dias.some(d => d.tipo === 'preparacao'))
+})
+
+test('o dia principal vem do começo do evento, e vem travado', async () => {
+  // Ele não é escolhido na grade: sai da data do evento. Deixar desmarcar o dia
+  // do evento apagaria o evento de dentro dele mesmo.
+  const c = await noPortao()
+  const cfg = await c.configuracaoDoEvento('ev-1')
+  const principal = cfg.dias.find(d => d.tipo === 'principal')!
+
+  assert.equal(principal.data, cfg.diaPrincipal)
+  assert.equal(principal.temBatidas, true)
+})
+
+test('horário impossível é recusado pelo SERVIDOR, não só pela tela', async () => {
+  /*
+   * A tela confere antes, e vai continuar conferindo. Mas a tela é
+   * conveniência e o servidor é a garantia: foi assim que a saída do Kleber
+   * Andrade ficou marcada para o dia errado, e o erro só apareceria na
+   * madrugada do evento com mil pessoas tentando bater a saída.
+   */
+  const c = await noPortao()
+  const r = await c.salvarEvento('ev-1', {
+    nome: 'Henrique e Juliano',
+    descricao: null,
+    local: 'Kleber Andrade',
+    dataInicio: '2026-09-05T18:30:00-03:00',
+    dataFim: '2026-09-06T08:00:00-03:00',
+    batidaLivre: false,
+    // A saída marcada para ANTES do evento começar.
+    janelaEntradaInicio: '2026-09-05T07:00:00-03:00',
+    janelaEntradaFim: '2026-09-05T23:55:00-03:00',
+    janelaFimInicio: '2026-09-04T01:30:00-03:00',
+    janelaFimFim: '2026-09-04T08:00:00-03:00',
+  })
+
+  assert.ok(r.erro, 'era para o servidor recusar')
+})
+
+test('evento sem nome é recusado', async () => {
+  const c = await noPortao()
+  const r = await c.salvarEvento('ev-1', {
+    nome: '  ',
+    descricao: null,
+    local: null,
+    dataInicio: '2026-09-05T18:30:00-03:00',
+    dataFim: null,
+    batidaLivre: false,
+    janelaEntradaInicio: null,
+    janelaEntradaFim: null,
+    janelaFimInicio: null,
+    janelaFimFim: null,
+  })
+  assert.ok(r.erro)
+})
+
+test('a batida livre gravada volta na configuração', async () => {
+  const c = await noPortao()
+  const antes = await c.configuracaoDoEvento('ev-2')
+  assert.equal(antes.batidaLivre, false)
+
+  await c.salvarEvento('ev-2', {
+    nome: antes.nome,
+    descricao: null,
+    local: antes.local,
+    dataInicio: antes.dataInicio,
+    dataFim: antes.dataFim,
+    batidaLivre: true,
+    janelaEntradaInicio: antes.janelaEntradaInicio,
+    janelaEntradaFim: antes.janelaEntradaFim,
+    janelaFimInicio: antes.janelaFimInicio,
+    janelaFimFim: antes.janelaFimFim,
+  })
+
+  assert.equal((await c.configuracaoDoEvento('ev-2')).batidaLivre, true)
+})
+
+// ─── Dias de trabalho ───────────────────────────────────────────────────────
+
+test('dia com batida é PRESERVADO mesmo vindo desmarcado', async () => {
+  /*
+   * Apagá-lo tiraria do sistema presenças que já aconteceram — e é delas que
+   * sai o pagamento. A resposta diz quantos foram mantidos, para a tela
+   * explicar em vez de parecer que o botão não funcionou.
+   */
+  const c = await noPortao()
+  const antes = await c.configuracaoDoEvento('ev-1')
+  const travado = antes.dias.find(d => d.tipo === 'preparacao' && d.temBatidas)
+  assert.ok(travado, 'o cenário precisa ter um dia travado')
+
+  // Manda uma lista SEM ele.
+  const r = await c.salvarDiasDeTrabalho('ev-1', [])
+  assert.equal(r.resultado?.preservados, 1)
+  assert.equal(r.resultado?.dias, 1)
+
+  const depois = await c.configuracaoDoEvento('ev-1')
+  assert.ok(depois.dias.some(d => d.data === travado.data))
+})
+
+test('o dia do evento não entra na conta de dias de preparação', async () => {
+  // Somar o dia do evento faria o número não bater com o que o produtor acabou
+  // de marcar — e ele é o único dia da grade que não é "preparação".
+  const c = await noPortao()
+  const cfg = await c.configuracaoDoEvento('ev-2')
+  const r = await c.salvarDiasDeTrabalho('ev-2', ['2026-08-28', cfg.diaPrincipal!])
+
+  assert.equal(r.resultado?.dias, 1)
+})
+
+test('o supervisor não edita o evento', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  await assert.rejects(() => c.configuracaoDoEvento('ev-1'), /permissão/i)
+})

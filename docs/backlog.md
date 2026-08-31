@@ -1,8 +1,8 @@
 # Backlog
 
-**277 tasks · 164 no MVP · 121 concluídas (44%)**
+**291 tasks · 178 no MVP · 133 concluídas (46%)**
 
-**Só o MVP: 100 de 164 (61%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 111 de 178 (62%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -28,10 +28,10 @@ Atualizado em 31/08/2026.
 | # | Epic | Feito | Total | MVP | Situação |
 |---|---|---|---|---|---|
 | 1 | Modelo de dados | 3 | 16 | ✓ | SQL escrito, nada executado |
-| 2 | Fundação | 6 | 12 | ✓ | Domínio pronto e sincronizado com a web |
+| 2 | Fundação | 7 | 12 | ✓ | Domínio sincronizado; conferência de horários em uso |
 | 3 | API v1 | 21 | 32 | ✓ | Cliente HTTP ligado; faltam as rotas do painel |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
-| 5 | App base | 12 | 14 | ✓ | Navegação por papel, com abas e menu |
+| 5 | App base | 14 | 14 | ✓ | Navegação, tema, campos e data/hora |
 | 6 | QR | 7 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
 | 7 | Offline | 13 | 19 | ✓ | Fila ligada ao app; falta o envio da foto ao storage |
 | 8 | Ponto no app | 4 | 13 | ✓ | O meio com selfie; falta o resto do ciclo |
@@ -41,9 +41,10 @@ Atualizado em 31/08/2026.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
-| 15 | Testes | 8 | 14 | — | 321 testes rodando |
+| 15 | Testes | 9 | 14 | — | 336 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 25 | 25 | ✓ | Pronto; falta o bloco Plataforma e a API |
+| 17 | Painel no app | 25 | 25 | ✓ | Pronto |
+| 18 | Configurar evento | 8 | 14 | ✓ | Edição, dias e planilhas; falta a API |
 
 ---
 
@@ -167,6 +168,16 @@ Atualizado em 31/08/2026.
 - O cartão do painel abre a configuração do evento
 - Equipe do setor: lista, busca e os cinco filtros rápidos
 - Planilha: um botão só, com importar, baixar modelo e exportar dentro
+
+**Epic 18 — Configurar evento**
+- Tela de edição: informações, duração e horários do dia principal
+- Interruptor de batida livre, antes dos horários porque muda o sentido deles
+- Conferência de horários recalculada no toque, nunca de um veredito velho
+- Bloqueio que ABRE um aviso e diz que nada foi salvo
+- Explicação do meio automático, que perdeu o campo mas não a regra
+- Dias de trabalho numa tira que rola, com montagem, evento e desmontagem
+- Dia com batida preservado mesmo se vier desmarcado
+- Campo de data e hora: seletor do sistema no celular, máscara no navegador
 
 ---
 

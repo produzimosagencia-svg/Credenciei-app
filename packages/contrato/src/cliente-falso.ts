@@ -23,20 +23,22 @@
 // falso e real não passa despercebida.
 
 import {
-  avaliarEntradaSaida, diaBRT, ehMaster, faseConfere, faseDoDia, formatCpf,
-  gerarCodigoQR, janelaMeio, lerCodigoDeEvento, lerCodigoQR, podeAcompanhar,
-  podeEscanear, podeGerenciarEventos, podeGerenciarUsuarios,
+  avaliarEntradaSaida, conferirHorariosDoEvento, diaBRT, ehMaster, faseConfere,
+  faseDoDia, formatCpf, gerarCodigoQR, janelaMeio, lerCodigoDeEvento,
+  lerCodigoQR, podeAcompanhar, podeEscanear, podeGerenciarEventos,
+  podeGerenciarUsuarios,
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
 import type {
   Acesso, ArquivoDePlanilha, AtividadeRecente, AtividadesDoEvento,
-  BatidaAssistida, CandidatoLocalizado, ConferenciaPorCpf, ConviteDoEvento,
-  DiaDaParticipacao, EnvioDeBatida, EquipeDoSetor, Eu, EventoComSetores,
-  EventoDetalhado, EventoEscaneavel, FichaLocalizada, FiltroDeAcessos,
-  FinanceiroDaParticipacao, LinhaDaAtividade, ListaDeAcessos, MomentoDaLeitura,
-  NovoAcesso, Painel, PainelDaEquipe, PessoaDaLista, PessoaDoSetor, Portaria,
-  ResultadoDaImportacao, ResultadoDaLeitura, RespostaDeBatida,
-  ResumoParticipacao, SetorDetalhado, StatusDaEtapa, Sessao,
+  BatidaAssistida, CandidatoLocalizado, ConferenciaPorCpf, ConfiguracaoDoEvento,
+  ConviteDoEvento, DiaDaParticipacao, EdicaoDoEvento, EnvioDeBatida,
+  EquipeDoSetor, Eu, EventoComSetores, EventoDetalhado, EventoEscaneavel,
+  FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, LinhaDaAtividade,
+  ListaDeAcessos, MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe,
+  PessoaDaLista, PessoaDoSetor, Portaria, ResultadoDaImportacao,
+  ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
+  SetorDetalhado, StatusDaEtapa, Sessao,
 } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
@@ -413,6 +415,62 @@ function equipeDoSetorDeMentira(setorId: string, quantas: number): PessoaDoSetor
 
 /** O modelo de importação e as exportações apontam para o sistema web. */
 const ENDERECO_DE_ARQUIVOS = 'https://credenciei.vercel.app'
+
+/**
+ * A configuração de cada evento, que a tela de edição grava.
+ *
+ * Fica fora de `EVENTOS_DO_PAINEL` pelo mesmo motivo da portaria: isto MUDA. O
+ * ev-1 nasce com a batida livre ligada, que é o caso do Henrique e Juliano.
+ */
+const CONFIGURACAO_DE_MENTIRA: Record<string, {
+  descricao: string | null
+  batidaLivre: boolean
+  janelaEntradaInicio: string | null
+  janelaEntradaFim: string | null
+  janelaFimInicio: string | null
+  janelaFimFim: string | null
+  /** Os dias de preparação marcados, sem o dia do evento. */
+  preparacao: string[]
+  /** Os que já têm batida e por isso não podem ser desmarcados. */
+  comBatidas: string[]
+}> = {
+  'ev-1': {
+    descricao: null,
+    batidaLivre: true,
+    janelaEntradaInicio: '2026-09-05T07:00:00-03:00',
+    janelaEntradaFim: '2026-09-05T23:55:00-03:00',
+    janelaFimInicio: '2026-09-06T01:30:00-03:00',
+    janelaFimFim: '2026-09-06T08:00:00-03:00',
+    preparacao: [
+      '2026-08-28', '2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03',
+      '2026-09-04', '2026-09-06', '2026-09-07', '2026-09-08', '2026-09-09',
+    ],
+    // Um dia que já tem batida: é o que a grade mostra com cadeado, e o que o
+    // servidor preserva mesmo se vier desmarcado. Sem ele no cenário, esse
+    // caminho nunca seria exercitado.
+    comBatidas: ['2026-08-31'],
+  },
+  'ev-2': {
+    descricao: null,
+    batidaLivre: false,
+    janelaEntradaInicio: '2026-08-29T16:00:00-03:00',
+    janelaEntradaFim: '2026-08-29T22:00:00-03:00',
+    janelaFimInicio: '2026-08-30T01:00:00-03:00',
+    janelaFimFim: '2026-08-30T06:00:00-03:00',
+    preparacao: ['2026-08-28'],
+    comBatidas: [],
+  },
+  'ev-3': {
+    descricao: null,
+    batidaLivre: false,
+    janelaEntradaInicio: null,
+    janelaEntradaFim: null,
+    janelaFimInicio: null,
+    janelaFimFim: null,
+    preparacao: [],
+    comBatidas: [],
+  },
+}
 
 const SEGREDO_DE_MENTIRA = 'segredo-do-cliente-falso'
 
@@ -1313,6 +1371,119 @@ export class ClienteFalso implements ClienteApi {
     }
     lista.push(novo)
     return { setor: this.paraSetor(novo) }
+  }
+
+  async configuracaoDoEvento(eventoId: string): Promise<ConfiguracaoDoEvento> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'editar o evento')
+
+    const base = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+    const cfg = CONFIGURACAO_DE_MENTIRA[eventoId]
+    if (!base || !cfg) throw new Error('Não encontramos este evento.')
+
+    const diaPrincipal = diaBRT(base.dataInicio)
+    const comBatidas = new Set(cfg.comBatidas)
+
+    const dias = [
+      { data: diaPrincipal, tipo: 'principal' as const, temBatidas: true },
+      ...cfg.preparacao.map(d => ({
+        data: d,
+        tipo: 'preparacao' as const,
+        temBatidas: comBatidas.has(d),
+      })),
+    ].sort((a, b) => a.data.localeCompare(b.data))
+
+    return {
+      eventoId,
+      nome: base.nome,
+      descricao: cfg.descricao,
+      local: base.local,
+      dataInicio: base.dataInicio,
+      dataFim: eventoId === 'ev-1' ? '2026-09-06T08:00:00-03:00' : null,
+      batidaLivre: cfg.batidaLivre,
+      janelaEntradaInicio: cfg.janelaEntradaInicio,
+      janelaEntradaFim: cfg.janelaEntradaFim,
+      janelaFimInicio: cfg.janelaFimInicio,
+      janelaFimFim: cfg.janelaFimFim,
+      diaPrincipal,
+      dias,
+    }
+  }
+
+  async salvarEvento(eventoId: string, dados: EdicaoDoEvento) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'editar o evento')
+
+    const base = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+    const cfg = CONFIGURACAO_DE_MENTIRA[eventoId]
+    if (!base || !cfg) return { erro: 'Não encontramos este evento.' }
+
+    if (!dados.nome?.trim()) return { erro: 'O evento precisa de um nome.' }
+    if (!dados.dataInicio) return { erro: 'Defina quando o evento começa.' }
+
+    /*
+     * O servidor confere os horários DE NOVO.
+     *
+     * A tela já conferiu, e vai continuar conferindo — mas a tela é
+     * conveniência e o servidor é a garantia. Uma configuração impossível
+     * gravada aqui só apareceria na madrugada do evento, com mil pessoas
+     * tentando bater a saída ao mesmo tempo. Foi assim que a saída do Kleber
+     * Andrade ficou marcada para o dia errado.
+     */
+    const problemas = conferirHorariosDoEvento({
+      data_inicio: dados.dataInicio,
+      data_fim: dados.dataFim,
+      janela_entrada_inicio: dados.janelaEntradaInicio,
+      janela_entrada_fim: dados.janelaEntradaFim,
+      janela_fim_inicio: dados.janelaFimInicio,
+      janela_fim_fim: dados.janelaFimFim,
+    })
+    const bloqueio = problemas.find(p => p.bloqueia)
+    if (bloqueio) return { erro: bloqueio.mensagem }
+
+    base.nome = dados.nome.trim()
+    base.local = dados.local
+    base.dataInicio = dados.dataInicio
+    cfg.descricao = dados.descricao
+    cfg.batidaLivre = dados.batidaLivre
+    cfg.janelaEntradaInicio = dados.janelaEntradaInicio
+    cfg.janelaEntradaFim = dados.janelaEntradaFim
+    cfg.janelaFimInicio = dados.janelaFimInicio
+    cfg.janelaFimFim = dados.janelaFimFim
+    return {}
+  }
+
+  async salvarDiasDeTrabalho(eventoId: string, dias: string[]) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'marcar os dias de trabalho')
+
+    const base = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+    const cfg = CONFIGURACAO_DE_MENTIRA[eventoId]
+    if (!base || !cfg) return { erro: 'Não encontramos este evento.' }
+
+    const diaPrincipal = diaBRT(base.dataInicio)
+    const pedidos = new Set(dias.filter(d => d !== diaPrincipal))
+
+    /*
+     * Dia com batida é PRESERVADO mesmo vindo desmarcado.
+     *
+     * Apagá-lo tiraria do sistema presenças que já aconteceram — e é delas que
+     * sai o pagamento. O servidor não obedece cegamente aqui, e a resposta diz
+     * quantos foram mantidos, para a tela poder explicar em vez de parecer que
+     * o botão não funcionou.
+     */
+    const preservados = cfg.preparacao.filter(d => !pedidos.has(d) && cfg.comBatidas.includes(d))
+    for (const d of preservados) pedidos.add(d)
+
+    cfg.preparacao = [...pedidos].sort()
+    const resultado: ResultadoDosDias = {
+      dias: cfg.preparacao.length,
+      preservados: preservados.length,
+    }
+    return { resultado }
   }
 
   private portariaDe(eventoId: string): Portaria {

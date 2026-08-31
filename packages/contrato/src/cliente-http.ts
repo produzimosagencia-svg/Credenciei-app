@@ -29,11 +29,12 @@ import type { ClienteApi } from './cliente.js'
 import type {
   Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  ArquivoDePlanilha, EquipeDoSetor, EventoComSetores, EventoDetalhado,
-  EventoEscaneavel, FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao,
-  ListaDeAcessos, MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe,
-  Portaria, ResultadoDaImportacao, ResultadoDaLeitura, RespostaDeBatida,
-  ResumoParticipacao, SetorDetalhado, Sessao,
+  ArquivoDePlanilha, ConfiguracaoDoEvento, EdicaoDoEvento, EquipeDoSetor,
+  EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaLocalizada,
+  FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
+  NovoAcesso, Painel, PainelDaEquipe, Portaria, ResultadoDaImportacao,
+  ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
+  SetorDetalhado, Sessao,
 } from './tipos.js'
 
 export type OpcoesDoClienteHttp = {
@@ -404,6 +405,23 @@ export class ClienteHttp implements ClienteApi {
   ): Promise<{ portaria?: Portaria; erro?: string }> {
     void _eventoId
     throw new AindaNaoNaApi('trocarTokenDaPortaria')
+  }
+
+  async configuracaoDoEvento(_eventoId: string): Promise<ConfiguracaoDoEvento> {
+    void _eventoId
+    throw new AindaNaoNaApi('configuracaoDoEvento')
+  }
+
+  async salvarEvento(_eventoId: string, _dados: EdicaoDoEvento): Promise<{ erro?: string }> {
+    void _eventoId; void _dados
+    throw new AindaNaoNaApi('salvarEvento')
+  }
+
+  async salvarDiasDeTrabalho(
+    _eventoId: string, _dias: string[],
+  ): Promise<{ resultado?: ResultadoDosDias; erro?: string }> {
+    void _eventoId; void _dias
+    throw new AindaNaoNaApi('salvarDiasDeTrabalho')
   }
 
   async criarSetor(

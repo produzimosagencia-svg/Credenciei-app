@@ -37,6 +37,7 @@ import FileUp from 'lucide-react-native/icons/file-up'
 import Hammer from 'lucide-react-native/icons/hammer'
 import House from 'lucide-react-native/icons/house'
 import IdCard from 'lucide-react-native/icons/id-card'
+import Lock from 'lucide-react-native/icons/lock'
 import LogIn from 'lucide-react-native/icons/log-in'
 import LogOut from 'lucide-react-native/icons/log-out'
 import MapPin from 'lucide-react-native/icons/map-pin'
@@ -83,6 +84,7 @@ const ICONES: Record<string, LucideIcon> = {
   Hammer,
   Home: House,
   IdCard,
+  Lock,
   LogIn,
   LogOut,
   MapPin,

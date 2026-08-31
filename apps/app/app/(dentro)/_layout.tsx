@@ -110,7 +110,8 @@ export default function Dentro() {
       {/* Não são abas: abrem a partir de uma lista, e voltam para ela. */}
       <Tabs.Screen name="novo-evento" options={{ href: null, title: 'Entrar num evento' }} />
       <Tabs.Screen name="novo-acesso" options={{ href: null, title: 'Criar acesso' }} />
-      <Tabs.Screen name="evento/[id]" options={{ href: null, title: 'Configurar evento' }} />
+      <Tabs.Screen name="evento/[id]/index" options={{ href: null, title: 'Configurar evento' }} />
+      <Tabs.Screen name="evento/[id]/editar" options={{ href: null, title: 'Editar evento' }} />
       <Tabs.Screen name="setor/[id]" options={{ href: null, title: 'Equipe do setor' }} />
     </Tabs>
   )

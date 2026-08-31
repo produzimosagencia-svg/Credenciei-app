@@ -44,7 +44,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "A localização fica guardada junto com a batida registrada por outra pessoa, como prova de onde ela aconteceu. Se você negar, o registro funciona do mesmo jeito."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

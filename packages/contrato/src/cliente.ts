@@ -12,11 +12,12 @@
 import type {
   Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  ArquivoDePlanilha, EquipeDoSetor, EventoComSetores, EventoDetalhado,
-  EventoEscaneavel, FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao,
-  ListaDeAcessos, MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe,
-  Portaria, ResultadoDaImportacao, ResultadoDaLeitura, RespostaDeBatida,
-  ResumoParticipacao, SetorDetalhado, Sessao,
+  ArquivoDePlanilha, ConfiguracaoDoEvento, EdicaoDoEvento, EquipeDoSetor,
+  EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaLocalizada,
+  FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
+  NovoAcesso, Painel, PainelDaEquipe, Portaria, ResultadoDaImportacao,
+  ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
+  SetorDetalhado, Sessao,
 } from './tipos.js'
 
 export interface ClienteApi {
@@ -152,6 +153,31 @@ export interface ClienteApi {
    * cadastrou não é afetado.
    */
   trocarTokenDaPortaria(eventoId: string): Promise<{ portaria?: Portaria; erro?: string }>
+
+  /** O evento como ele está configurado hoje, para a tela de edição. */
+  configuracaoDoEvento(eventoId: string): Promise<ConfiguracaoDoEvento>
+
+  /**
+   * Grava as informações e os horários do evento.
+   *
+   * O servidor confere os horários de novo, mesmo a tela já tendo conferido: a
+   * tela é conveniência, o servidor é a garantia. Uma configuração impossível
+   * gravada aqui só apareceria na madrugada do evento, com mil pessoas
+   * tentando bater a saída ao mesmo tempo.
+   */
+  salvarEvento(eventoId: string, dados: EdicaoDoEvento): Promise<{ erro?: string }>
+
+  /**
+   * Marca quais dias a equipe trabalha.
+   *
+   * Grava separado do resto porque é outra tabela — e porque o produtor mexe
+   * nos dias sem necessariamente mexer no evento. Dia com batida registrada é
+   * preservado mesmo se vier desmarcado.
+   */
+  salvarDiasDeTrabalho(
+    eventoId: string,
+    dias: string[],
+  ): Promise<{ resultado?: ResultadoDosDias; erro?: string }>
 
   /** Cria um setor (fornecedor) do evento. */
   criarSetor(

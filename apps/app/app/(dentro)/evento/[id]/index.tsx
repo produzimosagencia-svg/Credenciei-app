@@ -18,17 +18,17 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
 import { formatarBR } from '@credenciei/dominio'
 import type { SetorDetalhado, TipoBatida } from '@credenciei/contrato'
-import { usePedido } from '../../../src/dados/pedido'
-import { mensagemDoErro } from '../../../src/dados/pedido'
-import { useSessao } from '../../../src/sessao/contexto'
+import { usePedido } from '../../../../src/dados/pedido'
+import { mensagemDoErro } from '../../../../src/dados/pedido'
+import { useSessao } from '../../../../src/sessao/contexto'
 import {
   Aviso, Botao, Campo, Carregando, Cartao, Corpo, Etiqueta, Indicador, Legenda,
   Respiro, Selo, Separador, Tela, TituloDaTela, TituloDeCartao,
-} from '../../../src/ui/componentes'
-import { Icone } from '../../../src/ui/icone'
-import { BotaoDePlanilha } from '../../../src/ui/planilha'
-import { CartaoDaPortaria } from '../../../src/ui/portaria'
-import { cor, corDaEtapa, espaco, raio, texto, tipo, uso } from '../../../src/ui/tema'
+} from '../../../../src/ui/componentes'
+import { Icone } from '../../../../src/ui/icone'
+import { BotaoDePlanilha } from '../../../../src/ui/planilha'
+import { CartaoDaPortaria } from '../../../../src/ui/portaria'
+import { cor, corDaEtapa, espaco, raio, texto, tipo, uso } from '../../../../src/ui/tema'
 
 const ICONE_DO_INDICADOR: Record<string, string> = {
   setores: 'Users',
@@ -111,6 +111,13 @@ export default function ConfiguracaoDoEvento() {
             {dados.local ? <Metadado icone="MapPin" texto={dados.local} /> : null}
           </View>
 
+          <Respiro />
+
+          <Botao
+            titulo="Editar evento"
+            onPress={() => router.push(`/evento/${id}/editar` as never)}
+            tipo="secundario"
+          />
           <Respiro />
 
           {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}

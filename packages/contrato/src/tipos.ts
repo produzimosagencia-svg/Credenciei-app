@@ -658,3 +658,70 @@ export type ResultadoDaImportacao = {
    */
   erros: string[]
 }
+
+
+// ─── Editar o evento ────────────────────────────────────────────────────────
+
+export type DiaDeTrabalho = {
+  /** "2026-09-05". */
+  data: string
+  tipo: 'principal' | 'preparacao'
+  /**
+   * Já tem batida registrada neste dia?
+   *
+   * Dia com batida NÃO pode ser desmarcado: apagá-lo tiraria do sistema
+   * presenças que já aconteceram — e é justamente delas que sai o pagamento.
+   * A tela mostra o cadeado; o servidor recusa de qualquer jeito.
+   */
+  temBatidas: boolean
+}
+
+export type ConfiguracaoDoEvento = {
+  eventoId: string
+  nome: string
+  descricao: string | null
+  local: string | null
+  dataInicio: string | null
+  dataFim: string | null
+  /**
+   * O dia do evento não recusa por horário.
+   *
+   * Os horários abaixo continuam gravados e valendo como REFERÊNCIA: são eles
+   * que a equipe recebe na mensagem do dia, e é por eles que o sistema calcula
+   * quem está atrasado. O que sai é só a recusa no portão.
+   */
+  batidaLivre: boolean
+  janelaEntradaInicio: string | null
+  janelaEntradaFim: string | null
+  janelaFimInicio: string | null
+  janelaFimFim: string | null
+  /** O dia principal, derivado de `dataInicio`. Não é escolhido à mão. */
+  diaPrincipal: string | null
+  dias: DiaDeTrabalho[]
+}
+
+/** O que a tela de edição manda de volta. Tudo junto, num salvamento só. */
+export type EdicaoDoEvento = {
+  nome: string
+  descricao: string | null
+  local: string | null
+  dataInicio: string | null
+  dataFim: string | null
+  batidaLivre: boolean
+  janelaEntradaInicio: string | null
+  janelaEntradaFim: string | null
+  janelaFimInicio: string | null
+  janelaFimFim: string | null
+}
+
+export type ResultadoDosDias = {
+  /** Quantos dias de PREPARAÇÃO ficaram salvos — sem contar o dia do evento. */
+  dias: number
+  /**
+   * Quantos foram mantidos mesmo desmarcados, por já terem batidas.
+   *
+   * A tela precisa dizer isso: sem o aviso, o produtor desmarca, salva, e vê o
+   * dia continuar lá — e conclui que o botão não funcionou.
+   */
+  preservados: number
+}
