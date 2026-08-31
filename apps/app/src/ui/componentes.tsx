@@ -142,7 +142,7 @@ export function Indicador({
       style={e.indicador}
     >
       {/* O brilho do canto: tira o ar de retângulo chapado sem virar reflexo. */}
-      <View style={e.indicadorBrilho} pointerEvents="none" />
+      <View style={e.indicadorBrilho} />
 
       <View style={e.indicadorLinha}>
         <View style={e.indicadorTexto}>
@@ -430,6 +430,9 @@ const e = StyleSheet.create({
     ...sombra.sm,
   },
   indicadorBrilho: {
+    // No estilo, e não como propriedade: `props.pointerEvents` está
+    // descontinuado no React Native atual e avisa no console a cada tela.
+    pointerEvents: 'none',
     position: 'absolute',
     top: '-55%',
     right: '-25%',

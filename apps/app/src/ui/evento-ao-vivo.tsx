@@ -15,9 +15,7 @@ import type { EventoDoPainel } from '@credenciei/contrato'
 import { Icone } from './icone'
 import { espaco, eventoAoVivo as v, raio, texto, tipo } from './tema'
 
-export function CartaoDeEventoAoVivo({
-  evento, aoTocar,
-}: { evento: EventoDoPainel; aoTocar?: () => void }) {
+export function CartaoDeEventoAoVivo({ evento }: { evento: EventoDoPainel }) {
   const pct = evento.equipe > 0 ? Math.round((evento.presentes / evento.equipe) * 100) : 0
 
   return (
@@ -28,7 +26,7 @@ export function CartaoDeEventoAoVivo({
       end={{ x: 1, y: 1 }}
       style={e.fora}
     >
-      <View style={e.brilho} pointerEvents="none" />
+      <View style={e.brilho} />
 
       <View style={e.conteudo}>
         {evento.aoVivo ? (
@@ -79,7 +77,6 @@ export function CartaoDeEventoAoVivo({
           </View>
         )}
       </View>
-      {aoTocar ? null : null}
     </LinearGradient>
   )
 }
@@ -106,6 +103,9 @@ const e = StyleSheet.create({
     ...v.sombra,
   },
   brilho: {
+    // No estilo, e não como propriedade: `props.pointerEvents` está
+    // descontinuado no React Native atual.
+    pointerEvents: 'none',
     position: 'absolute',
     top: '-60%',
     right: '-20%',
