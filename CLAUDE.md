@@ -41,12 +41,12 @@ uma regra só.
 packages/dominio     a regra de negócio, pura — 48 testes
 packages/offline     a fila de batidas sem internet — 22 testes
 packages/contrato    o que o app pode pedir + servidor falso — 73 testes
-apps/api             a API HTTP completa — 74 testes
+apps/api             a API HTTP completa — 89 testes
 apps/app             o aplicativo, em React Native + Expo — 67 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**284 testes.** `npm run verificar` roda tipos e testes de
+**299 testes.** `npm run verificar` roda tipos e testes de
 tudo, sem banco e sem rede. Só `npm run teste` NÃO confere tipos — o `tsx` não
 olha para eles.
 
@@ -77,6 +77,7 @@ o `node:crypto` real — não com um valor escrito à mão.
 | Escopo do app | **As mesmas telas do sistema web** | Decidido em 30/08. Não é só o app do colaborador: é o Credenciei inteiro em formato de app |
 | Quem entra no app | **Os dois** | Conta de painel com CPF e senha; colaborador com WhatsApp. O menu muda pelo papel |
 | Como avançar | **Telas primeiro, com dados de mentira** | O app fica navegável contra o servidor falso, o Juan corrige o desenho, e a API entra por baixo depois |
+| Qual servidor o app usa | **`EXPO_PUBLIC_API_URL`** | Sem a variável, o servidor falso. Com ela, a API. Um teste roda o mesmo roteiro nos dois e exige comportamento igual |
 
 As decisões arquiteturais estão em `docs/decisoes/` — uma por arquivo, com o
 motivo e a alternativa descartada.

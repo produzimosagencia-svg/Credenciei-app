@@ -1,6 +1,6 @@
 # Backlog
 
-**277 tasks · 164 no MVP · 92 concluídas (33%)**
+**277 tasks · 164 no MVP · 96 concluídas (35%)**
 
 > **30/08/2026 — o escopo cresceu, e o total mudou junto.** O Juan pediu que o
 > app tenha as mesmas telas e a mesma lógica do sistema que já está no ar, e
@@ -20,7 +20,7 @@ Atualizado em 31/08/2026.
 |---|---|---|---|---|---|
 | 1 | Modelo de dados | 3 | 16 | ✓ | SQL escrito, nada executado |
 | 2 | Fundação | 6 | 12 | ✓ | Domínio pronto e sincronizado com a web |
-| 3 | API v1 | 18 | 32 | ✓ | Lógica completa; falta foto e rotas de admin |
+| 3 | API v1 | 21 | 32 | ✓ | Cliente HTTP ligado; faltam as rotas do painel |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
 | 5 | App base | 12 | 14 | ✓ | Navegação por papel, com abas e menu |
 | 6 | QR | 7 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
@@ -32,7 +32,7 @@ Atualizado em 31/08/2026.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
-| 15 | Testes | 7 | 14 | — | 284 testes rodando |
+| 15 | Testes | 8 | 14 | — | 299 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 17 | 25 | ✓ | Falta Plataforma, o que a web ganhou e a API |
 
@@ -64,6 +64,9 @@ Atualizado em 31/08/2026.
 - Servidor HTTP com middleware de autenticação
 - Sessões com dois tokens e rotação
 - Limite de tentativas
+- Cliente HTTP de verdade, com a régua de recusa × falha de transporte
+- Troca entre servidor falso e API por variável de ambiente
+- Teste que roda o mesmo roteiro nos dois clientes e exige comportamento igual
 
 **Epic 4 — Conta do colaborador**
 - Código de evento: geração, leitura, máscara, tolerância a confusão
@@ -155,8 +158,9 @@ entra por baixo. Nenhuma tela muda na troca.
    (Epic 17). O bloco Plataforma, que só o master vê.
 2. **O que o sistema web ganhou** (Epic 17). Cartaz da portaria, mover
    funcionário de setor, pendências — ver a seção abaixo.
-3. **Cliente HTTP de verdade** (Epic 3 + 17). Trocar o falso pelo real é um
-   arquivo só, mas ele ainda não existe — e faltam os endpoints do painel.
+3. **Endpoints do painel na API** (Epic 3 + 17). O cliente HTTP já existe e já
+   fala com a API; faltam as rotas de painel, escanear, ponto, atividades e
+   acessos. Sem elas, essas telas continuam no servidor falso.
 4. **Upload de foto ao storage** (Epic 3 + 7). Hoje a selfie do meio viaja
    dentro da batida; o caminho que aguenta pico é subir direto ao storage.
 5. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.
