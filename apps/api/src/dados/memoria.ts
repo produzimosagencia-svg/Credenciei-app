@@ -138,6 +138,9 @@ export function cenarioHenriqueEJuliano() {
     janela_entrada_fim: '2026-09-05T23:55:00-03:00',
     janela_fim_inicio: '2026-09-06T01:30:00-03:00',
     janela_fim_fim: '2026-09-06T08:00:00-03:00',
+    // Desligada aqui de propósito: é com ela desligada que os testes exercitam
+    // a recusa por janela. O caso ligado tem teste próprio, que a liga.
+    batida_livre: false,
     codigoConvite: 'HJK-2026-K7M2',
     exigeAprovacao: false,
   }

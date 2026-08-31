@@ -6,7 +6,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "teste": "tsx --test src/*.teste.ts"
+    "teste": "tsx --test src/*.teste.ts",
+    "tipos": "tsc --noEmit"
   },
   "dependencies": {
     "@noble/hashes": "^1.5.0"

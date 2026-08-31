@@ -39,6 +39,14 @@ export type Evento = {
   janela_entrada_fim: string | null
   janela_fim_inicio: string | null
   janela_fim_fim: string | null
+  /**
+   * O dia do evento não recusa por horário.
+   *
+   * O nome vem com underline porque este objeto é passado direto como
+   * `EventoJanelas` para o domínio — renomear aqui exigiria uma tradução no
+   * meio, e é justamente a tradução que faz duas regras divergirem.
+   */
+  batida_livre: boolean | null
   codigoConvite: string | null
   exigeAprovacao: boolean
 }

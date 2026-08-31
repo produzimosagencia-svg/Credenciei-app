@@ -218,3 +218,46 @@ test('o ciclo completo de um dia de montagem', async () => {
   const doDia = await repo.registrosDoDia('part-joao', '2026-09-03')
   assert.deepEqual(doDia.map(r => r.tipo), ['entrada', 'meio', 'fim'])
 })
+
+// ─── Batida livre no dia do evento ──────────────────────────────────────────
+//
+// A regra veio do sistema web em 30/08/2026, pedida para o Henrique e Juliano.
+// Estes testes existem porque ela precisa valer também AQUI: se a API recusasse
+// o que o site aceita, a pessoa levaria "fora do horário" no celular e passaria
+// pela portaria do computador — no mesmo evento, no mesmo minuto.
+
+/*
+ * Cinco da manhã do DIA DO EVENTO: a janela de entrada abre às 07:00.
+ *
+ * Tem que ser no dia principal — nos dias de montagem a entrada já é livre, e
+ * o teste passaria sem provar nada sobre a janela.
+ */
+const ANTES_DA_JANELA = '2026-09-05T05:00:00-03:00'
+
+test('sem batida livre, entrada fora da janela é recusada', async () => {
+  const { repo } = cenarioHenriqueEJuliano()
+  const r = await registrarBatida(repo, 'pes-joao', bate('entrada', ANTES_DA_JANELA))
+  assert.equal(r.situacao, 'recusado')
+})
+
+test('com batida livre, a mesma entrada passa', async () => {
+  // É o show com escala rotativa: a equipe entra a noite inteira, em turnos.
+  const { repo, evento } = cenarioHenriqueEJuliano()
+  evento.batida_livre = true
+
+  const r = await registrarBatida(repo, 'pes-joao', bate('entrada', ANTES_DA_JANELA))
+  assert.equal(r.situacao, 'registrado')
+})
+
+test('batida livre não libera dia cancelado', async () => {
+  // Ela solta o horário, não o calendário. Um dia cancelado que aceitasse
+  // presença entraria no cálculo do pagamento.
+  const { repo, evento } = cenarioHenriqueEJuliano()
+  evento.batida_livre = true
+  const dia = (repo.dias.get(evento.id) ?? []).find(d => d.data === '2026-09-05')
+  assert.ok(dia, 'o cenário precisa ter o dia do evento')
+  dia.cancelado = true
+
+  const r = await registrarBatida(repo, 'pes-joao', bate('entrada', ANTES_DA_JANELA))
+  assert.equal(r.situacao, 'recusado')
+})

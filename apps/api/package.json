@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/servidor.ts",
-    "teste": "tsx --test \"src/**/*.teste.ts\""
+    "teste": "tsx --test \"src/**/*.teste.ts\"",
+    "tipos": "tsc --noEmit"
   },
   "dependencies": {
     "@credenciei/contrato": "*",

@@ -38,15 +38,17 @@ uma regra só.
 ## O que já está construído
 
 ```
-packages/dominio     a regra de negócio, pura — 42 testes
+packages/dominio     a regra de negócio, pura — 48 testes
 packages/offline     a fila de batidas sem internet — 22 testes
 packages/contrato    o que o app pode pedir + servidor falso — 73 testes
-apps/api             a API HTTP completa — 71 testes
+apps/api             a API HTTP completa — 74 testes
 apps/app             o aplicativo, em React Native + Expo — 49 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**257 testes.** `npm run teste --workspaces` roda todos, sem banco e sem rede.
+**266 testes.** `npm run verificar` roda tipos e testes de
+tudo, sem banco e sem rede. Só `npm run teste` NÃO confere tipos — o `tsx` não
+olha para eles.
 
 Para VER o app: `npm run web --workspace=@credenciei/app` abre no navegador, sem
 instalar nada. No celular, `npm run start --workspace=@credenciei/app` gera um QR
@@ -164,6 +166,20 @@ epic está em `docs/backlog.md`.
 
 Ao terminar um dia de trabalho, ele espera um resumo: feito, alterado, testado,
 problemas, pendências, próximo passo.
+
+---
+
+## O sistema web continua andando
+
+Ele é desenvolvido em paralelo, e o que muda de REGRA lá precisa vir para cá —
+senão o app recusa o que o site aceita, no mesmo evento e no mesmo minuto.
+
+O procedimento está em `docs/decisoes/007-sincronizar-com-o-sistema-web.md`:
+uma lista fixa de arquivos copiados, e a ordem de conferir por diff (nunca só
+pela data), trazer o comentário junto com a regra, e escrever o teste aqui.
+
+O que já veio e o que ainda falta está na seção "Veio do sistema web" de
+`docs/backlog.md`.
 
 ---
 

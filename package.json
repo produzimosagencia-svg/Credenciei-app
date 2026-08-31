@@ -1,8 +1,13 @@
 {
   "name": "credenciei-plataforma",
   "private": true,
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "teste": "npm run teste --workspaces --if-present"
+    "teste": "npm run teste --workspaces --if-present",
+    "tipos": "npm run tipos --workspaces --if-present",
+    "verificar": "npm run tipos && npm run teste"
   }
 }

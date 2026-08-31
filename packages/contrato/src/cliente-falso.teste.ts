@@ -824,7 +824,10 @@ test('o supervisor não vê a tela de acessos', async () => {
 
 test('criar acesso exige nome, CPF e setor', async () => {
   const c = await noPortao()
-  const base = { nome: 'Larissa Prado', cpf: '11122233344', eventoId: 'ev-1', setorId: 's-2', ativo: true }
+  const base = {
+    nome: 'Larissa Prado', cpf: '11122233344', telefone: '27999887766',
+    eventoId: 'ev-1', setorId: 's-2', ativo: true,
+  }
 
   assert.ok((await c.criarAcesso({ ...base, nome: 'La' })).erro)
   assert.ok((await c.criarAcesso({ ...base, cpf: '123' })).erro)

@@ -10,7 +10,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   diaBRT, janelaMeio, faseDoDia, avaliarEntradaSaida,
-  conferirHorariosDoEvento, ehDiaPrincipal, periodoDoEvento,
+  conferirHorariosDoEvento, ehDiaPrincipal, horariosEsperados, periodoDoEvento,
   HORAS_ATE_MEIO,
 } from './janelas.js'
 
@@ -163,4 +163,107 @@ test('a conferência não atrapalha quem está certo', () => {
 test('evento sem horários não gera falso alarme', () => {
   assert.equal(conferirHorariosDoEvento({}).length, 0)
   assert.equal(conferirHorariosDoEvento({ data_inicio: '2026-09-05T18:30:00-03:00' }).length, 0)
+})
+
+
+// ─── Batida livre no dia do evento ──────────────────────────────────────────
+//
+// Veio do sistema web em 30/08/2026, pedida para o Henrique e Juliano: show
+// grande, escala rotativa, gente entrando a noite inteira em turnos. Uma janela
+// fixa recusaria quem chega às três da manhã — e ser recusado no portão, com o
+// show acontecendo, é o pior momento possível para descobrir que o horário
+// estava apertado.
+//
+// A regra tem que existir AQUI, e não só no site: o app e a API usam esta mesma
+// função. Se ela ficasse só lá, o portão do celular recusaria exatamente quem o
+// computador aceita — e ninguém entenderia por quê.
+
+const EVENTO_COM_JANELA = {
+  data_inicio: '2026-09-05T18:30:00-03:00',
+  data_fim: '2026-09-06T08:00:00-03:00',
+  janela_entrada_inicio: '2026-09-05T07:00:00-03:00',
+  janela_entrada_fim: '2026-09-05T23:55:00-03:00',
+  janela_fim_inicio: '2026-09-06T01:30:00-03:00',
+  janela_fim_fim: '2026-09-06T08:00:00-03:00',
+}
+
+const DIA_PRINCIPAL = { tipo: 'principal' as const, cancelado: false }
+/** Três da manhã: fora da janela de entrada, que fecha 23:55. */
+const TRES_DA_MANHA = new Date('2026-09-06T03:00:00-03:00')
+
+test('sem batida livre, quem chega às três da manhã é recusado', () => {
+  // É o comportamento de sempre, e ele precisa continuar existindo: a maioria
+  // dos eventos entra junto, e a janela é o que segura quem tenta bater de casa.
+  const v = avaliarEntradaSaida(
+    EVENTO_COM_JANELA, DIA_PRINCIPAL, 'entrada', '2026-09-05', TRES_DA_MANHA,
+  )
+  assert.equal(v.ok, false)
+})
+
+test('com batida livre, o dia do evento aceita a qualquer hora', () => {
+  const v = avaliarEntradaSaida(
+    { ...EVENTO_COM_JANELA, batida_livre: true },
+    DIA_PRINCIPAL, 'entrada', '2026-09-05', TRES_DA_MANHA,
+  )
+  assert.equal(v.ok, true)
+})
+
+test('batida livre vale também para a saída', () => {
+  const fimDaTarde = new Date('2026-09-05T17:00:00-03:00')
+  const travado = avaliarEntradaSaida(
+    EVENTO_COM_JANELA, DIA_PRINCIPAL, 'fim', '2026-09-05', fimDaTarde,
+  )
+  assert.equal(travado.ok, false)
+
+  const livre = avaliarEntradaSaida(
+    { ...EVENTO_COM_JANELA, batida_livre: true },
+    DIA_PRINCIPAL, 'fim', '2026-09-05', fimDaTarde,
+  )
+  assert.equal(livre.ok, true)
+})
+
+test('batida livre solta o HORÁRIO, não o calendário', () => {
+  /*
+   * Dia não marcado e dia cancelado continuam recusados. Se a batida livre
+   * passasse por cima disso, um evento com escala rotativa aceitaria presença
+   * em dia que ninguém contratou — e o dia entra no cálculo do pagamento.
+   */
+  const livre = { ...EVENTO_COM_JANELA, batida_livre: true }
+
+  const semDia = avaliarEntradaSaida(livre, null, 'entrada', '2026-09-05', TRES_DA_MANHA)
+  assert.equal(semDia.ok, false)
+
+  const cancelado = avaliarEntradaSaida(
+    livre, { tipo: 'principal', cancelado: true }, 'entrada', '2026-09-05', TRES_DA_MANHA,
+  )
+  assert.equal(cancelado.ok, false)
+})
+
+test('só `true` liga a batida livre', () => {
+  // A coluna do banco pode vir nula em evento antigo. Nulo e ausente são
+  // "desligado" — do contrário, todo evento anterior ao ALTER TABLE ficaria
+  // sem trava de horário sem ninguém ter pedido.
+  for (const valor of [undefined, null, false] as const) {
+    const v = avaliarEntradaSaida(
+      { ...EVENTO_COM_JANELA, batida_livre: valor },
+      DIA_PRINCIPAL, 'entrada', '2026-09-05', TRES_DA_MANHA,
+    )
+    assert.equal(v.ok, false, `batida_livre=${String(valor)} não podia liberar`)
+  }
+})
+
+test('os horários continuam valendo como referência', () => {
+  /*
+   * Com a batida livre ligada, a pessoa bate quando chega — mas continua sendo
+   * ESPERADA no horário combinado. É assim que ela ainda aparece na lista de
+   * atrasados, e é por isso que os horários não foram apagados do evento.
+   */
+  const comum = horariosEsperados(EVENTO_COM_JANELA, '2026-09-05', DIA_PRINCIPAL)
+  const livre = horariosEsperados(
+    { ...EVENTO_COM_JANELA, batida_livre: true },
+    '2026-09-05',
+    DIA_PRINCIPAL,
+  )
+  assert.deepEqual(livre, comum)
+  assert.ok(comum.entrada, 'o horário esperado tinha que existir para o teste valer')
 })

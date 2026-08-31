@@ -6,7 +6,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "teste": "tsx --test src/*.teste.ts"
+    "teste": "tsx --test src/*.teste.ts",
+    "tipos": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^26.4.0",

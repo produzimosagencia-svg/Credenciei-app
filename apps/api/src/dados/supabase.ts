@@ -353,9 +353,16 @@ export class RepositorioSupabase implements Repositorio {
 
 // ─── Tradução ────────────────────────────────────────────────────────────────
 
+/*
+ * ATENÇÃO: `batida_livre` depende do ALTER TABLE que o sistema web já pede
+ * (`supabase/upgrade-batida-livre.sql`, no repositório de produção). Se a
+ * coluna não existir no banco, o PostgREST recusa a consulta INTEIRA — não é
+ * um campo que volta nulo, é a leitura do evento que para de funcionar.
+ */
 const CAMPOS_EVENTO =
   'id, nome, organizacao_id, local, data_inicio, data_fim, ' +
-  'janela_entrada_inicio, janela_entrada_fim, janela_fim_inicio, janela_fim_fim'
+  'janela_entrada_inicio, janela_entrada_fim, janela_fim_inicio, janela_fim_fim, ' +
+  'batida_livre'
 
 const CAMPOS_FUNCIONARIO =
   'id, nome, cpf, telefone, cargo, ativo, descredenciado_em, ' +
@@ -378,6 +385,10 @@ function paraEvento(l: Record<string, unknown>): Evento {
     janela_entrada_fim: (l.janela_entrada_fim as string | null) ?? null,
     janela_fim_inicio: (l.janela_fim_inicio as string | null) ?? null,
     janela_fim_fim: (l.janela_fim_fim as string | null) ?? null,
+    // Ausente vira `false`, e não `null`: a regra do domínio testa `=== true`,
+    // mas deixar nulo aqui esconderia a diferença entre "desligado" e "coluna
+    // não veio" — e as duas precisam ser distinguíveis quando algo der errado.
+    batida_livre: (l.batida_livre as boolean | null) ?? false,
     codigoConvite: (l.codigo_convite as string | null) ?? null,
     exigeAprovacao: false,
   }

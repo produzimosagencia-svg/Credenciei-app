@@ -1,6 +1,6 @@
 # Backlog
 
-**272 tasks · 159 no MVP · 80 concluídas (29%)**
+**277 tasks · 164 no MVP · 81 concluídas (29%)**
 
 > **30/08/2026 — o escopo cresceu, e o total mudou junto.** O Juan pediu que o
 > app tenha as mesmas telas e a mesma lógica do sistema que já está no ar, e
@@ -10,7 +10,7 @@
 
 O percentual reportado ao Juan sai daqui. Nunca estimar: contar.
 
-Atualizado em 30/08/2026.
+Atualizado em 31/08/2026.
 
 ---
 
@@ -19,7 +19,7 @@ Atualizado em 30/08/2026.
 | # | Epic | Feito | Total | MVP | Situação |
 |---|---|---|---|---|---|
 | 1 | Modelo de dados | 3 | 16 | ✓ | SQL escrito, nada executado |
-| 2 | Fundação | 5 | 12 | ✓ | Workspace e domínio prontos |
+| 2 | Fundação | 6 | 12 | ✓ | Domínio pronto e sincronizado com a web |
 | 3 | API v1 | 18 | 32 | ✓ | Lógica completa; falta foto e rotas de admin |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
 | 5 | App base | 12 | 14 | ✓ | Navegação por papel, com abas e menu |
@@ -32,9 +32,9 @@ Atualizado em 30/08/2026.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
-| 15 | Testes | 6 | 14 | — | 257 testes rodando |
+| 15 | Testes | 6 | 14 | — | 266 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 17 | 20 | ✓ | Falta o bloco Plataforma e a API |
+| 17 | Painel no app | 17 | 25 | ✓ | Falta Plataforma, o que a web ganhou e a API |
 
 ---
 
@@ -47,6 +47,7 @@ Atualizado em 30/08/2026.
 
 **Epic 2 — Fundação**
 - Workspace npm com pacotes e apps
+- Procedimento de sincronização com o sistema web, e `npm run verificar`
 - `janelas`, `format`, `tz` copiados do sistema web sem alteração
 - `credencial-qr` portado de `node:crypto` para `@noble/hashes`
 - Teste que prova assinatura idêntica à de produção
@@ -143,6 +144,30 @@ entra por baixo. Nenhuma tela muda na troca.
    ao storage sem passar pela API.
 7. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.
 8. **Rodar as migrações** (Epic 1). Precisa do banco de homologação.
+
+---
+
+## Veio do sistema web, ainda não está no app
+
+O `credenciei-web` continua sendo desenvolvido. Estes são recursos que ele
+ganhou e que o app precisa espelhar — o procedimento para achá-los está em
+`docs/decisoes/007`.
+
+| O que | Quando entrou lá | O que muda aqui |
+|---|---|---|
+| **Batida livre no dia do evento** | 30/08 | ✅ **Trazido.** Regra do domínio, com teste no domínio e na API |
+| **Cartaz da portaria** — auto cadastro de quem chega sem estar na lista | 30/08 | Tela nova, e um formulário público. Depende de coluna nova no banco |
+| **Histórico de batidas como aba do funcionário** | 31/08 | Vale para a tela "Meus dias" do colaborador |
+| **"Não realizada" só quando é anomalia** | 31/08 | Regra de leitura da tabela de histórico — ver abaixo |
+| **Admin move funcionário de setor** | 31/08 | Ação nova na tela do setor |
+| **Pendências do evento, com todos os dias** | 31/08 | Tela que o app ainda não tem |
+
+**A regra do "não realizada"**, para não repetir o erro quando eu montar a
+tabela de histórico: o selo vermelho existe para marcar ANOMALIA — a pessoa
+esteve no evento e pulou uma etapa. Num dia em que ela não apareceu, repetir o
+selo nas três colunas diz três vezes o que o "Ausente" já disse uma, e onze
+linhas assim viram uma parede vermelha sem informação. Dia inteiro ausente: um
+traço quieto em cinza.
 
 ---
 
