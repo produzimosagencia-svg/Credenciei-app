@@ -1,6 +1,12 @@
 # Backlog
 
-**252 tasks · 139 no MVP · 61 concluídas (24%)**
+**272 tasks · 159 no MVP · 69 concluídas (25%)**
+
+> **30/08/2026 — o escopo cresceu, e o total mudou junto.** O Juan pediu que o
+> app tenha as mesmas telas e a mesma lógica do sistema que já está no ar, e
+> não só a parte do colaborador. Isso é a Epic 17, com 20 tasks novas. O
+> percentual caiu de 24% para 25% mesmo com trabalho feito porque o
+> denominador cresceu — é o número honesto.
 
 O percentual reportado ao Juan sai daqui. Nunca estimar: contar.
 
@@ -16,7 +22,7 @@ Atualizado em 30/08/2026.
 | 2 | Fundação | 5 | 12 | ✓ | Workspace e domínio prontos |
 | 3 | API v1 | 18 | 32 | ✓ | Lógica completa; falta foto e rotas de admin |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
-| 5 | App base | 10 | 14 | ✓ | Roda no navegador e no celular |
+| 5 | App base | 12 | 14 | ✓ | Navegação por papel, com abas e menu |
 | 6 | QR | 4 | 15 | ✓ | Falta a TELA, Ed25519, código giratório, captura |
 | 7 | Offline | 10 | 19 | ✓ | Fila pronta; falta foto e integração com o app |
 | 8 | Ponto no app | 0 | 13 | ✓ | Destravado: o app base existe |
@@ -26,8 +32,9 @@ Atualizado em 30/08/2026.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
-| 15 | Testes | 6 | 14 | — | 186 testes rodando |
+| 15 | Testes | 6 | 14 | — | 215 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
+| 17 | Painel no app | 6 | 20 | ✓ | Espelhar o sistema web; falta a API |
 
 ---
 
@@ -98,19 +105,35 @@ Atualizado em 30/08/2026.
 **Epic 15 — Testes**
 - 31 testes do app, sem emulador e sem rede
 
+**Epic 17 — Painel no app**
+- Papéis e permissões copiados para o domínio compartilhado, com teste
+- Login com senha para quem tem conta de painel, no contrato e no falso
+- Navegação por papel: três abas embaixo e o menu inteiro em "Mais"
+- Painel: os quatro indicadores, com degradê e brilho
+- Painel: cartões de evento ao vivo, com a barra de presença
+- Painel: atividade recente e a janela do fluxo
+
 ---
 
 ## Próximas, pela ordem
 
-1. **A credencial na tela** (Epic 6 + 8). O QR do dia e os três botões de bater
-   ponto, ligados à fila offline que já existe. É o que o app existe para fazer,
-   e é a última peça grande que não depende de ninguém de fora.
-2. **Upload de foto** (Epic 3 + 7). Compressão, guarda offline, envio direto
-   ao storage sem passar pela API — é o caminho que não aguenta pico.
-3. **Cliente HTTP de verdade** (Epic 3). Hoje o app fala com o `ClienteFalso`;
-   trocar é um arquivo só, mas o cliente ainda não existe.
-4. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.
-5. **Rodar as migrações** (Epic 1). Precisa do banco de homologação.
+O Juan escolheu **telas primeiro, com dados de mentira**: o app inteiro fica
+navegável contra o servidor falso, ele olha e corrige, e só depois a API real
+entra por baixo. Nenhuma tela muda na troca.
+
+1. **Escanear QR** (Epic 17). A câmera lendo a credencial e registrando
+   presença. É a tela mais usada no dia do evento.
+2. **Registrar ponto** (Epic 17). Achar a pessoa pelo nome ou CPF e bater por
+   ela — para quem chegou sem celular ou perdeu o horário.
+3. **A credencial na tela** (Epic 6 + 8). O QR do dia e os três botões de bater
+   ponto, ligados à fila offline que já existe.
+4. **Atividades do evento e Acessos** (Epic 17).
+5. **Cliente HTTP de verdade** (Epic 3 + 17). Trocar o falso pelo real é um
+   arquivo só, mas ele ainda não existe — e faltam os endpoints do painel.
+6. **Upload de foto** (Epic 3 + 7). Compressão, guarda offline, envio direto
+   ao storage sem passar pela API.
+7. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.
+8. **Rodar as migrações** (Epic 1). Precisa do banco de homologação.
 
 ---
 

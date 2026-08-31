@@ -38,15 +38,15 @@ uma regra só.
 ## O que já está construído
 
 ```
-packages/dominio     a regra de negócio, pura — 34 testes
+packages/dominio     a regra de negócio, pura — 42 testes
 packages/offline     a fila de batidas sem internet — 22 testes
-packages/contrato    o que o app pode pedir + servidor falso — 28 testes
+packages/contrato    o que o app pode pedir + servidor falso — 34 testes
 apps/api             a API HTTP completa — 71 testes
-apps/app             o aplicativo, em React Native + Expo — 31 testes
+apps/app             o aplicativo, em React Native + Expo — 46 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**186 testes.** `npm run teste --workspaces` roda todos, sem banco e sem rede.
+**215 testes.** `npm run teste --workspaces` roda todos, sem banco e sem rede.
 
 Para VER o app: `npm run web --workspace=@credenciei/app` abre no navegador, sem
 instalar nada. No celular, `npm run start --workspace=@credenciei/app` gera um QR
@@ -72,6 +72,9 @@ o `node:crypto` real — não com um valor escrito à mão.
 | Escala alvo | **20.000 colaboradores** | Muda o modelo de dados, não só a infraestrutura |
 | Conta Apple / Supabase Pro | **Adiados** | "Vamos desenvolvendo o código primeiro" |
 | Repositório remoto | **Não criar** | Os commits ficam só nesta máquina, por escolha dele |
+| Escopo do app | **As mesmas telas do sistema web** | Decidido em 30/08. Não é só o app do colaborador: é o Credenciei inteiro em formato de app |
+| Quem entra no app | **Os dois** | Conta de painel com CPF e senha; colaborador com WhatsApp. O menu muda pelo papel |
+| Como avançar | **Telas primeiro, com dados de mentira** | O app fica navegável contra o servidor falso, o Juan corrige o desenho, e a API entra por baixo depois |
 
 As decisões arquiteturais estão em `docs/decisoes/` — uma por arquivo, com o
 motivo e a alternativa descartada.
@@ -156,11 +159,27 @@ o erro volta.
 ## Como acompanhar
 
 O Juan pede status assim: *"como estamos?"*. Responda com **percentual real do
-backlog** (252 tasks, 139 no MVP) — nunca invente número. O que está feito por
+backlog** (272 tasks, 159 no MVP) — nunca invente número. O que está feito por
 epic está em `docs/backlog.md`.
 
 Ao terminar um dia de trabalho, ele espera um resumo: feito, alterado, testado,
 problemas, pendências, próximo passo.
+
+---
+
+## O visual não é escolha nossa
+
+O app veste o design do sistema que já está no ar: roxo `#6d46ff`, fundo
+`#d9dce3`, fonte Inter, separação por fio de 1px (não por sombra), corpo de
+13px. Os valores foram copiados de `c:\Dev\credencieipp\globals.css` para
+`apps/app/src/ui/tema.ts`, com o motivo de cada um junto.
+
+É cópia por VALOR, não por referência: o arquivo de produção não é importado, e
+não pode ser. Quando o roxo mudar lá, alguém muda aqui.
+
+**Não invente paleta, fonte nem componente.** Antes de desenhar qualquer tela
+nova, abra a equivalente em `c:\Dev\credencieipp\` — só para LER — e siga
+o que está lá.
 
 ---
 
