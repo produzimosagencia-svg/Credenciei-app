@@ -171,14 +171,14 @@ problemas, pendências, próximo passo.
 
 O app veste o design do sistema que já está no ar: roxo `#6d46ff`, fundo
 `#d9dce3`, fonte Inter, separação por fio de 1px (não por sombra), corpo de
-13px. Os valores foram copiados de `c:\Dev\credencieipp\globals.css` para
+13px. Os valores foram copiados de `c:\Dev\credenciei\app\globals.css` para
 `apps/app/src/ui/tema.ts`, com o motivo de cada um junto.
 
 É cópia por VALOR, não por referência: o arquivo de produção não é importado, e
 não pode ser. Quando o roxo mudar lá, alguém muda aqui.
 
 **Não invente paleta, fonte nem componente.** Antes de desenhar qualquer tela
-nova, abra a equivalente em `c:\Dev\credencieipp\` — só para LER — e siga
+nova, abra a equivalente em `c:\Dev\credenciei\app\` — só para LER — e siga
 o que está lá.
 
 ---
