@@ -38,6 +38,7 @@ const TELAS = [
   { nome: 'acessos', rota: '/acessos', titulo: 'Acessos' },
   { nome: 'credencial', rota: '/credencial', titulo: 'Minha credencial' },
   { nome: 'meus-dias', rota: '/meus-dias', titulo: 'Meus dias' },
+  { nome: 'meu-pagamento', rota: '/meu-pagamento', titulo: 'Meu pagamento' },
 ] as const
 
 export default function Dentro() {

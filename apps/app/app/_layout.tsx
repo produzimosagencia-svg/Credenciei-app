@@ -21,6 +21,7 @@ import {
   Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
 } from '@expo-google-fonts/inter'
 import { ProvedorDeSessao } from '../src/sessao/contexto'
+import { ProvedorDaFila } from '../src/fila/contexto'
 import { cor, LARGURA_MAXIMA, sombra, tipo, uso } from '../src/ui/tema'
 
 // A tela de abertura fica no ar até a fonte estar carregada. Sem isto, o app
@@ -48,18 +49,25 @@ export default function Raiz() {
       <StatusBar style="light" />
       <Coluna>
         <ProvedorDeSessao>
-          <Stack
-            screenOptions={{
-              headerStyle: { backgroundColor: uso.superficie },
-              headerTintColor: cor.neutro800,
-              headerTitleStyle: { fontFamily: tipo.semi, fontSize: 16, color: cor.neutro800 },
-              headerShadowVisible: false,
-              contentStyle: { backgroundColor: cor.fundo },
-            }}
-          >
-            <Stack.Screen name="entrar" options={{ headerShown: false }} />
-            <Stack.Screen name="(dentro)" options={{ headerShown: false }} />
-          </Stack>
+          {/*
+            A fila mora acima das telas de propósito: a pessoa registra o meio,
+            guarda o celular e vai trabalhar. Se ela morresse junto com a tela
+            da credencial, a batida ficaria parada até alguém voltar lá.
+          */}
+          <ProvedorDaFila>
+            <Stack
+              screenOptions={{
+                headerStyle: { backgroundColor: uso.superficie },
+                headerTintColor: cor.neutro800,
+                headerTitleStyle: { fontFamily: tipo.semi, fontSize: 16, color: cor.neutro800 },
+                headerShadowVisible: false,
+                contentStyle: { backgroundColor: cor.fundo },
+              }}
+            >
+              <Stack.Screen name="entrar" options={{ headerShown: false }} />
+              <Stack.Screen name="(dentro)" options={{ headerShown: false }} />
+            </Stack>
+          </ProvedorDaFila>
         </ProvedorDeSessao>
       </Coluna>
     </SafeAreaProvider>

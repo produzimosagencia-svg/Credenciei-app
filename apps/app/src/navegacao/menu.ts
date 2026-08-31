@@ -108,9 +108,9 @@ export function menuDoColaborador(): GrupoDoMenu[] {
   return [{
     itens: [
       { rota: '/', rotulo: 'Meus eventos', icone: 'CalendarDays', pronta: true },
-      { rota: '/credencial', rotulo: 'Minha credencial', icone: 'QrCode', pronta: false },
-      { rota: '/meus-dias', rotulo: 'Meus dias', icone: 'ClipboardCheck', pronta: false },
-      { rota: '/meu-pagamento', rotulo: 'Meu pagamento', icone: 'Wallet', pronta: false },
+      { rota: '/credencial', rotulo: 'Minha credencial', icone: 'QrCode', pronta: true },
+      { rota: '/meus-dias', rotulo: 'Meus dias', icone: 'ClipboardCheck', pronta: true },
+      { rota: '/meu-pagamento', rotulo: 'Meu pagamento', icone: 'Wallet', pronta: true },
     ],
   }]
 }
