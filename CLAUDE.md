@@ -46,7 +46,7 @@ apps/app             o aplicativo, em React Native + Expo — 67 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**299 testes.** `npm run verificar` roda tipos e testes de
+**310 testes.** `npm run verificar` roda tipos e testes de
 tudo, sem banco e sem rede. Só `npm run teste` NÃO confere tipos — o `tsx` não
 olha para eles.
 
@@ -162,7 +162,7 @@ o erro volta.
 ## Como acompanhar
 
 O Juan pede status assim: *"como estamos?"*. Responda com **percentual real do
-backlog** (272 tasks, 159 no MVP) — nunca invente número. O que está feito por
+backlog** (277 tasks, 164 no MVP) — e o do MVP é o que responde "quando dá para usar"; `npm run backlog` calcula os dois — nunca invente número. O que está feito por
 epic está em `docs/backlog.md`.
 
 Ao terminar um dia de trabalho, ele espera um resumo: feito, alterado, testado,

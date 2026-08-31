@@ -1,8 +1,8 @@
 # Backlog
 
-**277 tasks · 164 no MVP · 109 concluídas (39%)**
+**277 tasks · 164 no MVP · 114 concluídas (41%)**
 
-**Só o MVP: 92 de 164 (56%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 97 de 164 (59%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -41,9 +41,9 @@ Atualizado em 31/08/2026.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
-| 15 | Testes | 8 | 14 | — | 299 testes rodando |
+| 15 | Testes | 8 | 14 | — | 310 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 17 | 25 | ✓ | Falta Plataforma, o que a web ganhou e a API |
+| 17 | Painel no app | 22 | 25 | ✓ | Falta o bloco Plataforma e a API |
 
 ---
 
@@ -154,6 +154,11 @@ Atualizado em 31/08/2026.
 - Atividades: quem não chegou e quem está no evento, nome por nome
 - Acessos: lista com abas, busca e bloquear sem apagar histórico
 - Criar acesso de supervisor, preso a um setor de um evento
+- Configuração do evento: números, progresso por etapa e lista de setores
+- Cartaz da portaria: abrir, fechar, copiar, compartilhar e trocar o QR
+- Criar setor, com nome único e teto de pessoas
+- Setor com link próprio de cadastro e supervisores vinculados
+- O cartão do painel abre a configuração do evento
 
 ---
 
@@ -187,7 +192,7 @@ ganhou e que o app precisa espelhar — o procedimento para achá-los está em
 | O que | Quando entrou lá | O que muda aqui |
 |---|---|---|
 | **Batida livre no dia do evento** | 30/08 | ✅ **Trazido.** Regra do domínio, com teste no domínio e na API |
-| **Cartaz da portaria** — auto cadastro de quem chega sem estar na lista | 30/08 | Tela nova, e um formulário público. Depende de coluna nova no banco |
+| **Cartaz da portaria** — auto cadastro de quem chega sem estar na lista | 30/08 | ✅ **Trazido.** O lado de quem administra o cartaz. A página onde a pessoa se cadastra continua sendo web — é ela que o QR abre |
 | **Histórico de batidas como aba do funcionário** | 31/08 | Vale para a tela "Meus dias" do colaborador |
 | **"Não realizada" só quando é anomalia** | 31/08 | Regra de leitura da tabela de histórico — ver abaixo |
 | **Admin move funcionário de setor** | 31/08 | Ação nova na tela do setor |

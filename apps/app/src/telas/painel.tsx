@@ -14,6 +14,7 @@
 // de outro cliente.
 
 import { View, StyleSheet, Text } from 'react-native'
+import { useRouter } from 'expo-router'
 import type { AtividadeRecente, IndicadorDoPainel } from '@credenciei/contrato'
 import { formatarBR } from '@credenciei/dominio'
 import { usePedido } from '../dados/pedido'
@@ -37,6 +38,7 @@ const ICONE_DO_INDICADOR: Record<string, string> = {
 }
 
 export function Painel() {
+  const router = useRouter()
   const { cliente, semRede } = useSessao()
   const { pedido, recarregar } = usePedido(() => cliente.painel(), [cliente])
 
@@ -81,7 +83,11 @@ export function Painel() {
             </Cartao>
           ) : (
             pedido.dados.eventos.map(ev => (
-              <CartaoDeEventoAoVivo key={ev.eventoId} evento={ev} />
+              <CartaoDeEventoAoVivo
+                key={ev.eventoId}
+                evento={ev}
+                aoTocar={() => router.push(`/evento/${ev.eventoId}` as never)}
+              />
             ))
           )}
 

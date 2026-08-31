@@ -25,16 +25,17 @@
 import {
   avaliarEntradaSaida, diaBRT, ehMaster, faseConfere, faseDoDia, formatCpf,
   gerarCodigoQR, janelaMeio, lerCodigoDeEvento, lerCodigoQR, podeAcompanhar,
-  podeEscanear, podeGerenciarUsuarios,
+  podeEscanear, podeGerenciarEventos, podeGerenciarUsuarios,
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
 import type {
   Acesso, AtividadeRecente, AtividadesDoEvento, BatidaAssistida,
   CandidatoLocalizado, ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao,
-  EnvioDeBatida, Eu, EventoComSetores, EventoEscaneavel, FichaLocalizada,
-  FiltroDeAcessos, FinanceiroDaParticipacao, LinhaDaAtividade, ListaDeAcessos,
-  MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe, PessoaDaLista,
-  ResultadoDaLeitura, RespostaDeBatida, ResumoParticipacao, Sessao,
+  EnvioDeBatida, Eu, EventoComSetores, EventoDetalhado, EventoEscaneavel,
+  FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, LinhaDaAtividade,
+  ListaDeAcessos, MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe,
+  PessoaDaLista, Portaria, ResultadoDaLeitura, RespostaDeBatida,
+  ResumoParticipacao, SetorDetalhado, Sessao,
 } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
@@ -248,21 +249,35 @@ const ACESSOS_DE_MENTIRA: {
   { id: 'u-5', nome: 'Fábio Queiroz', identificador: 'fabio@produzimos.com.br', papel: 'supervisor', ativo: false, setorNome: 'Portaria', eventos: 2, criadoEm: '2025-12-09T16:20:00-03:00' },
 ]
 
-/** Os setores de cada evento. Todo supervisor nasce preso a um deles. */
-const SETORES_DE_MENTIRA: Record<string, { setorId: string; nome: string }[]> = {
+/**
+ * Os setores de cada evento. Todo supervisor nasce preso a um deles.
+ *
+ * Os números são desiguais de propósito: um setor cheio, um pela metade, um
+ * vazio e um sem teto definido. Com todos iguais, a barra de progresso e o
+ * estado vazio nunca apareceriam durante o desenvolvimento.
+ */
+const SETORES_DE_MENTIRA: Record<string, {
+  setorId: string
+  nome: string
+  pessoas: number
+  estimado: number | null
+  valorPorPessoa: number | null
+  token: string
+  supervisores: { id: string; nome: string; ativo: boolean }[]
+}[]> = {
   'ev-1': [
-    { setorId: 's-1', nome: 'Produção' },
-    { setorId: 's-2', nome: 'Portaria' },
-    { setorId: 's-3', nome: 'Bar' },
-    { setorId: 's-4', nome: 'Camarim' },
-    { setorId: 's-5', nome: 'Limpeza' },
+    { setorId: 's-1', nome: 'Produção', pessoas: 18, estimado: 20, valorPorPessoa: 150, token: 'f-prod-1', supervisores: [{ id: 'u-3', nome: 'Carlos Silva', ativo: true }] },
+    { setorId: 's-2', nome: 'Portaria', pessoas: 12, estimado: 12, valorPorPessoa: 140, token: 'f-port-1', supervisores: [] },
+    { setorId: 's-3', nome: 'Bar', pessoas: 7, estimado: 15, valorPorPessoa: 160, token: 'f-bar-1', supervisores: [] },
+    { setorId: 's-4', nome: 'Camarim', pessoas: 4, estimado: null, valorPorPessoa: 180, token: 'f-cam-1', supervisores: [{ id: 'u-4', nome: 'Débora Antunes', ativo: true }] },
+    { setorId: 's-5', nome: 'Limpeza', pessoas: 0, estimado: 8, valorPorPessoa: null, token: 'f-limp-1', supervisores: [] },
   ],
   'ev-2': [
-    { setorId: 's-6', nome: 'Produção' },
-    { setorId: 's-7', nome: 'Portaria' },
+    { setorId: 's-6', nome: 'Produção', pessoas: 2, estimado: 2, valorPorPessoa: 150, token: 'f-prod-2', supervisores: [{ id: 'u-3', nome: 'Carlos Silva', ativo: true }] },
+    { setorId: 's-7', nome: 'Portaria', pessoas: 1, estimado: 1, valorPorPessoa: 140, token: 'f-port-2', supervisores: [] },
   ],
   'ev-3': [
-    { setorId: 's-8', nome: 'Produção' },
+    { setorId: 's-8', nome: 'Produção', pessoas: 2, estimado: 2, valorPorPessoa: 150, token: 'f-prod-3', supervisores: [] },
   ],
 }
 
@@ -309,6 +324,25 @@ const ATIVIDADES_DE_MENTIRA: LinhaDaAtividade[] = [
     local: null, registradoPor: null, justificativa: null,
   },
 ]
+
+/**
+ * O estado da portaria de cada evento, e o quanto ela já rendeu.
+ *
+ * Fica fora de `EVENTOS_DO_PAINEL` porque MUDA: a tela liga, desliga e troca o
+ * endereço. Guardar junto do resto faria a constante virar estado mutável sem
+ * ninguém perceber.
+ */
+const PORTARIA_DE_MENTIRA: Record<string, { aberta: boolean; token: string | null; cadastrados: number }> = {
+  'ev-1': { aberta: true, token: '33f53f644bc44d9d4d86d28a197dd141', cadastrados: 0 },
+  'ev-2': { aberta: false, token: null, cadastrados: 0 },
+  'ev-3': { aberta: false, token: '9b1c74e2a05f4e0b8d3a6f21c7e40a55', cadastrados: 4 },
+}
+
+/** Onde o cartaz da portaria aponta. É o endereço que vai impresso. */
+const ENDERECO_DA_PORTARIA = 'https://credenciei.vercel.app/portaria'
+
+/** Onde a equipe se cadastra sozinha, um por setor. */
+const ENDERECO_DO_FORMULARIO = 'https://credenciei.vercel.app/form'
 
 const SEGREDO_DE_MENTIRA = 'segredo-do-cliente-falso'
 
@@ -1084,6 +1118,154 @@ export class ClienteFalso implements ClienteApi {
     }
   }
 
+  // ── O evento por dentro ───────────────────────────────────────────────────
+
+  async evento(eventoId: string): Promise<EventoDetalhado> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'abrir a configuração do evento')
+
+    const base = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+    if (!base) throw new Error('Não encontramos este evento.')
+
+    const setores = (SETORES_DE_MENTIRA[eventoId] ?? []).map(s => this.paraSetor(s))
+    const totalPessoas = setores.reduce((a, s) => a + s.pessoas, 0)
+
+    /*
+     * O progresso conta PESSOAS, não batidas.
+     *
+     * Quem bateu entrada duas vezes continua sendo uma pessoa que entrou. A
+     * pergunta da tela é "quantos dos 109 já passaram por cada etapa", e ela só
+     * faz sentido contando gente.
+     */
+    const porEtapa = (etapa: TipoBatida) =>
+      [...this.batidasDaEquipe.values()].filter(e => e.has(etapa)).length
+
+    const entraram = porEtapa('entrada')
+    const sairam = porEtapa('fim')
+
+    return {
+      eventoId: base.eventoId,
+      nome: base.nome,
+      ativo: base.aoVivo,
+      local: base.local,
+      dataInicio: base.dataInicio,
+      dataFim: null,
+      diasDePreparacao: eventoId === 'ev-1' ? DIAS.filter(d => d.tipo === 'preparacao').length : 0,
+      indicadores: [
+        { chave: 'setores', rotulo: 'Setores', valor: setores.length, tom: 'acento' },
+        { chave: 'funcionarios', rotulo: 'Funcionários', valor: totalPessoas, tom: 'info' },
+        {
+          chave: 'presentes',
+          rotulo: 'Presentes agora',
+          valor: Math.max(0, entraram - sairam),
+          tom: 'sucesso',
+        },
+        {
+          chave: 'nao_chegaram',
+          rotulo: 'Ainda não chegaram',
+          valor: Math.max(0, totalPessoas - entraram),
+          tom: 'aviso',
+        },
+      ],
+      progresso: [
+        { etapa: 'entrada', feitos: entraram, total: totalPessoas },
+        { etapa: 'meio', feitos: porEtapa('meio'), total: totalPessoas },
+        { etapa: 'fim', feitos: sairam, total: totalPessoas },
+      ],
+      portaria: this.portariaDe(eventoId),
+      setores,
+      totalPessoas,
+    }
+  }
+
+  async alternarPortaria(eventoId: string, aberta: boolean) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'mexer na portaria')
+
+    const p = PORTARIA_DE_MENTIRA[eventoId]
+    if (!p) return { erro: 'Não encontramos este evento.' }
+
+    p.aberta = aberta
+    /*
+     * Abrir pela primeira vez gera o endereço; fechar NÃO o apaga.
+     *
+     * Apagar faria os cartazes já impressos morrerem a cada fechamento — e
+     * fechar é operação de rotina (fecha-se a portaria quando a fila acaba).
+     * Quem quer matar os cartazes usa "gerar um novo", que avisa antes.
+     */
+    if (aberta && !p.token) p.token = `tok-${Math.random().toString(16).slice(2, 10)}`
+
+    return { portaria: this.portariaDe(eventoId) }
+  }
+
+  async trocarTokenDaPortaria(eventoId: string) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'trocar o QR da portaria')
+
+    const p = PORTARIA_DE_MENTIRA[eventoId]
+    if (!p) return { erro: 'Não encontramos este evento.' }
+
+    p.token = `tok-${Math.random().toString(16).slice(2, 10)}`
+    return { portaria: this.portariaDe(eventoId) }
+  }
+
+  async criarSetor(
+    eventoId: string,
+    dados: { nome: string; estimado?: number | null; valorPorPessoa?: number | null },
+  ) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'criar setor')
+
+    const nome = (dados.nome ?? '').trim()
+    if (nome.length < 2) return { erro: 'Dê um nome ao setor.' }
+
+    const lista = SETORES_DE_MENTIRA[eventoId]
+    if (!lista) return { erro: 'Não encontramos este evento.' }
+
+    // Dois setores com o mesmo nome fariam a equipe escolher errado no cartaz
+    // da portaria, onde só o nome aparece.
+    if (lista.some(s => semAcento(s.nome) === semAcento(nome))) {
+      return { erro: `Já existe um setor chamado "${nome}" neste evento.` }
+    }
+
+    const novo = {
+      setorId: `s-${Math.random().toString(16).slice(2, 8)}`,
+      nome,
+      pessoas: 0,
+      estimado: dados.estimado ?? null,
+      valorPorPessoa: dados.valorPorPessoa ?? null,
+      token: `f-${Math.random().toString(16).slice(2, 8)}`,
+      supervisores: [],
+    }
+    lista.push(novo)
+    return { setor: this.paraSetor(novo) }
+  }
+
+  private portariaDe(eventoId: string): Portaria {
+    const p = PORTARIA_DE_MENTIRA[eventoId] ?? { aberta: false, token: null, cadastrados: 0 }
+    return {
+      aberta: p.aberta,
+      endereco: p.token ? `${ENDERECO_DA_PORTARIA}/${p.token}` : null,
+      cadastrados: p.cadastrados,
+    }
+  }
+
+  private paraSetor(s: (typeof SETORES_DE_MENTIRA)[string][number]): SetorDetalhado {
+    return {
+      setorId: s.setorId,
+      nome: s.nome,
+      pessoas: s.pessoas,
+      estimado: s.estimado,
+      valorPorPessoa: s.valorPorPessoa,
+      linkDoFormulario: `${ENDERECO_DO_FORMULARIO}/${s.token}`,
+      supervisores: s.supervisores,
+    }
+  }
+
   // ── Acessos ───────────────────────────────────────────────────────────────
 
   async acessos(filtro: FiltroDeAcessos = {}): Promise<ListaDeAcessos> {
@@ -1143,7 +1325,10 @@ export class ClienteFalso implements ClienteApi {
     return EVENTOS_DO_PAINEL.map(e => ({
       eventoId: e.eventoId,
       nome: e.nome,
-      setores: SETORES_DE_MENTIRA[e.eventoId] ?? [],
+      setores: (SETORES_DE_MENTIRA[e.eventoId] ?? []).map(s => ({
+        setorId: s.setorId,
+        nome: s.nome,
+      })),
     }))
   }
 

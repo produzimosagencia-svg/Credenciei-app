@@ -482,3 +482,90 @@ export type NovoAcesso = {
    */
   ativo: boolean
 }
+
+
+// ─── O evento por dentro ────────────────────────────────────────────────────
+//
+// A tela de configuração de um evento: quantos setores e pessoas, quanto da
+// equipe já passou por cada etapa, o cartaz da portaria e a lista de setores
+// com os supervisores de cada um.
+//
+// É a tela de quem ORGANIZA — diferente do Painel, que responde "como está", e
+// das Atividades, que respondem "o que aconteceu".
+
+export type SupervisorDoSetor = {
+  id: string
+  nome: string
+  ativo: boolean
+}
+
+/**
+ * Um setor visto de dentro da tela do evento.
+ *
+ * Tem nome próprio porque já existe `SetorDoEvento`, que é o par
+ * id-e-nome usado para escolher o setor de um supervisor novo. Este aqui
+ * carrega o estado do setor — quantos, quanto e quem cuida.
+ */
+export type SetorDetalhado = {
+  setorId: string
+  nome: string
+  pessoas: number
+  /**
+   * Quantas pessoas o setor espera ter.
+   *
+   * Quando existe, vira barra de progresso — que diz o que o número sozinho não
+   * diz: o quanto falta. Sem teto para comparar, a barra não aparece.
+   */
+  estimado: number | null
+  valorPorPessoa: number | null
+  /** O link que a equipe usa para se cadastrar sozinha neste setor. */
+  linkDoFormulario: string
+  supervisores: SupervisorDoSetor[]
+}
+
+/**
+ * O cartaz da portaria.
+ *
+ * Um QR impresso e colado na entrada. Quem chega sem estar na lista aponta a
+ * câmera, escolhe o setor e se cadastra sozinho.
+ *
+ * `cadastrados` em zero é diferente de "ainda não ligou" — por isso os dois
+ * estados existem separados: `aberta` diz se a porta está de pé, `cadastrados`
+ * diz se alguém passou por ela.
+ */
+export type Portaria = {
+  aberta: boolean
+  /** O endereço do cartaz. `null` enquanto a portaria nunca foi ligada. */
+  endereco: string | null
+  cadastrados: number
+}
+
+export type ProgressoDaEtapa = {
+  etapa: TipoBatida
+  feitos: number
+  total: number
+}
+
+export type EventoDetalhado = {
+  eventoId: string
+  nome: string
+  ativo: boolean
+  local: string | null
+  dataInicio: string
+  dataFim: string | null
+  /**
+   * Quantos dias de preparação o evento tem além do dia principal.
+   *
+   * A tela diz isso em uma linha porque é a dúvida que mais aparece: por que
+   * fulano bateu ponto às três da manhã num dia e no outro não conseguiu às
+   * dez. Nos dias de preparação a entrada e a saída são livres; no dia do
+   * evento valem os horários configurados.
+   */
+  diasDePreparacao: number
+  /** Setores · Funcionários · Presentes agora · Ainda não chegaram. */
+  indicadores: IndicadorDoPainel[]
+  progresso: ProgressoDaEtapa[]
+  portaria: Portaria
+  setores: SetorDetalhado[]
+  totalPessoas: number
+}

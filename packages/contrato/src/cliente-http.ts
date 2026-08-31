@@ -29,11 +29,10 @@ import type { ClienteApi } from './cliente.js'
 import type {
   Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  EventoComSetores,
-  EventoEscaneavel, FichaLocalizada, FiltroDeAcessos,
-  FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura, NovoAcesso,
-  Painel, PainelDaEquipe, ResultadoDaLeitura, RespostaDeBatida,
-  ResumoParticipacao, Sessao,
+  EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaLocalizada,
+  FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
+  NovoAcesso, Painel, PainelDaEquipe, Portaria, ResultadoDaLeitura,
+  RespostaDeBatida, ResumoParticipacao, SetorDetalhado, Sessao,
 } from './tipos.js'
 
 export type OpcoesDoClienteHttp = {
@@ -383,6 +382,35 @@ export class ClienteHttp implements ClienteApi {
   async atividades(_eventoId: string): Promise<AtividadesDoEvento> {
     void _eventoId
     throw new AindaNaoNaApi('atividades')
+  }
+
+  // ─── O evento por dentro ──────────────────────────────────────────────────
+
+  async evento(_eventoId: string): Promise<EventoDetalhado> {
+    void _eventoId
+    throw new AindaNaoNaApi('evento')
+  }
+
+  async alternarPortaria(
+    _eventoId: string, _aberta: boolean,
+  ): Promise<{ portaria?: Portaria; erro?: string }> {
+    void _eventoId; void _aberta
+    throw new AindaNaoNaApi('alternarPortaria')
+  }
+
+  async trocarTokenDaPortaria(
+    _eventoId: string,
+  ): Promise<{ portaria?: Portaria; erro?: string }> {
+    void _eventoId
+    throw new AindaNaoNaApi('trocarTokenDaPortaria')
+  }
+
+  async criarSetor(
+    _eventoId: string,
+    _dados: { nome: string; estimado?: number | null; valorPorPessoa?: number | null },
+  ): Promise<{ setor?: SetorDetalhado; erro?: string }> {
+    void _eventoId; void _dados
+    throw new AindaNaoNaApi('criarSetor')
   }
 
   // ─── Acessos ──────────────────────────────────────────────────────────────

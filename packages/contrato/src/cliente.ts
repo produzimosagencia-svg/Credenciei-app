@@ -12,10 +12,10 @@
 import type {
   Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  EventoComSetores, EventoEscaneavel, FichaLocalizada, FiltroDeAcessos,
-  FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura, NovoAcesso,
-  Painel, PainelDaEquipe, ResultadoDaLeitura, RespostaDeBatida,
-  ResumoParticipacao, Sessao,
+  EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaLocalizada,
+  FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
+  NovoAcesso, Painel, PainelDaEquipe, Portaria, ResultadoDaLeitura,
+  RespostaDeBatida, ResumoParticipacao, SetorDetalhado, Sessao,
 } from './tipos.js'
 
 export interface ClienteApi {
@@ -129,6 +129,34 @@ export interface ClienteApi {
 
   /** O log da operação: cada batida, na ordem em que aconteceu. */
   atividades(eventoId: string): Promise<AtividadesDoEvento>
+
+  // ── O evento por dentro ─────────────────────────────────────────────────
+  /** A tela de configuração de um evento: setores, progresso e portaria. */
+  evento(eventoId: string): Promise<EventoDetalhado>
+
+  /**
+   * Abre ou fecha o cadastro na portaria.
+   *
+   * Fechar NÃO invalida os cartazes impressos: eles voltam a funcionar quando
+   * a portaria abre de novo. É o que evita reimpressão à toa, e por isso a tela
+   * diz isso quando está fechada.
+   */
+  alternarPortaria(eventoId: string, aberta: boolean): Promise<{ portaria?: Portaria; erro?: string }>
+
+  /**
+   * Gera um endereço novo para o cartaz.
+   *
+   * É destrutivo: todo cartaz já impresso para de funcionar. Existe para o caso
+   * de o QR vazar — alguém fotografou o cartaz e mandou no grupo. Quem já se
+   * cadastrou não é afetado.
+   */
+  trocarTokenDaPortaria(eventoId: string): Promise<{ portaria?: Portaria; erro?: string }>
+
+  /** Cria um setor (fornecedor) do evento. */
+  criarSetor(
+    eventoId: string,
+    dados: { nome: string; estimado?: number | null; valorPorPessoa?: number | null },
+  ): Promise<{ setor?: SetorDetalhado; erro?: string }>
 
   // ── Acessos ─────────────────────────────────────────────────────────────
   /** Quem consegue entrar no sistema. Não é a equipe do evento. */

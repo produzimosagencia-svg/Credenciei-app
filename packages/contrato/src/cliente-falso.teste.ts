@@ -866,3 +866,133 @@ test('todo evento oferecido para criar acesso tem setor', async () => {
     assert.ok(e.setores.length > 0, `${e.nome} ficou sem setor`)
   }
 })
+
+// ─── O evento por dentro ────────────────────────────────────────────────────
+
+test('o supervisor não abre a configuração do evento', async () => {
+  // Ele cuida de um setor, não do evento. No sistema web ele é redirecionado
+  // para o próprio setor; aqui o servidor recusa, que é a parte que importa.
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  await assert.rejects(() => c.evento('ev-1'), /permissão/i)
+})
+
+test('a configuração traz os quatro números e os setores', async () => {
+  const c = await noPortao()
+  const e = await c.evento('ev-1')
+
+  assert.deepEqual(
+    e.indicadores.map(i => i.chave),
+    ['setores', 'funcionarios', 'presentes', 'nao_chegaram'],
+  )
+  assert.ok(e.setores.length > 0)
+  assert.equal(
+    e.indicadores.find(i => i.chave === 'funcionarios')!.valor,
+    e.setores.reduce((a, s) => a + s.pessoas, 0),
+    'o total tem que sair da soma dos setores, e não de outra conta',
+  )
+})
+
+test('o progresso conta PESSOAS, não batidas', async () => {
+  /*
+   * Quem bateu entrada duas vezes continua sendo uma pessoa que entrou. A
+   * pergunta da tela é "quantos dos 109 já passaram por cada etapa", e ela só
+   * faz sentido contando gente.
+   */
+  const c = await noPortao()
+  const cracha = crachaQueServe()
+  await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+  await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+
+  const e = await c.evento('ev-1')
+  assert.equal(e.progresso.find(p => p.etapa === 'entrada')!.feitos, 1)
+})
+
+test('cada setor traz o próprio link de cadastro, e eles são diferentes', async () => {
+  // O link é por SETOR: é ele que decide em qual equipe a pessoa cai. Dois
+  // setores com o mesmo link jogariam todo mundo no mesmo lugar.
+  const c = await noPortao()
+  const e = await c.evento('ev-1')
+  const links = e.setores.map(s => s.linkDoFormulario)
+
+  assert.equal(new Set(links).size, links.length)
+  for (const l of links) assert.match(l, /^https?:\/\//)
+})
+
+// ─── A portaria ─────────────────────────────────────────────────────────────
+
+test('fechar a portaria NÃO mata os cartazes já impressos', async () => {
+  /*
+   * Fechar é operação de rotina — fecha-se quando a fila acaba. Se o endereço
+   * morresse a cada fechamento, todo cartaz impresso precisaria ser refeito no
+   * dia seguinte.
+   */
+  const c = await noPortao()
+  const antes = (await c.evento('ev-1')).portaria
+  assert.equal(antes.aberta, true)
+  assert.ok(antes.endereco)
+
+  const fechada = await c.alternarPortaria('ev-1', false)
+  assert.equal(fechada.portaria?.aberta, false)
+  assert.equal(fechada.portaria?.endereco, antes.endereco, 'o endereço tinha que sobreviver')
+
+  const aberta = await c.alternarPortaria('ev-1', true)
+  assert.equal(aberta.portaria?.endereco, antes.endereco)
+})
+
+test('abrir pela primeira vez gera o endereço', async () => {
+  const c = await noPortao()
+  const antes = (await c.evento('ev-2')).portaria
+  assert.equal(antes.aberta, false)
+  assert.equal(antes.endereco, null)
+
+  const r = await c.alternarPortaria('ev-2', true)
+  assert.ok(r.portaria?.endereco, 'sem endereço não há o que imprimir')
+})
+
+test('trocar o QR muda o endereço — e é isso que mata os cartazes', async () => {
+  // É destrutivo de propósito, e existe para o caso de o QR vazar. A tela avisa
+  // antes; o servidor só executa.
+  const c = await noPortao()
+  const antes = (await c.evento('ev-1')).portaria.endereco
+  const r = await c.trocarTokenDaPortaria('ev-1')
+
+  assert.ok(r.portaria?.endereco)
+  assert.notEqual(r.portaria.endereco, antes)
+})
+
+test('quantos entraram pela portaria é diferente de estar aberta', async () => {
+  // Zero não quer dizer "ainda não ligou": o ev-3 está fechado e teve gente.
+  const c = await noPortao()
+  const p = (await c.evento('ev-3')).portaria
+  assert.equal(p.aberta, false)
+  assert.ok(p.cadastrados > 0)
+})
+
+// ─── Criar setor ────────────────────────────────────────────────────────────
+
+test('setor novo nasce vazio e com link próprio', async () => {
+  const c = await noPortao()
+  const r = await c.criarSetor('ev-1', { nome: 'Segurança', estimado: 30, valorPorPessoa: 200 })
+
+  assert.ok(r.setor, r.erro)
+  assert.equal(r.setor.pessoas, 0)
+  assert.ok(r.setor.linkDoFormulario)
+  assert.deepEqual(r.setor.supervisores, [])
+})
+
+test('setor com nome repetido é recusado', async () => {
+  /*
+   * No cartaz da portaria só o NOME aparece. Dois setores "Bar" fariam a
+   * pessoa escolher no escuro, e metade da equipe cairia no setor errado.
+   */
+  const c = await noPortao()
+  const r = await c.criarSetor('ev-1', { nome: 'produção' })
+  assert.ok(r.erro)
+  assert.match(r.erro, /já existe/i)
+})
+
+test('setor sem nome é recusado', async () => {
+  const c = await noPortao()
+  assert.ok((await c.criarSetor('ev-1', { nome: ' ' })).erro)
+})

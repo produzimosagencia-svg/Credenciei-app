@@ -8,17 +8,19 @@
 // A métrica do cartão é "presentes agora" porque, durante o evento, é a
 // pergunta que se repete no rádio a cada dez minutos.
 
-import { View, StyleSheet, Text } from 'react-native'
+import { Pressable, View, StyleSheet, Text } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { formatarBR } from '@credenciei/dominio'
 import type { EventoDoPainel } from '@credenciei/contrato'
 import { Icone } from './icone'
 import { espaco, eventoAoVivo as v, raio, texto, tipo } from './tema'
 
-export function CartaoDeEventoAoVivo({ evento }: { evento: EventoDoPainel }) {
+export function CartaoDeEventoAoVivo({
+  evento, aoTocar,
+}: { evento: EventoDoPainel; aoTocar?: () => void }) {
   const pct = evento.equipe > 0 ? Math.round((evento.presentes / evento.equipe) * 100) : 0
 
-  return (
+  const cartao = (
     <LinearGradient
       colors={[...v.degrade] as [string, string, string]}
       locations={[...v.posicoes] as [number, number, number]}
@@ -78,6 +80,19 @@ export function CartaoDeEventoAoVivo({ evento }: { evento: EventoDoPainel }) {
         )}
       </View>
     </LinearGradient>
+  )
+
+  if (!aoTocar) return cartao
+
+  return (
+    <Pressable
+      onPress={aoTocar}
+      accessibilityRole="button"
+      accessibilityLabel={`Configurar ${evento.nome}`}
+      style={({ pressed }) => (pressed ? { transform: [{ scale: 0.99 }], opacity: 0.95 } : null)}
+    >
+      {cartao}
+    </Pressable>
   )
 }
 
