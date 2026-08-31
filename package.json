@@ -8,6 +8,7 @@
   "scripts": {
     "teste": "npm run teste --workspaces --if-present",
     "tipos": "npm run tipos --workspaces --if-present",
-    "verificar": "npm run tipos && npm run teste"
+    "verificar": "npm run tipos && npm run teste && npm run backlog",
+    "backlog": "node scripts/backlog.mjs"
   }
 }

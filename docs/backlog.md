@@ -1,6 +1,15 @@
 # Backlog
 
-**277 tasks · 164 no MVP · 96 concluídas (35%)**
+**277 tasks · 164 no MVP · 109 concluídas (39%)**
+
+**Só o MVP: 92 de 164 (56%).** É o número que responde "quando dá para usar" —
+o outro inclui push, publicação, web e escala, que vêm depois.
+
+> Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
+> cabeçalho que não bate. Em 31/08 eles divergiram em treze tasks porque eu
+> mantinha o cabeçalho à mão — e o número reportado saiu errado em seis pontos.
+> A regra é contar, não estimar; um número que depende de alguém lembrar de
+> somar é estimativa com passos extras.
 
 > **30/08/2026 — o escopo cresceu, e o total mudou junto.** O Juan pediu que o
 > app tenha as mesmas telas e a mesma lógica do sistema que já está no ar, e
