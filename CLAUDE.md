@@ -42,11 +42,11 @@ packages/dominio     a regra de negócio, pura — 48 testes
 packages/offline     a fila de batidas sem internet — 22 testes
 packages/contrato    o que o app pode pedir + servidor falso — 73 testes
 apps/api             a API HTTP completa — 74 testes
-apps/app             o aplicativo, em React Native + Expo — 49 testes
+apps/app             o aplicativo, em React Native + Expo — 67 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**266 testes.** `npm run verificar` roda tipos e testes de
+**284 testes.** `npm run verificar` roda tipos e testes de
 tudo, sem banco e sem rede. Só `npm run teste` NÃO confere tipos — o `tsx` não
 olha para eles.
 

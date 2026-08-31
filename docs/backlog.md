@@ -1,6 +1,6 @@
 # Backlog
 
-**277 tasks · 164 no MVP · 81 concluídas (29%)**
+**277 tasks · 164 no MVP · 92 concluídas (33%)**
 
 > **30/08/2026 — o escopo cresceu, e o total mudou junto.** O Juan pediu que o
 > app tenha as mesmas telas e a mesma lógica do sistema que já está no ar, e
@@ -23,16 +23,16 @@ Atualizado em 31/08/2026.
 | 3 | API v1 | 18 | 32 | ✓ | Lógica completa; falta foto e rotas de admin |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
 | 5 | App base | 12 | 14 | ✓ | Navegação por papel, com abas e menu |
-| 6 | QR | 4 | 15 | ✓ | Falta a TELA, Ed25519, código giratório, captura |
-| 7 | Offline | 10 | 19 | ✓ | Fila pronta; falta foto e integração com o app |
-| 8 | Ponto no app | 0 | 13 | ✓ | Destravado: o app base existe |
-| 9 | Histórico | 1 | 11 | — | A API já devolve; falta a tela |
+| 6 | QR | 7 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
+| 7 | Offline | 13 | 19 | ✓ | Fila ligada ao app; falta o envio da foto ao storage |
+| 8 | Ponto no app | 4 | 13 | ✓ | O meio com selfie; falta o resto do ciclo |
+| 9 | Histórico | 4 | 11 | — | Meus dias e Meu pagamento prontos |
 | 10 | Supervisor | 1 | 15 | — | Painel na API; falta a tela |
 | 11 | Push | 0 | 12 | — | Depende da conta Apple |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
-| 15 | Testes | 6 | 14 | — | 266 testes rodando |
+| 15 | Testes | 7 | 14 | — | 284 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 17 | 25 | ✓ | Falta Plataforma, o que a web ganhou e a API |
 
@@ -89,13 +89,31 @@ Atualizado em 31/08/2026.
 - Formato por etapa (`c3`), com `c2` aceito na transição
 - Geração e leitura no pacote compartilhado
 - Endpoint `meuQr` com a etapa do dia
+- O QR desenhado na credencial, dizendo de qual etapa é
+- Some quando o app sai do primeiro plano, e volta com um toque
+- Leitura pela câmera no scanner do portão
 
 **Epic 7 — Offline**
+- Fila ligada ao app, acima das telas e viva em segundo plano
+- Tradução entre servidor e fila, com teste da recusa e da falha de rede
+- Estado da batida visível na credencial: guardada, enviada ou recusada
 - Fila com persistência, ordem e recuo progressivo
 - Idempotência por id gerado no aparelho
 - Distinção entre recusa e falha de transporte
 - Recuperação de batida travada em "enviando"
 - Tolerância a armazenamento corrompido
+
+**Epic 8 — Ponto no app**
+- Credencial com as três etapas do dia e o estado de cada uma
+- O meio registrado pela própria pessoa, com selfie
+- Janela do meio contada a partir da entrada DELA, não do relógio do evento
+- Atraso marcado, nunca barrado
+
+**Epic 9 — Histórico**
+- Meus dias: cada dia com as três etapas e o status
+- "Não realizada" só quando é anomalia, e não em dia inteiro ausente
+- Resumo com dias trabalhados, faltados, incompletos e horas
+- Meu pagamento: valor previsto, com a conta de onde ele vem
 
 **Epic 14 — Segurança**
 - Isolamento por pessoa em todos os endpoints
@@ -133,17 +151,17 @@ O Juan escolheu **telas primeiro, com dados de mentira**: o app inteiro fica
 navegável contra o servidor falso, ele olha e corrige, e só depois a API real
 entra por baixo. Nenhuma tela muda na troca.
 
-1. **A credencial na tela** (Epic 6 + 8). O QR do dia e os três botões de bater
-   ponto, ligados à fila offline que já existe. É o lado do colaborador, e o
-   único pedaço grande que ainda falta do MVP.
-2. **Organizações, Base de funcionários, Encontre colaborador, WhatsApp**
+1. **Organizações, Base de funcionários, Encontre colaborador, WhatsApp**
    (Epic 17). O bloco Plataforma, que só o master vê.
-5. **Cliente HTTP de verdade** (Epic 3 + 17). Trocar o falso pelo real é um
+2. **O que o sistema web ganhou** (Epic 17). Cartaz da portaria, mover
+   funcionário de setor, pendências — ver a seção abaixo.
+3. **Cliente HTTP de verdade** (Epic 3 + 17). Trocar o falso pelo real é um
    arquivo só, mas ele ainda não existe — e faltam os endpoints do painel.
-6. **Upload de foto** (Epic 3 + 7). Compressão, guarda offline, envio direto
-   ao storage sem passar pela API.
-7. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.
-8. **Rodar as migrações** (Epic 1). Precisa do banco de homologação.
+4. **Upload de foto ao storage** (Epic 3 + 7). Hoje a selfie do meio viaja
+   dentro da batida; o caminho que aguenta pico é subir direto ao storage.
+5. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.
+6. **Rodar as migrações** (Epic 1). Precisa do banco de homologação.
+
 
 ---
 
