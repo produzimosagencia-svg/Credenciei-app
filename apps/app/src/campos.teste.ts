@@ -8,7 +8,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { CampoDoFormulario } from '@credenciei/contrato'
-import { camposFaltando, fraseDoQueFalta, mascararData } from './campos.js'
+import {
+  camposFaltando, fraseDoQueFalta, mascararData, mascararIdentificador,
+} from './campos.js'
 
 const FUNCAO: CampoDoFormulario = {
   chave: 'funcao', rotulo: 'Sua função no evento', tipo: 'texto', obrigatorio: true,
@@ -64,4 +66,27 @@ test('a frase diz exatamente o que falta', () => {
     fraseDoQueFalta([FUNCAO, UNIFORME, OBSERVACAO]),
     'Falta preencher: Sua função no evento, Tamanho do uniforme e Alguma observação.',
   )
+})
+
+// ─── O campo de CPF ou e-mail ───────────────────────────────────────────────
+
+test('o e-mail passa inteiro, letra por letra', () => {
+  /*
+   * A primeira versão mascarava tudo como CPF, e as letras sumiam em silêncio:
+   * o campo não aceitava o que o próprio rótulo dele pedia. Este teste existe
+   * para isso não voltar.
+   */
+  assert.equal(mascararIdentificador('j'), 'j')
+  assert.equal(mascararIdentificador('juan'), 'juan')
+  assert.equal(mascararIdentificador('juan@produzimos.com.br'), 'juan@produzimos.com.br')
+})
+
+test('o CPF ganha máscara enquanto é digitado', () => {
+  assert.equal(mascararIdentificador('154'), '154')
+  assert.equal(mascararIdentificador('15432144794'), '154.321.447-94')
+  assert.equal(mascararIdentificador('154.321.447-94'), '154.321.447-94')
+})
+
+test('campo vazio continua vazio', () => {
+  assert.equal(mascararIdentificador(''), '')
 })

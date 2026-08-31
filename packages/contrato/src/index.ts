@@ -6,6 +6,7 @@
  */
 export type { ClienteApi } from './cliente.js'
 export { ClienteFalso } from './cliente-falso.js'
-export type { ComportamentoFalso } from './cliente-falso.js'
+export type { ComportamentoFalso, ContaDeDemonstracao } from './cliente-falso.js'
+export { CONTAS_DE_DEMONSTRACAO, SENHA_DE_DEMONSTRACAO } from './cliente-falso.js'
 export type * from './tipos.js'
 export type { TipoBatida } from './comum.js'

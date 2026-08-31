@@ -113,20 +113,65 @@ const EVENTOS_DO_PAINEL = [
   },
 ]
 
+export type ContaDeDemonstracao = {
+  nome: string
+  papel: Papel
+  email: string
+  cpf: string
+  /** Uma linha dizendo o que este papel enxerga. Aparece na tela de entrar. */
+  oQueVe: string
+}
+
 /**
  * As contas de demonstração, uma por papel.
  *
- * Existem para o menu poder ser visto mudando: o supervisor não tem "Escanear
+ * Existem para o menu poder ser VISTO mudando: o supervisor não tem "Escanear
  * QR", o master tem o bloco "Plataforma" e o admin não. Sem três contas, essa
  * parte do sistema só seria conferida em produção.
+ *
+ * Os identificadores são e-mail e CPF de verdade — no formato, não na pessoa —
+ * porque é assim que se entra no sistema. Uma demonstração que aceita a palavra
+ * "master" no campo de CPF ensina um caminho que não existe.
+ *
+ * Exportadas porque a tela de entrar as mostra: em demonstração, um toque
+ * preenche e entra. Ninguém deveria ter que adivinhar a senha do próprio
+ * protótipo.
  */
-const CONTAS_DE_DEMONSTRACAO: Record<string, { nome: string; papel: Papel }> = {
-  master: { nome: 'Juan Muzy', papel: 'master' },
-  admin: { nome: 'Marina Alves', papel: 'admin' },
-  supervisor: { nome: 'Carlos Silva', papel: 'supervisor' },
-}
+export const CONTAS_DE_DEMONSTRACAO: ContaDeDemonstracao[] = [
+  {
+    nome: 'Juan Muzy',
+    papel: 'master',
+    email: 'juan@produzimos.com.br',
+    cpf: '582.914.370-04',
+    oQueVe: 'Todas as organizações e o bloco Plataforma',
+  },
+  {
+    nome: 'Marina Alves',
+    papel: 'admin',
+    email: 'marina@produzimos.com.br',
+    cpf: '731.208.945-62',
+    oQueVe: 'Só os eventos da própria organização',
+  },
+  {
+    nome: 'Carlos Silva',
+    papel: 'supervisor',
+    email: 'carlos@produzimos.com.br',
+    cpf: '409.663.128-70',
+    oQueVe: 'Só o próprio setor, e sem Escanear QR',
+  },
+]
 
-const SENHA_DE_DEMONSTRACAO = '123456'
+export const SENHA_DE_DEMONSTRACAO = '123456'
+
+/** Acha a conta por e-mail ou por CPF, com ou sem pontuação. */
+function contaPor(identificador: string): ContaDeDemonstracao | undefined {
+  const texto = (identificador ?? '').trim().toLowerCase()
+  if (!texto) return undefined
+  const digitos = texto.replace(/\D/g, '')
+  return CONTAS_DE_DEMONSTRACAO.find(c =>
+    c.email.toLowerCase() === texto
+    || (digitos.length === 11 && c.cpf.replace(/\D/g, '') === digitos))
+}
 
 /** O pulso da operação: as últimas batidas que chegaram. */
 const ATIVIDADE_DE_MENTIRA: AtividadeRecente[] = [
@@ -188,8 +233,7 @@ export class ClienteFalso implements ClienteApi {
   async entrarComSenha(identificador: string, senha: string) {
     await this.rede()
 
-    const chave = (identificador ?? '').trim().toLowerCase().split('@')[0] ?? ''
-    const conta = CONTAS_DE_DEMONSTRACAO[chave]
+    const conta = contaPor(identificador)
 
     /*
      * A MESMA recusa para os dois casos: conta que não existe e senha errada.
@@ -202,7 +246,7 @@ export class ClienteFalso implements ClienteApi {
       return { erro: 'CPF ou senha incorretos.' }
     }
 
-    this.quemEntrou = conta
+    this.quemEntrou = { nome: conta.nome, papel: conta.papel }
     return { sessao: this.abrirSessao(conta.papel) }
   }
 

@@ -24,7 +24,7 @@
 
 import { useState } from 'react'
 import { Redirect } from 'expo-router'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { mensagemDoErro } from '../src/dados/pedido'
 import { DEMONSTRACAO } from '../src/dados/cliente'
@@ -32,7 +32,10 @@ import { useSessao } from '../src/sessao/contexto'
 import { Marca } from '../src/ui/marca'
 import { Botao, Campo, CodigoSegmentado } from '../src/ui/componentes'
 import { cor, espaco, raio, texto, tipo } from '../src/ui/tema'
-import { formatCpfCnpj } from '@credenciei/dominio'
+import { CONTAS_DE_DEMONSTRACAO, SENHA_DE_DEMONSTRACAO } from '@credenciei/contrato'
+import type { ContaDeDemonstracao } from '@credenciei/contrato'
+import { NOME_DO_PAPEL } from '@credenciei/dominio'
+import { mascararIdentificador } from '../src/campos'
 import { mascararTelefone, telefoneParaEnvio, telefoneValido } from '../src/telefone'
 
 type Caminho = 'painel' | 'equipe'
@@ -77,8 +80,11 @@ export default function Entrar() {
     }
   }
 
-  const entrarComSenha = () => tentar(async () => {
-    const r = await cliente.entrarComSenha(identificador.trim(), senha)
+  const entrarComSenha = (
+    quem: string = identificador,
+    comQual: string = senha,
+  ) => tentar(async () => {
+    const r = await cliente.entrarComSenha(quem.trim(), comQual)
     if (!r.sessao) return r.erro ?? 'Não conseguimos entrar.'
     await entrar(r.sessao)
     return null
@@ -106,7 +112,12 @@ export default function Entrar() {
         { paddingTop: insets.top + espaco.ggg, paddingBottom: insets.bottom + espaco.g },
       ]}
     >
-      <View style={e.miolo}>
+      <ScrollView
+        style={e.miolo}
+        contentContainerStyle={e.mioloConteudo}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={e.identidade}>
           <Marca tamanho={36} />
           <Text style={e.nomeDaMarca}>Credenciei</Text>
@@ -131,7 +142,7 @@ export default function Entrar() {
               escuro
               rotulo="CPF ou e-mail"
               value={identificador}
-              onChangeText={t => setIdentificador(t.includes('@') ? t : formatCpfCnpj(t))}
+              onChangeText={t => setIdentificador(mascararIdentificador(t))}
               placeholder="000.000.000-00"
               autoCapitalize="none"
               autoCorrect={false}
@@ -145,12 +156,12 @@ export default function Entrar() {
               placeholder="••••••••"
               secureTextEntry
               autoComplete="current-password"
-              onSubmitEditing={entrarComSenha}
+              onSubmitEditing={() => entrarComSenha()}
               returnKeyType="go"
             />
             <Botao
               titulo="Entrar"
-              onPress={entrarComSenha}
+              onPress={() => entrarComSenha()}
               ocupado={ocupado}
               desabilitado={!identificador.trim() || !senha}
             />
@@ -196,14 +207,24 @@ export default function Entrar() {
           </>
         )}
 
-        {DEMONSTRACAO ? (
+        {DEMONSTRACAO && caminho === 'painel' ? (
+          <ContasDeDemonstracao
+            desabilitado={ocupado}
+            aoEscolher={conta => {
+              setIdentificador(conta.email)
+              setSenha(SENHA_DE_DEMONSTRACAO)
+              void entrarComSenha(conta.email, SENHA_DE_DEMONSTRACAO)
+            }}
+          />
+        ) : null}
+
+        {DEMONSTRACAO && caminho === 'equipe' ? (
           <Text style={e.demonstracao}>
-            {caminho === 'painel'
-              ? 'Demonstração: entre com master, admin ou supervisor — a senha é 123456 nos três. O menu muda conforme o papel.'
-              : 'Demonstração: qualquer número com DDD entra, e o código é sempre 123456.'}
+            Demonstração: qualquer número com DDD entra, e o código é sempre
+            123456.
           </Text>
         ) : null}
-      </View>
+      </ScrollView>
 
       <Text style={e.rodape}>Credenciei © {new Date().getFullYear()} — Produzimos</Text>
     </View>
@@ -251,6 +272,47 @@ function SeletorDeCaminho({
   )
 }
 
+/**
+ * As três contas de demonstração, com um toque para entrar.
+ *
+ * Existe porque a versão anterior escrevia "entre com master, admin ou
+ * supervisor" — e o campo pedia CPF ou e-mail. Não havia como obedecer à
+ * instrução: o campo, mascarado como CPF, engolia as letras em silêncio.
+ *
+ * Cada linha diz o que aquele papel enxerga. É a forma mais rápida de conferir
+ * que a permissão está certa: entra, olha o menu, sai, entra com outro.
+ */
+function ContasDeDemonstracao({
+  aoEscolher, desabilitado,
+}: {
+  aoEscolher: (conta: ContaDeDemonstracao) => void
+  desabilitado?: boolean
+}) {
+  return (
+    <View style={e.contas}>
+      <Text style={e.contasTitulo}>DEMONSTRAÇÃO — TOQUE PARA ENTRAR</Text>
+
+      {CONTAS_DE_DEMONSTRACAO.map(conta => (
+        <Pressable
+          key={conta.email}
+          onPress={() => aoEscolher(conta)}
+          disabled={desabilitado}
+          accessibilityRole="button"
+          style={({ pressed }) => [e.conta, pressed && e.contaTocada]}
+        >
+          <View style={e.contaTexto}>
+            <Text style={e.contaNome}>
+              {conta.nome} <Text style={e.contaPapel}>· {NOME_DO_PAPEL[conta.papel]}</Text>
+            </Text>
+            <Text style={e.contaDetalhe}>{conta.oQueVe}</Text>
+            <Text style={e.contaCredencial}>{conta.email} · senha {SENHA_DE_DEMONSTRACAO}</Text>
+          </View>
+        </Pressable>
+      ))}
+    </View>
+  )
+}
+
 const e = StyleSheet.create({
   fora: {
     flex: 1,
@@ -259,6 +321,7 @@ const e = StyleSheet.create({
     justifyContent: 'space-between',
   },
   miolo: { flex: 1 },
+  mioloConteudo: { paddingBottom: espaco.gg },
 
   identidade: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, marginBottom: espaco.ggg },
   nomeDaMarca: { fontFamily: tipo.forte, fontSize: 18, letterSpacing: -0.4, color: '#ffffff' },
@@ -307,6 +370,24 @@ const e = StyleSheet.create({
     marginTop: espaco.gg,
     lineHeight: 18,
   },
+
+  contas: { marginTop: espaco.gg },
+  contasTitulo: { ...texto.etiqueta, color: cor.neutro500, marginBottom: espaco.s },
+  conta: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: raio.peca,
+    paddingHorizontal: espaco.m,
+    paddingVertical: 10,
+    marginBottom: espaco.s,
+  },
+  contaTocada: { backgroundColor: 'rgba(255,255,255,0.09)', borderColor: cor.acento500 },
+  contaTexto: { gap: 2 },
+  contaNome: { ...texto.corpoForte, color: '#ffffff' },
+  contaPapel: { fontFamily: tipo.regular, color: cor.neutro400 },
+  contaDetalhe: { ...texto.xs, fontFamily: tipo.regular, color: cor.neutro400 },
+  contaCredencial: { ...texto.xxs, fontFamily: tipo.regular, color: cor.neutro500 },
 
   rodape: { ...texto.xs, fontFamily: tipo.regular, color: cor.neutro500, textAlign: 'center' },
 })

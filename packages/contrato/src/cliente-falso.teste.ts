@@ -7,9 +7,20 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ClienteFalso } from './cliente-falso.js'
+import {
+  ClienteFalso, CONTAS_DE_DEMONSTRACAO, SENHA_DE_DEMONSTRACAO,
+} from './cliente-falso.js'
 
 const CODIGO_DO_EVENTO = 'HJK-2026-K7M2'
+
+/** Entra com a conta de demonstração daquele papel. */
+async function entrarComo(c: ClienteFalso, papel: string) {
+  const conta = CONTAS_DE_DEMONSTRACAO.find(x => x.papel === papel)
+  if (!conta) throw new Error(`sem conta de demonstração para ${papel}`)
+  const r = await c.entrarComSenha(conta.email, SENHA_DE_DEMONSTRACAO)
+  if (!r.sessao) throw new Error(r.erro ?? 'não entrou')
+  return r.sessao
+}
 
 /** Sessão pronta, que é o ponto de partida de quase todo teste. */
 async function logado() {
@@ -326,7 +337,8 @@ test('renovação recusada é decisão, não falha de rede', async () => {
 
 test('a conta de painel entra com senha e recebe o papel dela', async () => {
   const c = new ClienteFalso()
-  const r = await c.entrarComSenha('supervisor@produzimos.com.br', '123456')
+  const supervisor = CONTAS_DE_DEMONSTRACAO.find(x => x.papel === 'supervisor')!
+  const r = await c.entrarComSenha(supervisor.email, SENHA_DE_DEMONSTRACAO)
 
   assert.ok(r.sessao, r.erro ?? 'era para entrar')
   assert.equal(r.sessao.papel, 'supervisor')
@@ -339,8 +351,9 @@ test('conta que não existe e senha errada dizem a MESMA coisa', async () => {
    * tentando um por um — e essa é justamente a lista de quem acessa o painel.
    */
   const c = new ClienteFalso()
-  const inexistente = await c.entrarComSenha('ninguem@lugar.nenhum', '123456')
-  const senhaErrada = await c.entrarComSenha('admin@produzimos.com.br', 'chutei')
+  const existe = CONTAS_DE_DEMONSTRACAO[0]!
+  const inexistente = await c.entrarComSenha('ninguem@lugar.nenhum', SENHA_DE_DEMONSTRACAO)
+  const senhaErrada = await c.entrarComSenha(existe.email, 'chutei')
 
   assert.equal(inexistente.sessao, undefined)
   assert.equal(senhaErrada.sessao, undefined)
@@ -358,7 +371,7 @@ test('o colaborador não tem painel, e quem recusa é o servidor', async () => {
 
 test('o painel do admin traz os quatro números e os eventos', async () => {
   const c = new ClienteFalso()
-  await c.entrarComSenha('admin', '123456')
+  await entrarComo(c, 'admin')
   const p = await c.painel()
 
   assert.equal(p.indicadores.length, 4)
@@ -374,7 +387,7 @@ test('presentes e ainda-não-chegaram somam a equipe', async () => {
   // Os dois números saem da MESMA contagem. Se viessem de contas diferentes,
   // a tela mostraria 1 presente e 65 faltando numa equipe de 70.
   const c = new ClienteFalso()
-  await c.entrarComSenha('admin', '123456')
+  await entrarComo(c, 'admin')
   const p = await c.painel()
 
   const presentes = p.indicadores.find(i => i.chave === 'presentes')!
@@ -386,12 +399,41 @@ test('presentes e ainda-não-chegaram somam a equipe', async () => {
 
 test('o supervisor vê só o próprio setor, e o recorte é do servidor', async () => {
   const c = new ClienteFalso()
-  await c.entrarComSenha('supervisor', '123456')
+  await entrarComo(c, 'supervisor')
   const p = await c.painel()
 
   assert.equal(p.eventos.length, 1, 'ele não pode enxergar a operação inteira')
 
   const admin = new ClienteFalso()
-  await admin.entrarComSenha('admin', '123456')
+  await entrarComo(admin, 'admin')
   assert.equal((await admin.painel()).eventos.length, 3)
+})
+
+test('a conta de painel entra por e-mail ou por CPF', async () => {
+  /*
+   * O campo da tela diz "CPF ou e-mail". Se o falso aceitasse só uma das duas
+   * formas, metade do rótulo seria mentira — e a descoberta só viria contra a
+   * API real.
+   */
+  const conta = CONTAS_DE_DEMONSTRACAO[0]!
+
+  const porEmail = await new ClienteFalso().entrarComSenha(conta.email, SENHA_DE_DEMONSTRACAO)
+  assert.ok(porEmail.sessao, porEmail.erro)
+  assert.equal(porEmail.sessao.papel, conta.papel)
+
+  const porCpf = await new ClienteFalso().entrarComSenha(conta.cpf, SENHA_DE_DEMONSTRACAO)
+  assert.ok(porCpf.sessao, porCpf.erro)
+
+  // Sem pontuação também: quem digita no celular costuma pular os pontos.
+  const semPontos = await new ClienteFalso()
+    .entrarComSenha(conta.cpf.replace(/\D/g, ''), SENHA_DE_DEMONSTRACAO)
+  assert.ok(semPontos.sessao, semPontos.erro)
+})
+
+test('cada conta de demonstração tem um papel diferente', () => {
+  // Elas existem para o menu poder ser visto mudando. Duas com o mesmo papel
+  // não provariam nada.
+  const papeis = CONTAS_DE_DEMONSTRACAO.map(c => c.papel)
+  assert.equal(new Set(papeis).size, papeis.length)
+  assert.deepEqual(papeis, ['master', 'admin', 'supervisor'])
 })
