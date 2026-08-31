@@ -32,6 +32,7 @@ import {
   Selo, Separador, Tela, TituloDaTela, TituloDeCartao,
 } from '../../../src/ui/componentes'
 import { Icone } from '../../../src/ui/icone'
+import { FichaDaPessoaModal } from '../../../src/ui/ficha-da-pessoa'
 import { BotaoDePlanilha } from '../../../src/ui/planilha'
 import { cor, corDaEtapa, espaco, raio, texto, tipo, uso } from '../../../src/ui/tema'
 
@@ -57,6 +58,8 @@ export default function EquipeDoSetor() {
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState<FiltroDaEquipe>('todos')
   const [versao, setVersao] = useState(0)
+  /** Quem está com a ficha aberta. `null` é ninguém. */
+  const [aberta, setAberta] = useState<string | null>(null)
 
   const { pedido, recarregar } = usePedido(
     () => cliente.equipeDoSetor(String(id)),
@@ -174,12 +177,20 @@ export default function EquipeDoSetor() {
               {visiveis.map((p, i) => (
                 <View key={p.participacaoId}>
                   {i > 0 ? <View style={e.fio} /> : null}
-                  <LinhaDaPessoa pessoa={p} />
+                  <LinhaDaPessoa pessoa={p} aoTocar={() => setAberta(p.participacaoId)} />
                 </View>
               ))}
             </Cartao>
           )}
         </>
+      ) : null}
+
+      {aberta ? (
+        <FichaDaPessoaModal
+          participacaoId={aberta}
+          aoFechar={() => setAberta(null)}
+          aoMudar={() => setVersao(v => v + 1)}
+        />
       ) : null}
     </Tela>
   )
@@ -187,9 +198,22 @@ export default function EquipeDoSetor() {
 
 // ─── Peças ──────────────────────────────────────────────────────────────────
 
-function LinhaDaPessoa({ pessoa }: { pessoa: PessoaDoSetor }) {
+/**
+ * Uma pessoa na lista.
+ *
+ * A linha inteira é tocável, e não só o nome: num celular, um alvo do tamanho
+ * de uma palavra é o que faz a pessoa errar três vezes antes de acertar.
+ */
+function LinhaDaPessoa({
+  pessoa, aoTocar,
+}: { pessoa: PessoaDoSetor; aoTocar: () => void }) {
   return (
-    <View style={e.pessoa}>
+    <Pressable
+      onPress={aoTocar}
+      accessibilityRole="button"
+      accessibilityLabel={`Abrir a ficha de ${pessoa.nome}`}
+      style={({ pressed }) => [e.pessoa, pressed && e.pessoaTocada]}
+    >
       <View style={e.retrato}>
         <Text style={e.iniciais}>{iniciaisDe(pessoa.nome)}</Text>
       </View>
@@ -211,7 +235,8 @@ function LinhaDaPessoa({ pessoa }: { pessoa: PessoaDoSetor }) {
           <Bolinha etapa="fim" em={pessoa.fim} status={pessoa.statusFim} />
         </View>
       </View>
-    </View>
+      <Icone nome="ChevronRight" tamanho={16} tom={uso.tintaFraca} />
+    </Pressable>
   )
 }
 
@@ -337,7 +362,8 @@ const e = StyleSheet.create({
   contadorTextoAtivo: { color: '#ffffff' },
 
   fio: { height: 1, backgroundColor: uso.borda, marginLeft: 60 },
-  pessoa: { flexDirection: 'row', gap: espaco.m, padding: espaco.g },
+  pessoa: { flexDirection: 'row', alignItems: 'center', gap: espaco.m, padding: espaco.g },
+  pessoaTocada: { backgroundColor: cor.neutro50 },
   retrato: {
     width: 36,
     height: 36,

@@ -1121,3 +1121,129 @@ test('o supervisor não edita o evento', async () => {
   await entrarComo(c, 'supervisor')
   await assert.rejects(() => c.configuracaoDoEvento('ev-1'), /permissão/i)
 })
+
+// ─── A ficha de uma pessoa ──────────────────────────────────────────────────
+
+/** A primeira pessoa de um setor com equipe, para os testes da ficha. */
+async function alguemDaEquipe(c: ClienteFalso) {
+  const equipe = await c.equipeDoSetor('s-1')
+  return equipe.pessoas[0]!
+}
+
+test('a ficha junta quem é, onde está e o histórico', async () => {
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+  const ficha = await c.fichaDaPessoa(p.participacaoId)
+
+  assert.equal(ficha.nome, p.nome)
+  assert.ok(ficha.setorNome)
+  assert.ok(ficha.eventoNome)
+  assert.ok(ficha.dias.length > 0, 'sem os dias não há aba de histórico')
+})
+
+test('a lista de destinos não oferece o setor onde a pessoa já está', async () => {
+  // Um destino que não muda nada convida ao clique que não faz nada.
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+  const ficha = await c.fichaDaPessoa(p.participacaoId)
+
+  assert.equal(ficha.outrosSetores.some(s => s.setorId === ficha.setorId), false)
+  assert.ok(ficha.outrosSetores.length > 0)
+})
+
+test('mover tira de um setor e põe no outro', async () => {
+  /*
+   * Deixar só o destino crescer inflaria o total do evento — e o número de
+   * "Funcionários" do painel sai da soma dos setores.
+   */
+  const c = await noPortao()
+  const antes = await c.evento('ev-1')
+  const p = await alguemDaEquipe(c)
+  const ficha = await c.fichaDaPessoa(p.participacaoId)
+  const destino = ficha.outrosSetores[0]!
+
+  assert.equal((await c.moverDeSetor(p.participacaoId, destino.setorId)).erro, undefined)
+
+  const depois = await c.evento('ev-1')
+  assert.equal(depois.totalPessoas, antes.totalPessoas, 'o total do evento não podia mudar')
+})
+
+test('mover para o setor onde já está é recusado', async () => {
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+  const ficha = await c.fichaDaPessoa(p.participacaoId)
+  assert.ok((await c.moverDeSetor(p.participacaoId, ficha.setorId)).erro)
+})
+
+test('o supervisor não move ninguém de setor', async () => {
+  /*
+   * Mover mexe na equipe de OUTRO supervisor sem ele estar envolvido na
+   * decisão. É de quem enxerga o evento inteiro.
+   */
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const p = await alguemDaEquipe(c)
+  await assert.rejects(() => c.moverDeSetor(p.participacaoId, 's-2'), /permissão/i)
+
+  // Mas ele ABRE a ficha: cuidar da equipe é o trabalho dele.
+  assert.ok(await c.fichaDaPessoa(p.participacaoId))
+})
+
+test('a ficha do supervisor vem sem os botões que ele não pode usar', async () => {
+  // Mostrar um botão que o servidor vai recusar é pior que não mostrar: a
+  // pessoa toca, preenche, e só então descobre que não podia.
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const p = await alguemDaEquipe(c)
+  const ficha = await c.fichaDaPessoa(p.participacaoId)
+
+  assert.equal(ficha.podeMover, false)
+  assert.equal(ficha.podeTornarSupervisor, false)
+})
+
+test('promover alguém exige telefone com DDD', async () => {
+  // É por ele que o convite vai. Sem telefone, o acesso nasce sem como ser
+  // entregue.
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+
+  assert.ok((await c.tornarSupervisor(p.participacaoId, '9999')).erro)
+  assert.equal((await c.tornarSupervisor(p.participacaoId, '27999887766')).erro, undefined)
+})
+
+test('marcar e desmarcar o pagamento', async () => {
+  // Desfazer é tão necessário quanto marcar: marcar errado acontece, e sem o
+  // caminho de volta alguém corrigiria direto no banco.
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+
+  await c.marcarPagamento(p.participacaoId, true)
+  const pago = await c.fichaDaPessoa(p.participacaoId)
+  assert.equal(pago.pago, true)
+  assert.ok(pago.pagoEm)
+
+  await c.marcarPagamento(p.participacaoId, false)
+  assert.equal((await c.fichaDaPessoa(p.participacaoId)).pago, false)
+})
+
+test('o valor a receber é gravado e volta na ficha', async () => {
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+
+  await c.salvarValorAReceber(p.participacaoId, 220)
+  assert.equal((await c.fichaDaPessoa(p.participacaoId)).valorReceber, 220)
+})
+
+test('valor negativo é recusado', async () => {
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+  assert.ok((await c.salvarValorAReceber(p.participacaoId, -10)).erro)
+})
+
+test('pessoa que não existe responde igual em todas as ações', async () => {
+  // Diferenciar entregaria um jeito de varrer ids e descobrir quais existem.
+  const c = await noPortao()
+  await assert.rejects(() => c.fichaDaPessoa('nao-existe'))
+  assert.ok((await c.moverDeSetor('nao-existe', 's-2')).erro)
+  assert.ok((await c.marcarPagamento('nao-existe', true)).erro)
+})

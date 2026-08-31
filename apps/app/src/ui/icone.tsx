@@ -25,6 +25,7 @@ import CircleAlert from 'lucide-react-native/icons/circle-alert'
 import CircleCheckBig from 'lucide-react-native/icons/circle-check-big'
 import CalendarDays from 'lucide-react-native/icons/calendar-days'
 import Check from 'lucide-react-native/icons/check'
+import ChevronLeft from 'lucide-react-native/icons/chevron-left'
 import ChevronRight from 'lucide-react-native/icons/chevron-right'
 import ClipboardCheck from 'lucide-react-native/icons/clipboard-check'
 import Clock from 'lucide-react-native/icons/clock'
@@ -73,6 +74,7 @@ const ICONES: Record<string, LucideIcon> = {
   Camera,
   Check,
   CheckCircle: CircleCheckBig,
+  ChevronLeft,
   ChevronRight,
   ClipboardCheck,
   Clock,

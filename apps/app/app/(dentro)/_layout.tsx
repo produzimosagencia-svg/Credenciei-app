@@ -20,6 +20,7 @@ import { Platform } from 'react-native'
 import { useSessao } from '../../src/sessao/contexto'
 import { abasDe } from '../../src/navegacao/menu'
 import { Icone } from '../../src/ui/icone'
+import { BotaoDeVoltar } from '../../src/ui/voltar'
 import { cor, texto, tipo, uso } from '../../src/ui/tema'
 
 /**
@@ -83,6 +84,15 @@ export default function Dentro() {
               href: aba ? (tela.rota as never) : null,
               title: aba?.rotulo ?? tela.titulo,
               headerShown: tela.nome !== 'index',
+              /*
+               * Seta de voltar só em quem NÃO é aba.
+               *
+               * Uma aba não tem de onde ter vindo — a barra de baixo é o
+               * caminho. Já uma tela aberta a partir de uma lista precisa
+               * devolver a pessoa para a lista, e a navegação por abas não põe
+               * essa seta sozinha.
+               */
+              ...(aba ? {} : { headerLeft: () => <BotaoDeVoltar /> }),
               tabBarIcon: ({ color, focused }) => (
                 <Icone
                   nome={aba?.icone ?? 'Clock'}
@@ -107,12 +117,23 @@ export default function Dentro() {
         }}
       />
 
-      {/* Não são abas: abrem a partir de uma lista, e voltam para ela. */}
-      <Tabs.Screen name="novo-evento" options={{ href: null, title: 'Entrar num evento' }} />
-      <Tabs.Screen name="novo-acesso" options={{ href: null, title: 'Criar acesso' }} />
-      <Tabs.Screen name="evento/[id]/index" options={{ href: null, title: 'Configurar evento' }} />
-      <Tabs.Screen name="evento/[id]/editar" options={{ href: null, title: 'Editar evento' }} />
-      <Tabs.Screen name="setor/[id]" options={{ href: null, title: 'Equipe do setor' }} />
+      {/*
+        Não são abas: abrem a partir de uma lista, e voltam para ela — por isso
+        todas levam a seta.
+      */}
+      {[
+        { nome: 'novo-evento', titulo: 'Entrar num evento' },
+        { nome: 'novo-acesso', titulo: 'Criar acesso' },
+        { nome: 'evento/[id]/index', titulo: 'Configurar evento' },
+        { nome: 'evento/[id]/editar', titulo: 'Editar evento' },
+        { nome: 'setor/[id]', titulo: 'Equipe do setor' },
+      ].map(tela => (
+        <Tabs.Screen
+          key={tela.nome}
+          name={tela.nome}
+          options={{ href: null, title: tela.titulo, headerLeft: () => <BotaoDeVoltar /> }}
+        />
+      ))}
     </Tabs>
   )
 }

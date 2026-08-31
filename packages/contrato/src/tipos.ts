@@ -725,3 +725,53 @@ export type ResultadoDosDias = {
    */
   preservados: number
 }
+
+
+// ─── A ficha de uma pessoa da equipe ────────────────────────────────────────
+//
+// O que se abre ao tocar no nome de alguém na lista do setor. Junta o que está
+// espalhado em quatro consultas — quem é, onde está, o que bateu hoje, quanto
+// tem a receber e o histórico inteiro — porque quem abre está com uma pergunta
+// só na cabeça e não deveria ter que navegar para respondê-la.
+
+export type FichaDaPessoa = {
+  participacaoId: string
+  nome: string
+  cpf: string
+  telefone: string | null
+  fotoUrl: string | null
+  empresa: string | null
+  funcao: string | null
+  eventoNome: string
+  setorId: string
+  setorNome: string
+  ativo: boolean
+
+  valorReceber: number
+  pago: boolean
+  pagoEm: string | null
+  chavePix: string | null
+
+  /** As três etapas de hoje. `null` é "ainda não". */
+  presencaHoje: { entrada: string | null; meio: string | null; fim: string | null }
+
+  /** Todos os dias escalados, com o que foi registrado em cada um. */
+  dias: DiaDaParticipacao[]
+
+  /**
+   * Para onde dá para mover esta pessoa.
+   *
+   * Vem pronto do servidor, e já sem o setor atual: uma lista que oferece o
+   * lugar onde a pessoa já está convida ao clique que não faz nada.
+   */
+  outrosSetores: SetorDoEvento[]
+
+  /**
+   * Mover é decisão de quem enxerga o evento inteiro, não de um supervisor —
+   * mover gente de setor mexe na equipe de OUTRO supervisor sem ele estar
+   * envolvido na decisão.
+   */
+  podeMover: boolean
+  /** A mesma permissão que criar acesso já exige. */
+  podeTornarSupervisor: boolean
+}

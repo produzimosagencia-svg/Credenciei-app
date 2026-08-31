@@ -1,6 +1,6 @@
 # Backlog
 
-**291 tasks · 178 no MVP · 133 concluídas (46%)**
+**291 tasks · 178 no MVP · 139 concluídas (48%)**
 
 **Só o MVP: 111 de 178 (62%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -31,17 +31,17 @@ Atualizado em 31/08/2026.
 | 2 | Fundação | 7 | 12 | ✓ | Domínio sincronizado; conferência de horários em uso |
 | 3 | API v1 | 21 | 32 | ✓ | Cliente HTTP ligado; faltam as rotas do painel |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
-| 5 | App base | 14 | 14 | ✓ | Navegação, tema, campos e data/hora |
+| 5 | App base | 14 | 14 | ✓ | Navegação com voltar, tema, campos e data/hora |
 | 6 | QR | 7 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
 | 7 | Offline | 13 | 19 | ✓ | Fila ligada ao app; falta o envio da foto ao storage |
 | 8 | Ponto no app | 4 | 13 | ✓ | O meio com selfie; falta o resto do ciclo |
 | 9 | Histórico | 4 | 11 | — | Meus dias e Meu pagamento prontos |
-| 10 | Supervisor | 5 | 15 | — | Equipe do setor pronta, com filtros e planilha |
+| 10 | Supervisor | 11 | 15 | — | Equipe, ficha da pessoa e histórico |
 | 11 | Push | 0 | 12 | — | Depende da conta Apple |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
-| 15 | Testes | 9 | 14 | — | 336 testes rodando |
+| 15 | Testes | 9 | 14 | — | 347 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 25 | 25 | ✓ | Pronto |
 | 18 | Configurar evento | 8 | 14 | ✓ | Edição, dias e planilhas; falta a API |
@@ -133,6 +133,12 @@ Atualizado em 31/08/2026.
 - Busca por nome, CPF (com ou sem pontuação), empresa e função
 - Filtros: todos, com pendências, presentes, ausentes, não ativados
 - Importação que diz o que entrou E o que ficou de fora
+- Ficha da pessoa em modal, com Dados e Histórico de batidas
+- Mover de setor, tirando de um e pondo no outro
+- Promover alguém da equipe a supervisor, reaproveitando nome e CPF
+- Marcar e DESMARCAR pagamento, e o valor individual a receber
+- Histórico com dias escalados, trabalhados, faltas e horas
+- Botão de voltar em toda tela que não é aba
 
 **Epic 14 — Segurança**
 - Isolamento por pessoa em todos os endpoints

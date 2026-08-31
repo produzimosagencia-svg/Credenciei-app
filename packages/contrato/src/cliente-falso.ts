@@ -34,7 +34,8 @@ import type {
   BatidaAssistida, CandidatoLocalizado, ConferenciaPorCpf, ConfiguracaoDoEvento,
   ConviteDoEvento, DiaDaParticipacao, EdicaoDoEvento, EnvioDeBatida,
   EquipeDoSetor, Eu, EventoComSetores, EventoDetalhado, EventoEscaneavel,
-  FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, LinhaDaAtividade,
+  FichaDaPessoa, FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao,
+  LinhaDaAtividade,
   ListaDeAcessos, MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe,
   PessoaDaLista, PessoaDoSetor, Portaria, ResultadoDaImportacao,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
@@ -556,6 +557,10 @@ export class ClienteFalso implements ClienteApi {
    * operador vê e grava sobre OUTRAS pessoas.
    */
   private batidasDaEquipe = new Map<string, Set<TipoBatida>>()
+  /** O que a ficha de cada pessoa mudou nesta sessão. */
+  private pagamentos = new Map<string, string>()
+  private valores = new Map<string, number>()
+  private movidos = new Map<string, string>()
 
   constructor(c: ComportamentoFalso = {}) {
     this.atrasoMs = c.atrasoMs ?? 0
@@ -1548,6 +1553,144 @@ export class ClienteFalso implements ClienteApi {
       ],
       pessoas,
     }
+  }
+
+  // ── A ficha de uma pessoa ─────────────────────────────────────────────────
+
+  async fichaDaPessoa(participacaoId: string): Promise<FichaDaPessoa> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeAcompanhar, 'abrir a ficha')
+
+    const achado = this.acharNoSetor(participacaoId)
+    if (!achado) throw new Error('Não encontramos esta pessoa.')
+    const { eventoId, setor, pessoa } = achado
+
+    const evento = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)!
+    const cfg = CONFIGURACAO_DE_MENTIRA[eventoId]
+    const diaPrincipal = diaBRT(evento.dataInicio)
+
+    /*
+     * Os dias escalados saem da configuração do evento, e não de uma lista
+     * própria da pessoa: quem decide quais dias existem é o evento. Uma lista
+     * separada por pessoa divergiria na primeira vez que alguém mexesse na
+     * grade de dias.
+     */
+    const datas = [...new Set([...(cfg?.preparacao ?? []), diaPrincipal])].sort()
+    const dias: DiaDaParticipacao[] = datas.map(data => ({
+      data,
+      etapa: faseDoDia(data, diaPrincipal),
+      entrada: null,
+      meioEsperado: null,
+      meio: null,
+      meioAtrasoMin: null,
+      saida: null,
+      compareceu: false,
+      horas: null,
+    }))
+
+    return {
+      participacaoId,
+      nome: pessoa.nome,
+      cpf: pessoa.cpf,
+      telefone: pessoa.telefone,
+      fotoUrl: pessoa.fotoUrl,
+      empresa: pessoa.empresa,
+      funcao: pessoa.funcao,
+      eventoNome: evento.nome,
+      setorId: setor.setorId,
+      setorNome: setor.nome,
+      ativo: pessoa.ativo,
+      valorReceber: this.valores.get(participacaoId) ?? pessoa.valorReceber,
+      pago: this.pagamentos.has(participacaoId),
+      pagoEm: this.pagamentos.get(participacaoId) ?? null,
+      chavePix: pessoa.telefone,
+      presencaHoje: { entrada: pessoa.entrada, meio: pessoa.meio, fim: pessoa.fim },
+      dias,
+      outrosSetores: (SETORES_DE_MENTIRA[eventoId] ?? [])
+        .filter(x => x.setorId !== setor.setorId)
+        .map(x => ({ setorId: x.setorId, nome: x.nome })),
+      podeMover: podeGerenciarEventos(this.sessao?.papel),
+      podeTornarSupervisor: podeGerenciarUsuarios(this.sessao?.papel),
+    }
+  }
+
+  async moverDeSetor(participacaoId: string, setorId: string) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'mover de setor')
+
+    const achado = this.acharNoSetor(participacaoId)
+    if (!achado) return { erro: 'Não encontramos esta pessoa.' }
+    if (achado.setor.setorId === setorId) {
+      return { erro: 'Ela já está neste setor.' }
+    }
+
+    const destino = (SETORES_DE_MENTIRA[achado.eventoId] ?? []).find(x => x.setorId === setorId)
+    if (!destino) return { erro: 'Setor de destino não encontrado neste evento.' }
+
+    // A contagem dos dois setores muda junto: mover é tirar de um e pôr no
+    // outro, e deixar só o destino crescer inflaria o total do evento.
+    achado.setor.pessoas = Math.max(0, achado.setor.pessoas - 1)
+    destino.pessoas += 1
+    this.movidos.set(participacaoId, destino.setorId)
+    return {}
+  }
+
+  async tornarSupervisor(participacaoId: string, telefone: string) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarUsuarios, 'criar supervisor')
+
+    const achado = this.acharNoSetor(participacaoId)
+    if (!achado) return { erro: 'Não encontramos esta pessoa.' }
+    if ((telefone ?? '').replace(/\D/g, '').length < 10) {
+      return { erro: 'Precisamos do telefone com DDD para mandar o convite.' }
+    }
+
+    achado.setor.supervisores.push({
+      id: `u-${achado.pessoa.participacaoId}`,
+      nome: achado.pessoa.nome,
+      ativo: true,
+    })
+    return {}
+  }
+
+  async marcarPagamento(participacaoId: string, pago: boolean) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'mexer no pagamento')
+
+    if (!this.acharNoSetor(participacaoId)) return { erro: 'Não encontramos esta pessoa.' }
+    // Desfazer é tão necessário quanto marcar: marcar errado acontece, e sem o
+    // caminho de volta alguém corrigiria direto no banco.
+    if (pago) this.pagamentos.set(participacaoId, new Date(this.agora()).toISOString())
+    else this.pagamentos.delete(participacaoId)
+    return {}
+  }
+
+  async salvarValorAReceber(participacaoId: string, valor: number) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'mexer no valor')
+
+    if (!this.acharNoSetor(participacaoId)) return { erro: 'Não encontramos esta pessoa.' }
+    if (!Number.isFinite(valor) || valor < 0) return { erro: 'O valor precisa ser zero ou mais.' }
+
+    this.valores.set(participacaoId, valor)
+    return {}
+  }
+
+  /** Acha a pessoa em qualquer setor de qualquer evento. */
+  private acharNoSetor(participacaoId: string) {
+    for (const [eventoId, setores] of Object.entries(SETORES_DE_MENTIRA)) {
+      for (const setor of setores) {
+        const equipe = equipeDoSetorDeMentira(setor.setorId, setor.pessoas)
+        const pessoa = equipe.find(p => p.participacaoId === participacaoId)
+        if (pessoa) return { eventoId, setor, pessoa }
+      }
+    }
+    return null
   }
 
   // ── Planilhas ─────────────────────────────────────────────────────────────

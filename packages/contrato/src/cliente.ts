@@ -13,11 +13,11 @@ import type {
   Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
   ArquivoDePlanilha, ConfiguracaoDoEvento, EdicaoDoEvento, EquipeDoSetor,
-  EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaLocalizada,
-  FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
-  NovoAcesso, Painel, PainelDaEquipe, Portaria, ResultadoDaImportacao,
-  ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
-  SetorDetalhado, Sessao,
+  EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
+  FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
+  MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe, Portaria,
+  ResultadoDaImportacao, ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida,
+  ResumoParticipacao, SetorDetalhado, Sessao,
 } from './tipos.js'
 
 export interface ClienteApi {
@@ -187,6 +187,34 @@ export interface ClienteApi {
 
   /** A equipe de um setor, com o estado de cada pessoa em cada etapa. */
   equipeDoSetor(setorId: string): Promise<EquipeDoSetor>
+
+  // ── A ficha de uma pessoa ───────────────────────────────────────────────
+  /** Tudo sobre uma pessoa da equipe, numa chamada só. */
+  fichaDaPessoa(participacaoId: string): Promise<FichaDaPessoa>
+
+  /**
+   * Move a pessoa para outro setor do mesmo evento.
+   *
+   * Existe para o admin resolver cadastro no setor errado sozinho, sem
+   * precisar mexer no banco — foi exatamente isso que aconteceu com dois
+   * setores duplicados no Kleber Andrade.
+   */
+  moverDeSetor(participacaoId: string, setorId: string): Promise<{ erro?: string }>
+
+  /**
+   * Promove alguém da equipe a supervisor do próprio setor.
+   *
+   * Reaproveita nome e CPF de quem já está credenciado: a pessoa promovida
+   * quase sempre já está na equipe, e digitar tudo de novo só multiplica a
+   * chance de erro. O telefone é pedido porque é por ele que o convite vai.
+   */
+  tornarSupervisor(participacaoId: string, telefone: string): Promise<{ erro?: string }>
+
+  /** Marca ou desmarca o pagamento. Desfazer é tão necessário quanto marcar. */
+  marcarPagamento(participacaoId: string, pago: boolean): Promise<{ erro?: string }>
+
+  /** Quanto esta pessoa recebe — pode diferir do valor combinado do setor. */
+  salvarValorAReceber(participacaoId: string, valor: number): Promise<{ erro?: string }>
 
   // ── Planilhas ───────────────────────────────────────────────────────────
   /** O modelo em branco, com as colunas que a importação espera. */

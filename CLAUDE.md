@@ -46,7 +46,7 @@ apps/app             o aplicativo, em React Native + Expo — 85 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**336 testes.** `npm run verificar` roda tipos e testes de
+**347 testes.** `npm run verificar` roda tipos e testes de
 tudo, sem banco e sem rede. Só `npm run teste` NÃO confere tipos — o `tsx` não
 olha para eles.
 

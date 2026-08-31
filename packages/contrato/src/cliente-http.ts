@@ -30,7 +30,8 @@ import type {
   Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
   ArquivoDePlanilha, ConfiguracaoDoEvento, EdicaoDoEvento, EquipeDoSetor,
-  EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaLocalizada,
+  EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
+  FichaLocalizada,
   FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
   NovoAcesso, Painel, PainelDaEquipe, Portaria, ResultadoDaImportacao,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
@@ -435,6 +436,31 @@ export class ClienteHttp implements ClienteApi {
   async equipeDoSetor(_setorId: string): Promise<EquipeDoSetor> {
     void _setorId
     throw new AindaNaoNaApi('equipeDoSetor')
+  }
+
+  async fichaDaPessoa(_participacaoId: string): Promise<FichaDaPessoa> {
+    void _participacaoId
+    throw new AindaNaoNaApi('fichaDaPessoa')
+  }
+
+  async moverDeSetor(_participacaoId: string, _setorId: string): Promise<{ erro?: string }> {
+    void _participacaoId; void _setorId
+    throw new AindaNaoNaApi('moverDeSetor')
+  }
+
+  async tornarSupervisor(_participacaoId: string, _telefone: string): Promise<{ erro?: string }> {
+    void _participacaoId; void _telefone
+    throw new AindaNaoNaApi('tornarSupervisor')
+  }
+
+  async marcarPagamento(_participacaoId: string, _pago: boolean): Promise<{ erro?: string }> {
+    void _participacaoId; void _pago
+    throw new AindaNaoNaApi('marcarPagamento')
+  }
+
+  async salvarValorAReceber(_participacaoId: string, _valor: number): Promise<{ erro?: string }> {
+    void _participacaoId; void _valor
+    throw new AindaNaoNaApi('salvarValorAReceber')
   }
 
   // ─── Planilhas ────────────────────────────────────────────────────────────
