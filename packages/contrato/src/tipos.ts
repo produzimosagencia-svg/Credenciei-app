@@ -224,3 +224,129 @@ export type Painel = {
    */
   legendaDaJanela: string | null
 }
+
+// ─── Operação: escanear e registrar por outra pessoa ────────────────────────
+//
+// ─── POR QUE ESTES MÉTODOS RECEBEM ID, E OS DO COLABORADOR NÃO ──────────────
+//
+// A regra "nenhuma rota aceita id de pessoa vindo de fora" nasceu para o
+// colaborador: ele pergunta "as MINHAS", e o servidor responde sobre ele mesmo.
+// Não existe pedido dele que possa apontar para outra pessoa.
+//
+// Aqui é o contrário por natureza: o trabalho de quem opera o evento é agir
+// SOBRE outras pessoas — escanear o crachá de alguém, registrar a batida de
+// quem perdeu o horário. O id tem que vir de fora, porque é o de outra pessoa.
+//
+// O que protege não é a ausência do id, é o ESCOPO: o servidor só aceita ids
+// que estão dentro do alcance de quem pediu. O supervisor não localiza gente de
+// outro setor, o admin não localiza gente de outra organização. Quem não está
+// no alcance responde igual a quem não existe — senão, trocar o id vira uma
+// forma de descobrir quem está cadastrado.
+
+/** Um evento que ESTA pessoa pode escanear. Master vê todos; supervisor, um. */
+export type EventoEscaneavel = {
+  eventoId: string
+  nome: string
+}
+
+/**
+ * O que a leitura vai gravar.
+ *
+ * Só entrada e saída. **O meio não está aqui de propósito**: ele é registrado
+ * pelo próprio colaborador, com foto, na credencial dele — é a etapa que prova
+ * que a pessoa continuou no evento, e não faria sentido outra pessoa registrar
+ * por ela no portão.
+ */
+export type MomentoDaLeitura = 'entrada' | 'fim'
+
+export type PessoaLida = {
+  nome: string
+  funcao: string | null
+}
+
+/**
+ * O que aconteceu na leitura.
+ *
+ * `etapa_errada` é um caso separado dos outros de propósito. Nos demais, o
+ * aviso pode sumir sozinho em dois segundos e meio: a fila anda, e o próximo já
+ * está com o celular na mão. Neste, há uma DECISÃO a tomar com a pessoa parada
+ * na frente — e apagar a tela no meio dela devolveria o operador ao escuro.
+ *
+ * Ela também não é "QR inválido": isso faria o operador pensar em falsificação
+ * e chamar a segurança, quando o que houve foi alguém mostrar o crachá da
+ * montagem no dia do evento. Por isso a resposta diz as DUAS etapas.
+ */
+export type ResultadoDaLeitura =
+  | { situacao: 'registrado'; momento: TipoBatida; pessoa: PessoaLida; mensagem: string }
+  | { situacao: 'duplicado'; momento: TipoBatida; pessoa: PessoaLida; mensagem: string }
+  | { situacao: 'etapa_errada'; doQr: string; deHoje: string; mensagem: string }
+  | { situacao: 'recusado'; mensagem: string }
+
+/**
+ * A conferência pelo CPF, quando o QR não serve.
+ *
+ * É a saída para o operador que está com alguém na frente e um crachá que não
+ * passa. Sem ela sobram duas opções ruins: mandar a pessoa embora, ou deixar
+ * entrar sem conferir.
+ */
+export type ConferenciaPorCpf = {
+  encontrada: boolean
+  nome?: string
+  funcao?: string | null
+  setorNome?: string | null
+  /** Já foi ativada no evento? Quem não foi não pode ter presença registrada. */
+  ativo?: boolean
+  /** As etapas que ela já registrou hoje. */
+  etapasFeitas?: TipoBatida[]
+  mensagem: string
+}
+
+/** Uma das pessoas que a busca encontrou. Nome quase nunca é único. */
+export type CandidatoLocalizado = {
+  participacaoId: string
+  nome: string
+  cpf: string
+  funcao: string | null
+  setorNome: string
+  eventoNome: string
+}
+
+export type FichaLocalizada = {
+  participacaoId: string
+  nome: string
+  cpf: string
+  funcao: string | null
+  fotoUrl: string | null
+  /** Já ativada no evento? Sem isso não há presença a registrar. */
+  ativo: boolean
+  setorNome: string
+  eventoNome: string
+  supervisorNome: string | null
+  ultimaBatida: { rotulo: string; quandoISO: string } | null
+  /**
+   * A batida que está faltando.
+   *
+   * Quem opera NÃO escolhe qual etapa gravar: o servidor grava a pendente. Uma
+   * lista de opções abriria espaço para gravar a saída de alguém que ainda não
+   * entrou, e para "consertar" um horário depois do fato.
+   */
+  proximaPendente: { tipo: TipoBatida; rotulo: string } | null
+}
+
+/**
+ * O que acompanha uma batida registrada POR OUTRA PESSOA.
+ *
+ * A foto é obrigatória, e é o ponto central: ela prova que o colaborador estava
+ * na frente de quem registrou. Sem ela, registrar por terceiro seria só digitar
+ * um nome — e uma batida que ninguém consegue contestar é uma porta aberta.
+ *
+ * A localização é prova de auditoria, não requisito: se o aparelho negar o GPS,
+ * o registro segue. Barrar por falta de GPS deixaria alguém sem ponto por causa
+ * de uma permissão do celular.
+ */
+export type BatidaAssistida = {
+  fotoBase64: string
+  lat?: number
+  lng?: number
+  dispositivo?: string
+}

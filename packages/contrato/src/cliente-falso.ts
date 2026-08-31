@@ -23,16 +23,19 @@
 // falso e real não passa despercebida.
 
 import {
-  avaliarEntradaSaida, diaBRT, faseDoDia, gerarCodigoQR, janelaMeio,
-  lerCodigoDeEvento,
+  avaliarEntradaSaida, diaBRT, faseConfere, faseDoDia, gerarCodigoQR, janelaMeio,
+  lerCodigoDeEvento, lerCodigoQR, podeEscanear, podeAcompanhar,
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
 import type {
-  AtividadeRecente, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  FinanceiroDaParticipacao, Painel, PainelDaEquipe, RespostaDeBatida,
-  ResumoParticipacao, Sessao,
+  AtividadeRecente, BatidaAssistida, CandidatoLocalizado, ConferenciaPorCpf,
+  ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu, EventoEscaneavel,
+  FichaLocalizada, FinanceiroDaParticipacao, MomentoDaLeitura, Painel,
+  PainelDaEquipe, ResultadoDaLeitura, RespostaDeBatida, ResumoParticipacao,
+  Sessao,
 } from './tipos.js'
-import type { Papel } from '@credenciei/dominio'
+import type { FaseDoDia, Papel } from '@credenciei/dominio'
+import type { TipoBatida } from './comum.js'
 
 export type ComportamentoFalso = {
   /** Atraso artificial, em ms. Zero nos testes, 600 na demonstração. */
@@ -179,9 +182,86 @@ const ATIVIDADE_DE_MENTIRA: AtividadeRecente[] = [
   { id: 'a-2', nome: 'Juan', setor: 'Produção', tipo: 'entrada', em: '2026-08-30T13:47:00-03:00' },
 ]
 
+/**
+ * A equipe do evento, para o scanner e a busca terem em quem trabalhar.
+ *
+ * Seis pessoas e não uma: a busca por nome precisa poder devolver MAIS DE UM
+ * resultado, que é o caso comum de verdade — "Silva" acha quatro. Um falso com
+ * uma pessoa só faria a tela de escolha nunca aparecer no desenvolvimento, e
+ * ela é justamente onde o operador erra de pessoa.
+ */
+const EQUIPE_DE_MENTIRA = [
+  { id: 'f-1', nome: 'Ana Cláudia Ferreira', cpf: '03748261509', funcao: 'Auxiliar de palco', setor: 'Produção', supervisor: 'Carlos Silva', ativo: true, token: 'qr-ana' },
+  { id: 'f-2', nome: 'Rodrigo Menezes Lima', cpf: '21890647355', funcao: 'Controlador de acesso', setor: 'Portaria', supervisor: 'Carlos Silva', ativo: true, token: 'qr-rodrigo' },
+  { id: 'f-3', nome: 'Juan Muzy', cpf: '76431520891', funcao: 'Produtor', setor: 'Produção', supervisor: 'Carlos Silva', ativo: true, token: 'qr-juan' },
+  { id: 'f-4', nome: 'Patrícia Nogueira Silva', cpf: '49012783644', funcao: 'Camareira', setor: 'Camarim', supervisor: 'Marina Alves', ativo: true, token: 'qr-patricia' },
+  { id: 'f-5', nome: 'Wesley dos Santos Silva', cpf: '30561847210', funcao: 'Barman', setor: 'Bar', supervisor: 'Marina Alves', ativo: true, token: 'qr-wesley' },
+  // Não ativada: o operador precisa ver esse caso antes de ele aparecer no
+  // portão, com a pessoa esperando.
+  { id: 'f-6', nome: 'Simone Vasconcelos', cpf: '87204953167', funcao: 'Encarregada de limpeza', setor: 'Limpeza', supervisor: 'Marina Alves', ativo: false, token: 'qr-simone' },
+]
+
+/** A ordem em que as etapas do dia acontecem. É ela que define a pendência. */
+const ORDEM_DAS_ETAPAS: TipoBatida[] = ['entrada', 'meio', 'fim']
+
+const ROTULO_DA_ETAPA: Record<TipoBatida, string> = {
+  entrada: 'Entrada',
+  meio: 'Meio',
+  fim: 'Saída',
+}
+
 const SEGREDO_DE_MENTIRA = 'segredo-do-cliente-falso'
 
 type BatidaGravada = { id: string; tipo: string; em: string; data: string }
+
+/**
+ * Compara nome ignorando acento e maiúscula.
+ *
+ * Quem digita "patricia" com pressa precisa achar "Patrícia". Exigir o acento
+ * faria a busca falhar justamente para quem está com a pessoa na frente.
+ */
+function semAcento(texto: string): string {
+  return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
+export type CredencialDeDemonstracao = {
+  nome: string
+  funcao: string
+  setor: string
+  codigo: string
+  /** O crachá serve para a etapa de hoje? O falso oferece um de cada. */
+  serveHoje: boolean
+}
+
+/**
+ * Os crachás da equipe, prontos para a demonstração ler.
+ *
+ * Sem isto, experimentar o scanner exigiria DOIS aparelhos: um mostrando a
+ * credencial e outro lendo. Aqui os códigos aparecem na própria tela, e um
+ * toque simula a leitura.
+ *
+ * Um deles é de propósito da etapa errada — é o caso que tem uma decisão a
+ * tomar com a pessoa parada na frente, e é o que mais precisa ser visto antes
+ * de acontecer no portão.
+ */
+export function credenciaisDeDemonstracao(agora: number = Date.now()): CredencialDeDemonstracao[] {
+  const hoje = diaBRT(new Date(agora))
+  const faseDeHoje = faseDoDia(hoje, diaBRT(EVENTO.dataInicio))
+  const outraFase: FaseDoDia = faseDeHoje === 'evento' ? 'montagem' : 'evento'
+
+  return EQUIPE_DE_MENTIRA.map((p, i) => {
+    // O último da lista carrega o crachá da outra etapa.
+    const serveHoje = i < EQUIPE_DE_MENTIRA.length - 1
+    const fase = serveHoje ? faseDeHoje : outraFase
+    return {
+      nome: p.nome,
+      funcao: p.funcao,
+      setor: p.setor,
+      codigo: gerarCodigoQR(SEGREDO_DE_MENTIRA, p.token, fase).codigo,
+      serveHoje,
+    }
+  })
+}
 
 export class ClienteFalso implements ClienteApi {
   private atrasoMs: number
@@ -207,6 +287,13 @@ export class ClienteFalso implements ClienteApi {
   private renovacoesFeitas = 0
   /** Quem está logado. Muda `eu()` e o que o painel devolve. */
   private quemEntrou: { nome: string; papel: Papel } = { nome: 'João da Silva', papel: 'colaborador' }
+  /**
+   * As etapas que cada pessoa da equipe já registrou hoje.
+   *
+   * Separado de `batidas`, que é a fila do colaborador logado: aqui é o que o
+   * operador vê e grava sobre OUTRAS pessoas.
+   */
+  private batidasDaEquipe = new Map<string, Set<TipoBatida>>()
 
   constructor(c: ComportamentoFalso = {}) {
     this.atrasoMs = c.atrasoMs ?? 0
@@ -539,6 +626,254 @@ export class ClienteFalso implements ClienteApi {
       atividade: ATIVIDADE_DE_MENTIRA,
       legendaDaJanela:
         'Henrique e Juliano - Kleber Andrade · das 07:00 de 05/09/2026 às 08:00 de 06/09/2026',
+    }
+  }
+
+  // ── Escanear QR ───────────────────────────────────────────────────────────
+
+  async eventosParaEscanear(): Promise<EventoEscaneavel[]> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeEscanear, 'escanear crachá')
+    return EVENTOS_DO_PAINEL.map(e => ({ eventoId: e.eventoId, nome: e.nome }))
+  }
+
+  async registrarPorQr(
+    eventoId: string,
+    codigoLido: string,
+    momento: MomentoDaLeitura,
+  ): Promise<ResultadoDaLeitura> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeEscanear, 'escanear crachá')
+    void eventoId
+
+    const hoje = diaBRT(new Date(this.agora()))
+    const faseDeHoje = faseDoDia(hoje, diaBRT(EVENTO.dataInicio))
+
+    // A leitura é a do domínio: confere a ASSINATURA do código. É a mesma
+    // função que o sistema web usa, então um crachá que passa lá passa aqui.
+    const lido = lerCodigoQR(SEGREDO_DE_MENTIRA, codigoLido, hoje)
+    if (!lido.ok) return { situacao: 'recusado', mensagem: lido.erro }
+
+    const pessoa = EQUIPE_DE_MENTIRA.find(p => p.token === lido.token)
+    if (!pessoa) {
+      return {
+        situacao: 'recusado',
+        mensagem: 'Esta credencial não é deste evento. Confira com a produção.',
+      }
+    }
+
+    /*
+     * Etapa errada é resposta PRÓPRIA, e não "QR inválido".
+     *
+     * "Inválido" faria o operador pensar em falsificação e chamar a segurança,
+     * quando o que houve foi a pessoa mostrar o crachá da montagem no dia do
+     * evento — coisa que acontece, e que se resolve pedindo para ela recarregar
+     * a tela.
+     */
+    const confere = faseConfere(lido.fase, faseDeHoje)
+    if (!confere.ok) {
+      return {
+        situacao: 'etapa_errada',
+        doQr: lido.fase ?? '',
+        deHoje: faseDeHoje,
+        mensagem: confere.erro,
+      }
+    }
+
+    if (!pessoa.ativo) {
+      return {
+        situacao: 'recusado',
+        mensagem: `${pessoa.nome} ainda não foi ativada neste evento. Ative no painel do setor antes de registrar.`,
+      }
+    }
+
+    const feitas = this.etapasDe(pessoa.id)
+    const resumo = { nome: pessoa.nome, funcao: pessoa.funcao }
+
+    if (feitas.has(momento)) {
+      return {
+        situacao: 'duplicado',
+        momento,
+        pessoa: resumo,
+        mensagem: `${ROTULO_DA_ETAPA[momento]} já registrada`,
+      }
+    }
+
+    // A saída exige o meio, como no domínio: o meio é o que prova que a pessoa
+    // ficou no evento, e liberar a saída sem ele apagaria essa prova.
+    if (momento === 'fim' && !feitas.has('meio')) {
+      return {
+        situacao: 'recusado',
+        mensagem: `${pessoa.nome} ainda não registrou o meio. Peça para ela abrir a credencial e tirar a selfie do meio.`,
+      }
+    }
+
+    feitas.add(momento)
+    return {
+      situacao: 'registrado',
+      momento,
+      pessoa: resumo,
+      mensagem: momento === 'entrada' ? 'Entrada registrada' : 'Saída registrada',
+    }
+  }
+
+  async conferirPorCpf(eventoId: string, cpf: string): Promise<ConferenciaPorCpf> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeEscanear, 'conferir credenciamento')
+    void eventoId
+
+    const digitos = (cpf ?? '').replace(/\D/g, '')
+    const pessoa = EQUIPE_DE_MENTIRA.find(p => p.cpf === digitos)
+
+    if (!pessoa) {
+      return {
+        encontrada: false,
+        mensagem: 'Não encontramos este CPF na equipe deste evento.',
+      }
+    }
+
+    return {
+      encontrada: true,
+      nome: pessoa.nome,
+      funcao: pessoa.funcao,
+      setorNome: pessoa.setor,
+      ativo: pessoa.ativo,
+      etapasFeitas: [...this.etapasDe(pessoa.id)],
+      mensagem: pessoa.ativo
+        ? `${pessoa.nome} está credenciada em ${pessoa.setor}.`
+        : `${pessoa.nome} está na lista, mas ainda não foi ativada no evento.`,
+    }
+  }
+
+  // ── Registrar ponto por outra pessoa ──────────────────────────────────────
+
+  async localizarPessoa(termo: string) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeAcompanhar, 'localizar pessoa')
+
+    const busca = (termo ?? '').trim()
+    if (busca.length < 3) {
+      return { erro: 'Digite pelo menos três letras do nome, ou o CPF completo.' }
+    }
+
+    const digitos = busca.replace(/\D/g, '')
+    const porCpf = digitos.length === 11
+      ? EQUIPE_DE_MENTIRA.filter(p => p.cpf === digitos)
+      : []
+
+    const achados = porCpf.length > 0
+      ? porCpf
+      : EQUIPE_DE_MENTIRA.filter(p => semAcento(p.nome).includes(semAcento(busca)))
+
+    if (achados.length === 0) {
+      return { erro: 'Ninguém encontrado. Confira o CPF, ou tente parte do nome.' }
+    }
+
+    // Uma só: abre direto. Mais de uma: quem escolhe é quem está olhando para a
+    // pessoa — nome quase nunca é único, e errar de pessoa aqui grava a
+    // presença de quem não veio.
+    if (achados.length === 1) return { ficha: this.ficha(achados[0]!) }
+    return { candidatos: achados.map(p => this.candidato(p)) }
+  }
+
+  async abrirFicha(participacaoId: string) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeAcompanhar, 'abrir ficha')
+
+    const pessoa = EQUIPE_DE_MENTIRA.find(p => p.id === participacaoId)
+    // Fora do alcance responde igual a inexistente — senão, trocar o id vira
+    // uma forma de descobrir quem está cadastrado.
+    if (!pessoa) return { erro: 'Não encontramos esta pessoa.' }
+    return { ficha: this.ficha(pessoa) }
+  }
+
+  async registrarPresencaAssistida(participacaoId: string, dados: BatidaAssistida) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeAcompanhar, 'registrar presença')
+
+    const pessoa = EQUIPE_DE_MENTIRA.find(p => p.id === participacaoId)
+    if (!pessoa) return { erro: 'Não encontramos esta pessoa.' }
+    if (!pessoa.ativo) {
+      return { erro: `${pessoa.nome} ainda não foi ativada neste evento.` }
+    }
+
+    /*
+     * Sem foto, não registra.
+     *
+     * É a única prova de que o colaborador estava na frente de quem registrou.
+     * Sem ela, registrar por terceiro seria só digitar um nome — e uma batida
+     * que ninguém consegue contestar é uma porta aberta.
+     */
+    if (!dados.fotoBase64) {
+      return { erro: 'A foto do rosto é obrigatória para registrar por outra pessoa.' }
+    }
+
+    const pendente = this.pendenteDe(pessoa.id)
+    if (!pendente) return { erro: `${pessoa.nome} já tem todas as batidas de hoje.` }
+
+    this.etapasDe(pessoa.id).add(pendente)
+    return { nome: pessoa.nome, etapa: ROTULO_DA_ETAPA[pendente] }
+  }
+
+  /** As etapas que aquela pessoa já registrou hoje. */
+  private etapasDe(id: string): Set<TipoBatida> {
+    let feitas = this.batidasDaEquipe.get(id)
+    if (!feitas) {
+      feitas = new Set()
+      this.batidasDaEquipe.set(id, feitas)
+    }
+    return feitas
+  }
+
+  /** A próxima etapa na ordem do dia. Quem decide é aqui, nunca a tela. */
+  private pendenteDe(id: string): TipoBatida | null {
+    const feitas = this.etapasDe(id)
+    return ORDEM_DAS_ETAPAS.find(e => !feitas.has(e)) ?? null
+  }
+
+  private candidato(p: (typeof EQUIPE_DE_MENTIRA)[number]): CandidatoLocalizado {
+    return {
+      participacaoId: p.id,
+      nome: p.nome,
+      cpf: p.cpf,
+      funcao: p.funcao,
+      setorNome: p.setor,
+      eventoNome: EVENTO.nome,
+    }
+  }
+
+  private ficha(p: (typeof EQUIPE_DE_MENTIRA)[number]): FichaLocalizada {
+    const feitas = [...this.etapasDe(p.id)]
+    const ultima = feitas[feitas.length - 1] ?? null
+    const pendente = this.pendenteDe(p.id)
+
+    return {
+      participacaoId: p.id,
+      nome: p.nome,
+      cpf: p.cpf,
+      funcao: p.funcao,
+      fotoUrl: null,
+      ativo: p.ativo,
+      setorNome: p.setor,
+      eventoNome: EVENTO.nome,
+      supervisorNome: p.supervisor,
+      ultimaBatida: ultima
+        ? { rotulo: ROTULO_DA_ETAPA[ultima], quandoISO: new Date(this.agora()).toISOString() }
+        : null,
+      proximaPendente: pendente ? { tipo: pendente, rotulo: ROTULO_DA_ETAPA[pendente] } : null,
+    }
+  }
+
+  /** Recusa como o servidor recusaria: quem não pode, não passa. */
+  private exigirPoder(poder: (papel?: string) => boolean, oQue: string): void {
+    if (!poder(this.sessao?.papel)) {
+      throw new Error(`Você não tem permissão para ${oQue}.`)
     }
   }
 

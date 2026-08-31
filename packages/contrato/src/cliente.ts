@@ -10,9 +10,10 @@
 // tem como devolver as de outra pessoa; `participacoesDe(id)` teria.
 
 import type {
-  ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  FinanceiroDaParticipacao, Painel, PainelDaEquipe, RespostaDeBatida,
-  ResumoParticipacao, Sessao,
+  BatidaAssistida, CandidatoLocalizado, ConferenciaPorCpf, ConviteDoEvento,
+  DiaDaParticipacao, EnvioDeBatida, Eu, EventoEscaneavel, FichaLocalizada,
+  FinanceiroDaParticipacao, MomentoDaLeitura, Painel, PainelDaEquipe,
+  ResultadoDaLeitura, RespostaDeBatida, ResumoParticipacao, Sessao,
 } from './tipos.js'
 
 export interface ClienteApi {
@@ -66,6 +67,53 @@ export interface ClienteApi {
    * o id e ver a operação de outro cliente.
    */
   painel(): Promise<Painel>
+
+  // ── Escanear QR ─────────────────────────────────────────────────────────
+  /**
+   * Os eventos que ESTA pessoa pode escanear.
+   *
+   * Master vê todos os ativos, admin os da própria organização, supervisor só o
+   * do próprio setor. Vem do servidor pronto: uma lista completa filtrada na
+   * tela permitiria escanear no evento errado trocando um id.
+   */
+  eventosParaEscanear(): Promise<EventoEscaneavel[]>
+
+  /** Lê o crachá e grava a presença. A validação é toda do servidor. */
+  registrarPorQr(
+    eventoId: string,
+    codigoLido: string,
+    momento: MomentoDaLeitura,
+  ): Promise<ResultadoDaLeitura>
+
+  /** A saída quando o crachá não passa e a pessoa está na frente. */
+  conferirPorCpf(eventoId: string, cpf: string): Promise<ConferenciaPorCpf>
+
+  // ── Registrar ponto por outra pessoa ────────────────────────────────────
+  /**
+   * Acha quem perdeu o horário, por CPF ou nome.
+   *
+   * Devolve UMA ficha quando não há dúvida, ou a lista de candidatos quando o
+   * nome bate com mais de uma pessoa — que é o caso comum. Quem escolhe é quem
+   * está atendendo, olhando para a pessoa.
+   */
+  localizarPessoa(termo: string): Promise<{
+    ficha?: FichaLocalizada
+    candidatos?: CandidatoLocalizado[]
+    erro?: string
+  }>
+
+  /** A ficha completa de alguém escolhido na lista de candidatos. */
+  abrirFicha(participacaoId: string): Promise<{ ficha?: FichaLocalizada; erro?: string }>
+
+  /**
+   * Grava a batida pendente daquela pessoa, com a foto de quem a validou.
+   *
+   * Não recebe qual etapa gravar: quem decide é o servidor, pela pendência.
+   */
+  registrarPresencaAssistida(
+    participacaoId: string,
+    dados: BatidaAssistida,
+  ): Promise<{ nome?: string; etapa?: string; erro?: string }>
 
   // ── Supervisor ──────────────────────────────────────────────────────────
   painelDaEquipe(eventoId: string): Promise<PainelDaEquipe>

@@ -8,7 +8,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ClienteFalso, CONTAS_DE_DEMONSTRACAO, SENHA_DE_DEMONSTRACAO,
+  ClienteFalso, CONTAS_DE_DEMONSTRACAO, credenciaisDeDemonstracao,
+  SENHA_DE_DEMONSTRACAO,
 } from './cliente-falso.js'
 
 const CODIGO_DO_EVENTO = 'HJK-2026-K7M2'
@@ -436,4 +437,208 @@ test('cada conta de demonstração tem um papel diferente', () => {
   const papeis = CONTAS_DE_DEMONSTRACAO.map(c => c.papel)
   assert.equal(new Set(papeis).size, papeis.length)
   assert.deepEqual(papeis, ['master', 'admin', 'supervisor'])
+})
+
+
+// ─── Escanear QR ────────────────────────────────────────────────────────────
+
+/** Um operador de portaria pronto, que é o ponto de partida do scanner. */
+async function noPortao() {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'admin')
+  return c
+}
+
+/** O crachá de alguém, do jeito que sai da credencial. */
+function crachaQueServe() {
+  return credenciaisDeDemonstracao().find(c => c.serveHoje)!
+}
+
+test('o supervisor não escaneia — e quem recusa é o servidor', async () => {
+  /*
+   * O menu do app já esconde "Escanear QR" dele. Mas menu escondido é
+   * arrumação, não segurança: quem decide é quem grava a presença.
+   */
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  await assert.rejects(() => c.eventosParaEscanear(), /permissão/i)
+  await assert.rejects(
+    () => c.registrarPorQr('ev-1', crachaQueServe().codigo, 'entrada'),
+    /permissão/i,
+  )
+})
+
+test('o crachá certo registra a entrada e devolve o nome', async () => {
+  const c = await noPortao()
+  const cracha = crachaQueServe()
+  const r = await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+
+  assert.equal(r.situacao, 'registrado')
+  if (r.situacao !== 'registrado') return
+  assert.equal(r.pessoa.nome, cracha.nome)
+  assert.equal(r.momento, 'entrada')
+})
+
+test('o mesmo crachá lido duas vezes não gera duas entradas', async () => {
+  // A fila anda e o operador passa o leitor de novo sem querer. Duplicar aqui
+  // viraria duas entradas no relatório de quem entrou uma vez.
+  const c = await noPortao()
+  const cracha = crachaQueServe()
+  await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+  const segunda = await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+
+  assert.equal(segunda.situacao, 'duplicado')
+})
+
+test('crachá de outra etapa não é "inválido": é etapa errada, com as duas', async () => {
+  /*
+   * Dizer "QR inválido" faria o operador pensar em falsificação e chamar a
+   * segurança, quando o que houve foi alguém mostrar o crachá da montagem no
+   * dia do evento. A resposta precisa nomear as duas etapas.
+   */
+  const c = await noPortao()
+  const errado = credenciaisDeDemonstracao().find(x => !x.serveHoje)!
+  const r = await c.registrarPorQr('ev-1', errado.codigo, 'entrada')
+
+  assert.equal(r.situacao, 'etapa_errada')
+  if (r.situacao !== 'etapa_errada') return
+  assert.ok(r.doQr)
+  assert.ok(r.deHoje)
+  assert.notEqual(r.doQr, r.deHoje)
+})
+
+test('código que não saiu deste sistema é recusado', async () => {
+  const c = await noPortao()
+  const r = await c.registrarPorQr('ev-1', 'c3.qr-ana.M.assinaturaInventada', 'entrada')
+  assert.equal(r.situacao, 'recusado')
+})
+
+test('a saída exige o meio', async () => {
+  // O meio é o que prova que a pessoa ficou no evento. Liberar a saída sem ele
+  // apagaria essa prova — e o meio é registrado pela própria pessoa, com foto.
+  const c = await noPortao()
+  const cracha = crachaQueServe()
+  await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+  const saida = await c.registrarPorQr('ev-1', cracha.codigo, 'fim')
+
+  assert.equal(saida.situacao, 'recusado')
+  if (saida.situacao !== 'recusado') return
+  assert.match(saida.mensagem, /meio/i)
+})
+
+test('quem não foi ativada no evento não passa', async () => {
+  const c = await noPortao()
+  const conferencia = await c.conferirPorCpf('ev-1', '87204953167')
+  assert.equal(conferencia.encontrada, true)
+  assert.equal(conferencia.ativo, false)
+})
+
+test('a conferência por CPF é a saída quando o crachá não passa', async () => {
+  // Sem ela sobram duas opções ruins: mandar a pessoa embora, ou deixar entrar
+  // sem conferir.
+  const c = await noPortao()
+  const achou = await c.conferirPorCpf('ev-1', '037.482.615-09')
+  assert.equal(achou.encontrada, true)
+  assert.equal(achou.nome, 'Ana Cláudia Ferreira')
+
+  const naoAchou = await c.conferirPorCpf('ev-1', '000.000.000-00')
+  assert.equal(naoAchou.encontrada, false)
+  assert.ok(naoAchou.mensagem)
+})
+
+// ─── Registrar ponto por outra pessoa ───────────────────────────────────────
+
+test('nome que bate com várias pessoas devolve a lista, não a primeira', async () => {
+  /*
+   * Nome quase nunca é único. Escolher sozinho a primeira gravaria a presença
+   * de quem não veio — e quem sabe qual é a certa é quem está olhando para a
+   * pessoa.
+   */
+  const c = await noPortao()
+  const r = await c.localizarPessoa('Silva')
+
+  assert.equal(r.ficha, undefined)
+  assert.ok(r.candidatos && r.candidatos.length > 1)
+})
+
+test('CPF completo abre a ficha direto', async () => {
+  const c = await noPortao()
+  const r = await c.localizarPessoa('037.482.615-09')
+  assert.ok(r.ficha)
+  assert.equal(r.ficha.nome, 'Ana Cláudia Ferreira')
+})
+
+test('a busca por nome ignora acento', async () => {
+  // Quem digita com pressa não põe acento, e exigir faria a busca falhar
+  // justamente com a pessoa na frente.
+  const c = await noPortao()
+  const r = await c.localizarPessoa('patricia')
+  assert.ok(r.ficha)
+  assert.equal(r.ficha.nome, 'Patrícia Nogueira Silva')
+})
+
+test('busca curta demais é recusada com explicação', async () => {
+  const c = await noPortao()
+  const r = await c.localizarPessoa('an')
+  assert.ok(r.erro)
+  assert.equal(r.ficha, undefined)
+})
+
+test('sem foto, não registra', async () => {
+  /*
+   * A foto é a única prova de que o colaborador estava na frente de quem
+   * registrou. Sem ela, registrar por terceiro seria só digitar um nome.
+   */
+  const c = await noPortao()
+  const { ficha } = await c.localizarPessoa('037.482.615-09')
+  const r = await c.registrarPresencaAssistida(ficha!.participacaoId, { fotoBase64: '' })
+
+  assert.ok(r.erro)
+  assert.match(r.erro, /foto/i)
+})
+
+test('quem registra não escolhe a etapa: o servidor grava a pendente', async () => {
+  const c = await noPortao()
+  const { ficha } = await c.localizarPessoa('037.482.615-09')
+  assert.equal(ficha!.proximaPendente?.tipo, 'entrada')
+
+  const primeira = await c.registrarPresencaAssistida(ficha!.participacaoId, { fotoBase64: 'foto' })
+  assert.equal(primeira.etapa, 'Entrada')
+
+  // A seguinte é o meio, sem ninguém escolher.
+  const depois = await c.abrirFicha(ficha!.participacaoId)
+  assert.equal(depois.ficha?.proximaPendente?.tipo, 'meio')
+})
+
+test('pessoa não ativada não recebe presença registrada por terceiro', async () => {
+  const c = await noPortao()
+  const { ficha } = await c.localizarPessoa('87204953167')
+  assert.equal(ficha?.ativo, false)
+
+  const r = await c.registrarPresencaAssistida(ficha!.participacaoId, { fotoBase64: 'foto' })
+  assert.ok(r.erro)
+})
+
+test('id de quem não existe responde igual a id fora do alcance', async () => {
+  // Diferenciar entregaria uma forma de varrer ids e descobrir quem existe.
+  const c = await noPortao()
+  const r = await c.abrirFicha('f-999')
+  assert.ok(r.erro)
+  assert.equal(r.ficha, undefined)
+})
+
+test('o supervisor localiza e registra, mesmo sem escanear', async () => {
+  // Tirar o scanner dele não pode cegá-lo em relação à própria equipe.
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const r = await c.localizarPessoa('037.482.615-09')
+  assert.ok(r.ficha)
+
+  const gravou = await c.registrarPresencaAssistida(r.ficha.participacaoId, { fotoBase64: 'foto' })
+  assert.equal(gravou.erro, undefined)
+})
+
+test('o colaborador não localiza ninguém', async () => {
+  const c = await logado()
+  await assert.rejects(() => c.localizarPessoa('Silva'), /permissão/i)
 })

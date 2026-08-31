@@ -59,13 +59,13 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
   // Escanear QR fica só com quem credencia. O supervisor cuida da equipe, não
   // do portão — mesma separação que as mensagens já dizem à equipe.
   if (podeEscanear(papel)) {
-    principal.push({ rota: '/escanear', rotulo: 'Escanear QR', icone: 'ScanLine', pronta: false })
+    principal.push({ rota: '/escanear', rotulo: 'Escanear QR', icone: 'ScanLine', pronta: true })
   }
 
   // Acompanhar, sim: tirar o scanner do supervisor não pode cegá-lo em relação
   // à própria equipe.
   if (podeAcompanhar(papel)) {
-    principal.push({ rota: '/ponto', rotulo: 'Registrar ponto', icone: 'ClipboardCheck', pronta: false })
+    principal.push({ rota: '/ponto', rotulo: 'Registrar ponto', icone: 'ClipboardCheck', pronta: true })
     principal.push({ rota: '/atividades', rotulo: 'Atividades do evento', icone: 'Activity', pronta: false })
   }
 
