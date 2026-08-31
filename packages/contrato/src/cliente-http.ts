@@ -33,7 +33,9 @@ import type {
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada,
   FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
-  NovoAcesso, Painel, PainelDaEquipe, Portaria, ResultadoDaImportacao,
+  NovoAcesso, Painel, PainelDaEquipe, Portaria,
+  BaseDeFuncionarios, BuscaRegional, ListaDeOrganizacoes, PainelDoWhatsApp,
+  ResultadoDaImportacao,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, Sessao,
 } from './tipos.js'
@@ -501,6 +503,33 @@ export class ClienteHttp implements ClienteApi {
   async criarAcesso(_dados: NovoAcesso): Promise<{ acesso?: Acesso; erro?: string }> {
     void _dados
     throw new AindaNaoNaApi('criarAcesso')
+  }
+
+  // ─── Plataforma ───────────────────────────────────────────────────────────
+
+  async organizacoes(): Promise<ListaDeOrganizacoes> {
+    throw new AindaNaoNaApi('organizacoes')
+  }
+
+  async alternarOrganizacao(_id: string, _ativa: boolean): Promise<{ erro?: string }> {
+    void _id; void _ativa
+    throw new AindaNaoNaApi('alternarOrganizacao')
+  }
+
+  async baseDeFuncionarios(_busca?: string): Promise<BaseDeFuncionarios> {
+    void _busca
+    throw new AindaNaoNaApi('baseDeFuncionarios')
+  }
+
+  async encontrarColaborador(
+    _filtro?: { busca?: string; cidade?: string },
+  ): Promise<BuscaRegional> {
+    void _filtro
+    throw new AindaNaoNaApi('encontrarColaborador')
+  }
+
+  async painelDoWhatsApp(): Promise<PainelDoWhatsApp> {
+    throw new AindaNaoNaApi('painelDoWhatsApp')
   }
 
   // ─── Supervisor ───────────────────────────────────────────────────────────

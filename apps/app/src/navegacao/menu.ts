@@ -81,14 +81,14 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
     grupos.push({
       titulo: 'Plataforma',
       itens: [
-        { rota: '/organizacoes', rotulo: 'Organizações', icone: 'Building2', pronta: false },
-        { rota: '/base-funcionarios', rotulo: 'Base de funcionários', icone: 'IdCard', pronta: false },
+        { rota: '/organizacoes', rotulo: 'Organizações', icone: 'Building2', pronta: true },
+        { rota: '/base-funcionarios', rotulo: 'Base de funcionários', icone: 'IdCard', pronta: true },
         // A base regional é serviço vendido à parte: quem consulta e atribui
         // gente ao evento de um cliente é o dono da plataforma, não o cliente.
-        { rota: '/encontrar', rotulo: 'Encontre colaborador', icone: 'UserSearch', pronta: false },
+        { rota: '/encontrar', rotulo: 'Encontre colaborador', icone: 'UserSearch', pronta: true },
         // O canal de WhatsApp é da plataforma, não de um evento: quem dispara
         // em massa e responde conversa é o dono, nunca o produtor de um cliente.
-        { rota: '/whatsapp', rotulo: 'WhatsApp', icone: 'MessageCircle', pronta: false },
+        { rota: '/whatsapp', rotulo: 'WhatsApp', icone: 'MessageCircle', pronta: true },
       ],
     })
   }

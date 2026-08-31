@@ -1,8 +1,8 @@
 # Backlog
 
-**291 tasks · 178 no MVP · 139 concluídas (48%)**
+**295 tasks · 182 no MVP · 143 concluídas (48%)**
 
-**Só o MVP: 111 de 178 (62%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 115 de 182 (63%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -43,7 +43,7 @@ Atualizado em 31/08/2026.
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
 | 15 | Testes | 9 | 14 | — | 347 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 25 | 25 | ✓ | Pronto |
+| 17 | Painel no app | 29 | 29 | ✓ | Pronto |
 | 18 | Configurar evento | 8 | 14 | ✓ | Edição, dias e planilhas; falta a API |
 
 ---
@@ -174,6 +174,10 @@ Atualizado em 31/08/2026.
 - O cartão do painel abre a configuração do evento
 - Equipe do setor: lista, busca e os cinco filtros rápidos
 - Planilha: um botão só, com importar, baixar modelo e exportar dentro
+- Organizações: lista dos clientes da plataforma, suspender e reativar sem apagar histórico
+- Base de funcionários: busca por CPF, a pessoa uma vez só e não um cadastro por evento
+- Encontre colaborador: busca regional por cidade, chamar direto no WhatsApp
+- WhatsApp: estado do canal antes dos números — fila pausada não pode parecer fila cheia
 
 **Epic 18 — Configurar evento**
 - Tela de edição: informações, duração e horários do dia principal
@@ -193,17 +197,16 @@ O Juan escolheu **telas primeiro, com dados de mentira**: o app inteiro fica
 navegável contra o servidor falso, ele olha e corrige, e só depois a API real
 entra por baixo. Nenhuma tela muda na troca.
 
-1. **Organizações, Base de funcionários, Encontre colaborador, WhatsApp**
-   (Epic 17). O bloco Plataforma, que só o master vê.
-2. **O que o sistema web ganhou** (Epic 17). Cartaz da portaria, mover
-   funcionário de setor, pendências — ver a seção abaixo.
-3. **Endpoints do painel na API** (Epic 3 + 17). O cliente HTTP já existe e já
-   fala com a API; faltam as rotas de painel, escanear, ponto, atividades e
-   acessos. Sem elas, essas telas continuam no servidor falso.
-4. **Upload de foto ao storage** (Epic 3 + 7). Hoje a selfie do meio viaja
+1. **O que o sistema web ganhou** (Epic 17). Cartaz da portaria e mover
+   funcionário de setor já vieram; falta a tela de pendências do evento.
+2. **Endpoints do painel na API** (Epic 3 + 17). O cliente HTTP já existe e já
+   fala com a API; faltam as rotas de painel, escanear, ponto, atividades,
+   acessos e as quatro da Plataforma. Sem elas, essas telas continuam no
+   servidor falso.
+3. **Upload de foto ao storage** (Epic 3 + 7). Hoje a selfie do meio viaja
    dentro da batida; o caminho que aguenta pico é subir direto ao storage.
-5. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.
-6. **Rodar as migrações** (Epic 1). Precisa do banco de homologação.
+4. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.
+5. **Rodar as migrações** (Epic 1). Precisa do banco de homologação.
 
 
 ---

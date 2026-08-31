@@ -26,7 +26,7 @@ import {
   avaliarEntradaSaida, conferirHorariosDoEvento, diaBRT, ehMaster, faseConfere,
   faseDoDia, formatCpf, gerarCodigoQR, janelaMeio, lerCodigoDeEvento,
   lerCodigoQR, podeAcompanhar, podeEscanear, podeGerenciarEventos,
-  podeGerenciarUsuarios,
+  podeGerenciarOrganizacoes, podeGerenciarUsuarios,
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
 import type {
@@ -38,6 +38,8 @@ import type {
   LinhaDaAtividade,
   ListaDeAcessos, MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe,
   PessoaDaLista, PessoaDoSetor, Portaria, ResultadoDaImportacao,
+  BaseDeFuncionarios, BuscaRegional, ListaDeOrganizacoes, Organizacao,
+  PainelDoWhatsApp, PessoaDaBase, PessoaRegional,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, StatusDaEtapa, Sessao,
 } from './tipos.js'
@@ -473,6 +475,61 @@ const CONFIGURACAO_DE_MENTIRA: Record<string, {
   },
 }
 
+/**
+ * Os clientes da plataforma.
+ *
+ * Um suspenso de propósito: é o caso que a tela precisa saber mostrar, e que
+ * some se todos estiverem ativos. E um no limite de eventos, que é a conversa
+ * de renovação — o número que interessa ao dono da plataforma.
+ */
+const ORGANIZACOES_DE_MENTIRA: Organizacao[] = [
+  {
+    organizacaoId: 'org-1', nome: 'Produzimos', documento: '18.472.905/0001-33',
+    ativa: true, adminNome: 'Marina Alves', adminIdentificador: 'marina@produzimos.com.br',
+    eventos: 3, limiteEventos: 10, valorCobrado: 1200, periodo: 'mensal',
+    criadaEm: '2025-11-04T10:00:00-03:00',
+  },
+  {
+    organizacaoId: 'org-2', nome: 'Vibe Produções', documento: '30.918.244/0001-07',
+    ativa: true, adminNome: 'Renato Bianchi', adminIdentificador: 'renato@vibeproducoes.com.br',
+    eventos: 8, limiteEventos: 8, valorCobrado: 890, periodo: 'mensal',
+    criadaEm: '2026-01-22T14:30:00-03:00',
+  },
+  {
+    organizacaoId: 'org-3', nome: 'Casa Rosada Eventos', documento: null,
+    ativa: false, adminNome: 'Letícia Prado', adminIdentificador: 'leticia@casarosada.com.br',
+    eventos: 2, limiteEventos: 5, valorCobrado: 600, periodo: 'por_evento',
+    criadaEm: '2025-08-15T09:10:00-03:00',
+  },
+]
+
+/**
+ * A base de funcionários — por CPF, não por cadastro.
+ *
+ * A mesma pessoa credenciada em cinco eventos de três clientes é UMA linha. É
+ * isso que responde "esta pessoa já trabalhou com a gente?", que é a pergunta
+ * que a base existe para responder.
+ */
+const BASE_DE_MENTIRA: (PessoaDaBase & { cidade: string | null; trabalhou: number })[] = [
+  { cpf: '03748261509', nome: 'Ana Cláudia Ferreira', telefone: '27999255959', funcao: 'Auxiliar de palco', eventos: 7, organizacoes: 3, ultimoCadastro: '2026-08-30T10:00:00-03:00', cidade: 'Vitória', trabalhou: 6 },
+  { cpf: '21890647355', nome: 'Rodrigo Menezes Lima', telefone: '27988774411', funcao: 'Controlador de acesso', eventos: 4, organizacoes: 2, ultimoCadastro: '2026-08-29T18:20:00-03:00', cidade: 'Vila Velha', trabalhou: 4 },
+  { cpf: '76431520891', nome: 'Juan Muzy', telefone: '27999255959', funcao: 'Produtor', eventos: 12, organizacoes: 1, ultimoCadastro: '2026-08-30T13:47:00-03:00', cidade: 'Vitória', trabalhou: 12 },
+  { cpf: '49012783644', nome: 'Patrícia Nogueira Silva', telefone: '27997733221', funcao: 'Camareira', eventos: 3, organizacoes: 2, ultimoCadastro: '2026-08-22T08:00:00-03:00', cidade: 'Serra', trabalhou: 2 },
+  { cpf: '30561847210', nome: 'Wesley dos Santos Silva', telefone: null, funcao: 'Barman', eventos: 2, organizacoes: 1, ultimoCadastro: '2026-07-19T22:00:00-03:00', cidade: 'Cariacica', trabalhou: 1 },
+  { cpf: '87204953167', nome: 'Simone Vasconcelos', telefone: '27996655443', funcao: 'Encarregada de limpeza', eventos: 1, organizacoes: 1, ultimoCadastro: '2026-08-30T09:00:00-03:00', cidade: 'Vitória', trabalhou: 0 },
+  { cpf: '65498732100', nome: 'Larissa Prado Coelho', telefone: '27994433221', funcao: 'Recepcionista', eventos: 5, organizacoes: 2, ultimoCadastro: '2026-06-11T16:00:00-03:00', cidade: 'Vila Velha', trabalhou: 5 },
+]
+
+/** Os templates aprovados pela Meta, do jeito que a leitura devolve. */
+const TEMPLATES_DE_MENTIRA: PainelDoWhatsApp['templates'] = [
+  { nome: 'codigo_de_acesso', situacao: 'aprovado', categoria: 'AUTHENTICATION' },
+  { nome: 'boas_vindas_evento', situacao: 'aprovado', categoria: 'UTILITY' },
+  { nome: 'aviso_do_dia', situacao: 'aprovado', categoria: 'UTILITY' },
+  { nome: 'lembrete_do_meio', situacao: 'aprovado', categoria: 'UTILITY' },
+  { nome: 'convite_supervisor', situacao: 'em_analise', categoria: 'UTILITY' },
+  { nome: 'promocao_evento', situacao: 'rejeitado', categoria: 'MARKETING' },
+]
+
 const SEGREDO_DE_MENTIRA = 'segredo-do-cliente-falso'
 
 type BatidaGravada = { id: string; tipo: string; em: string; data: string }
@@ -483,6 +540,23 @@ type BatidaGravada = { id: string; tipo: string; em: string; data: string }
  * Quem digita "patricia" com pressa precisa achar "Patrícia". Exigir o acento
  * faria a busca falhar justamente para quem está com a pessoa na frente.
  */
+/**
+ * Bate com o que foi digitado — nome ou CPF, com ou sem pontuação.
+ *
+ * O CPF é a chave da base, e é o que se tem em mãos quando alguém liga
+ * perguntando "essa pessoa já trabalhou aqui?". Exigir a forma sem pontuação
+ * faria a busca falhar para quem copiou de um documento.
+ */
+function combina(p: { nome: string; cpf: string }, busca: string): boolean {
+  const termo = (busca ?? '').trim()
+  if (!termo) return true
+  const digitos = termo.replace(/\D/g, '')
+  if (digitos.length >= 3 && /^[\d.\-\s]+$/.test(termo)) {
+    return p.cpf.replace(/\D/g, '').includes(digitos)
+  }
+  return semAcento(p.nome).includes(semAcento(termo))
+}
+
 function semAcento(texto: string): string {
   return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
@@ -1861,6 +1935,138 @@ export class ClienteFalso implements ClienteApi {
   private acessosNoAlcance(a: { papel: Papel }): boolean {
     if (ehMaster(this.sessao?.papel)) return true
     return a.papel !== 'master'
+  }
+
+  // ── Plataforma ────────────────────────────────────────────────────────────
+
+  async organizacoes(): Promise<ListaDeOrganizacoes> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrganizacoes, 'ver as organizações')
+
+    return {
+      itens: [...ORGANIZACOES_DE_MENTIRA],
+      total: ORGANIZACOES_DE_MENTIRA.length,
+      ativas: ORGANIZACOES_DE_MENTIRA.filter(o => o.ativa).length,
+    }
+  }
+
+  async alternarOrganizacao(organizacaoId: string, ativa: boolean) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrganizacoes, 'suspender ou reativar')
+
+    const org = ORGANIZACOES_DE_MENTIRA.find(o => o.organizacaoId === organizacaoId)
+    if (!org) return { erro: 'Não encontramos esta organização.' }
+
+    // Suspender bloqueia sem apagar: o histórico é do cliente, e ele vai
+    // querer de volta se voltar.
+    org.ativa = ativa
+    return {}
+  }
+
+  async baseDeFuncionarios(busca = ''): Promise<BaseDeFuncionarios> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrganizacoes, 'ver a base de funcionários')
+
+    const pessoas = BASE_DE_MENTIRA.filter(p => combina(p, busca))
+    const cadastros = BASE_DE_MENTIRA.reduce((a, p) => a + p.eventos, 0)
+    const organizacoes = new Set(ORGANIZACOES_DE_MENTIRA.map(o => o.organizacaoId)).size
+
+    return {
+      indicadores: [
+        { chave: 'pessoas', rotulo: 'Pessoas na base', valor: BASE_DE_MENTIRA.length, tom: 'acento' },
+        { chave: 'cadastros', rotulo: 'Cadastros feitos', valor: cadastros, tom: 'info' },
+        { chave: 'organizacoes', rotulo: 'Organizações', valor: organizacoes, tom: 'neutro' },
+        {
+          chave: 'recorrentes',
+          rotulo: 'Já em 2+ eventos',
+          valor: BASE_DE_MENTIRA.filter(p => p.eventos >= 2).length,
+          // É o número que diz se a base tem VALOR: gente que volta é gente
+          // que já se sabe que aparece.
+          tom: 'sucesso',
+        },
+      ],
+      pessoas: pessoas.map(({ cidade, trabalhou, ...p }) => { void cidade; void trabalhou; return p }),
+      total: BASE_DE_MENTIRA.length,
+    }
+  }
+
+  async encontrarColaborador(filtro: { busca?: string; cidade?: string } = {}): Promise<BuscaRegional> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrganizacoes, 'usar a base regional')
+
+    const cidade = semAcento((filtro.cidade ?? '').trim())
+    const achados = BASE_DE_MENTIRA.filter(p =>
+      combina(p, filtro.busca ?? '')
+      && (!cidade || semAcento(p.cidade ?? '').includes(cidade)))
+
+    const pessoas: PessoaRegional[] = achados.map(p => ({
+      cpf: p.cpf,
+      nome: p.nome,
+      telefone: p.telefone,
+      funcao: p.funcao,
+      cidade: p.cidade,
+      eventosTrabalhados: p.trabalhou,
+      organizacoes: p.organizacoes,
+      ultimo: p.ultimoCadastro,
+    }))
+
+    return {
+      indicadores: [
+        { chave: 'encontradas', rotulo: 'Pessoas encontradas', valor: pessoas.length, tom: 'acento' },
+        {
+          chave: 'com_historico',
+          rotulo: 'Com histórico de presença',
+          valor: pessoas.filter(p => p.eventosTrabalhados > 0).length,
+          tom: 'sucesso',
+        },
+        {
+          chave: 'cidades',
+          rotulo: 'Cidades',
+          valor: new Set(BASE_DE_MENTIRA.map(p => p.cidade).filter(Boolean)).size,
+          tom: 'info',
+        },
+        {
+          chave: 'com_telefone',
+          rotulo: 'Com telefone',
+          valor: pessoas.filter(p => p.telefone).length,
+          // Sem telefone não dá para chamar — e chamar é o que esta tela existe
+          // para fazer.
+          tom: 'aviso',
+        },
+      ],
+      pessoas,
+      cidades: [...new Set(BASE_DE_MENTIRA.map(p => p.cidade).filter((c): c is string => !!c))].sort(),
+    }
+  }
+
+  async painelDoWhatsApp(): Promise<PainelDoWhatsApp> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrganizacoes, 'ver o canal de WhatsApp')
+
+    const aprovados = TEMPLATES_DE_MENTIRA.filter(t => t.situacao === 'aprovado').length
+
+    return {
+      pausado: false,
+      canal: {
+        conectada: true,
+        estado: 'Conectado à API oficial da Meta. Última mensagem entregue há 4 minutos.',
+        provedor: 'meta',
+      },
+      indicadores: [
+        { chave: 'enviadas', rotulo: 'Enviadas hoje', valor: 142, tom: 'sucesso' },
+        { chave: 'falhas', rotulo: 'Falhas hoje', valor: 3, tom: 'erro' },
+        { chave: 'fila', rotulo: 'Na fila', valor: 0, tom: 'info' },
+        { chave: 'templates', rotulo: 'Templates aprovados', valor: aprovados, tom: 'acento' },
+      ],
+      disparadas: 8412,
+      custoEstimado: 214.5,
+      templates: TEMPLATES_DE_MENTIRA,
+    }
   }
 
   // ── Supervisor ────────────────────────────────────────────────────────────

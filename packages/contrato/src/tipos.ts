@@ -775,3 +775,120 @@ export type FichaDaPessoa = {
   /** A mesma permissão que criar acesso já exige. */
   podeTornarSupervisor: boolean
 }
+
+
+// ─── Plataforma ─────────────────────────────────────────────────────────────
+//
+// O que só o dono da plataforma enxerga. Não é operação de um evento: é o
+// negócio por trás dele — quem são os clientes, quem já passou por todos eles,
+// e o canal que fala com todo mundo.
+
+/** Um cliente da plataforma. Cada um com o próprio painel, equipe e limite. */
+export type Organizacao = {
+  organizacaoId: string
+  nome: string
+  documento: string | null
+  /**
+   * Suspensa é bloqueada, não apagada.
+   *
+   * O cliente que parou de pagar perde o acesso e mantém o histórico — que é
+   * dele, e que ele vai querer de volta se voltar.
+   */
+  ativa: boolean
+  adminNome: string | null
+  adminIdentificador: string | null
+  eventos: number
+  limiteEventos: number
+  valorCobrado: number | null
+  periodo: 'mensal' | 'anual' | 'por_evento' | null
+  criadaEm: string
+}
+
+export type ListaDeOrganizacoes = {
+  itens: Organizacao[]
+  total: number
+  ativas: number
+}
+
+/**
+ * Alguém da base de funcionários.
+ *
+ * A base é por CPF, e não por cadastro: a mesma pessoa credenciada em cinco
+ * eventos de três clientes é UMA linha. É isso que responde "esta pessoa já
+ * trabalhou com a gente?" — a pergunta que a base existe para responder.
+ */
+export type PessoaDaBase = {
+  cpf: string
+  nome: string
+  telefone: string | null
+  funcao: string | null
+  eventos: number
+  organizacoes: number
+  ultimoCadastro: string
+}
+
+export type BaseDeFuncionarios = {
+  /** Pessoas na base · Cadastros feitos · Organizações · Já em 2+ eventos. */
+  indicadores: IndicadorDoPainel[]
+  pessoas: PessoaDaBase[]
+  /** Quantas existem no total, mesmo quando a busca recorta. */
+  total: number
+}
+
+/**
+ * Alguém da base regional.
+ *
+ * Serviço vendido à parte: quem consulta e monta equipe para o evento de um
+ * cliente é o dono da plataforma, não o cliente. Por isso a cidade importa
+ * aqui e não importa na base comum — a pergunta é "quem tem em Vitória?".
+ */
+export type PessoaRegional = {
+  cpf: string
+  nome: string
+  telefone: string | null
+  funcao: string | null
+  cidade: string | null
+  /**
+   * Em quantos eventos ela de fato TRABALHOU — não em quantos se cadastrou.
+   *
+   * Cadastro sem presença não diz nada sobre a pessoa; presença diz. É a
+   * diferença entre "está na lista" e "apareceu".
+   */
+  eventosTrabalhados: number
+  organizacoes: number
+  ultimo: string
+}
+
+export type BuscaRegional = {
+  indicadores: IndicadorDoPainel[]
+  pessoas: PessoaRegional[]
+  /** As cidades que existem na base, para o filtro não ser um campo em branco. */
+  cidades: string[]
+}
+
+export type TemplateDoWhatsApp = {
+  nome: string
+  situacao: 'aprovado' | 'em_analise' | 'rejeitado'
+  categoria: 'AUTHENTICATION' | 'MARKETING' | 'UTILITY'
+}
+
+export type PainelDoWhatsApp = {
+  /**
+   * A fila está parada de propósito?
+   *
+   * Vem antes dos números na tela: número bonito com a fila pausada engana.
+   */
+  pausado: boolean
+  canal: {
+    conectada: boolean
+    /** O que está acontecendo, em uma frase que a pessoa lê. */
+    estado: string
+    provedor: 'meta' | 'evolution'
+  }
+  /** Enviadas hoje · Falhas hoje · Na fila · Templates aprovados. */
+  indicadores: IndicadorDoPainel[]
+  /** Tudo que já saiu pelo canal, no histórico inteiro. */
+  disparadas: number
+  custoEstimado: number
+  templates: TemplateDoWhatsApp[]
+}

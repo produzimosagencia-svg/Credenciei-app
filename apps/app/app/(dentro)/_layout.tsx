@@ -127,6 +127,10 @@ export default function Dentro() {
         { nome: 'evento/[id]/index', titulo: 'Configurar evento' },
         { nome: 'evento/[id]/editar', titulo: 'Editar evento' },
         { nome: 'setor/[id]', titulo: 'Equipe do setor' },
+        { nome: 'organizacoes', titulo: 'Organizações' },
+        { nome: 'base-funcionarios', titulo: 'Base de funcionários' },
+        { nome: 'encontrar', titulo: 'Encontre colaborador' },
+        { nome: 'whatsapp', titulo: 'WhatsApp' },
       ].map(tela => (
         <Tabs.Screen
           key={tela.nome}

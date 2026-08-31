@@ -1247,3 +1247,130 @@ test('pessoa que não existe responde igual em todas as ações', async () => {
   assert.ok((await c.moverDeSetor('nao-existe', 's-2')).erro)
   assert.ok((await c.marcarPagamento('nao-existe', true)).erro)
 })
+
+// ─── Plataforma ─────────────────────────────────────────────────────────────
+
+/** O dono da plataforma, que é o único que enxerga este bloco. */
+async function comoMaster() {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'master')
+  return c
+}
+
+test('o bloco Plataforma é só do master', async () => {
+  /*
+   * O menu já esconde para os outros — mas menu escondido é arrumação, não
+   * segurança. Quem decide é quem tem os dados.
+   */
+  const admin = await noPortao()
+  await assert.rejects(() => admin.organizacoes(), /permissão/i)
+  await assert.rejects(() => admin.baseDeFuncionarios(), /permissão/i)
+  await assert.rejects(() => admin.encontrarColaborador(), /permissão/i)
+  await assert.rejects(() => admin.painelDoWhatsApp(), /permissão/i)
+})
+
+test('as organizações vêm com ativas e suspensas separadas', async () => {
+  const c = await comoMaster()
+  const r = await c.organizacoes()
+
+  assert.equal(r.total, r.itens.length)
+  assert.equal(r.ativas, r.itens.filter(o => o.ativa).length)
+  assert.ok(r.itens.some(o => !o.ativa), 'faltou uma suspensa para a tela mostrar o caso')
+})
+
+test('suspender bloqueia sem apagar', async () => {
+  // O histórico é do cliente, e ele vai querer de volta se voltar.
+  const c = await comoMaster()
+  const antes = await c.organizacoes()
+  const alvo = antes.itens.find(o => o.ativa)!
+
+  await c.alternarOrganizacao(alvo.organizacaoId, false)
+  const depois = await c.organizacoes()
+
+  assert.equal(depois.total, antes.total, 'não podia sumir da lista')
+  assert.equal(depois.itens.find(o => o.organizacaoId === alvo.organizacaoId)?.ativa, false)
+
+  await c.alternarOrganizacao(alvo.organizacaoId, true)
+  assert.equal((await c.organizacoes()).ativas, antes.ativas)
+})
+
+test('a base é por CPF, não por cadastro', async () => {
+  /*
+   * A mesma pessoa credenciada em cinco eventos de três clientes é UMA linha.
+   * É isso que responde "esta pessoa já trabalhou com a gente?".
+   */
+  const c = await comoMaster()
+  const r = await c.baseDeFuncionarios()
+  const cpfs = r.pessoas.map(p => p.cpf)
+
+  assert.equal(new Set(cpfs).size, cpfs.length)
+  assert.ok(r.pessoas.some(p => p.eventos > 1), 'alguém com mais de um evento')
+})
+
+test('a busca da base aceita CPF com e sem pontuação', async () => {
+  // É o que se tem em mãos quando alguém liga perguntando sobre uma pessoa.
+  const c = await comoMaster()
+  assert.equal((await c.baseDeFuncionarios('037.482.615-09')).pessoas.length, 1)
+  assert.equal((await c.baseDeFuncionarios('03748261509')).pessoas.length, 1)
+  assert.equal((await c.baseDeFuncionarios('ana')).pessoas.length, 1)
+})
+
+test('o total da base não muda com a busca', async () => {
+  // O número do indicador responde "quantas existem", e recalculá-lo pela
+  // busca faria a base parecer encolher a cada letra digitada.
+  const c = await comoMaster()
+  const todas = await c.baseDeFuncionarios()
+  const filtrada = await c.baseDeFuncionarios('ana')
+
+  assert.equal(filtrada.total, todas.total)
+  assert.ok(filtrada.pessoas.length < todas.pessoas.length)
+})
+
+test('a base regional conta quem TRABALHOU, não quem se cadastrou', async () => {
+  /*
+   * Cadastro sem presença não diz nada sobre a pessoa; presença diz. É a
+   * diferença entre "está na lista" e "apareceu" — e é por isso que se monta
+   * equipe a partir desta base.
+   */
+  const c = await comoMaster()
+  const r = await c.encontrarColaborador()
+  const semPresenca = r.pessoas.find(p => p.eventosTrabalhados === 0)
+
+  assert.ok(semPresenca, 'faltou alguém sem presença para a tela mostrar o caso')
+  const comHistorico = r.indicadores.find(i => i.chave === 'com_historico')!
+  assert.equal(comHistorico.valor, r.pessoas.filter(p => p.eventosTrabalhados > 0).length)
+})
+
+test('o filtro de cidade recorta, e a lista de cidades não', async () => {
+  const c = await comoMaster()
+  const todas = await c.encontrarColaborador()
+  const emVitoria = await c.encontrarColaborador({ cidade: 'vitoria' })
+
+  assert.ok(emVitoria.pessoas.length > 0)
+  assert.ok(emVitoria.pessoas.length < todas.pessoas.length)
+  // A lista de cidades continua inteira: ela alimenta o filtro, e um filtro
+  // que some conforme se usa é um beco sem saída.
+  assert.deepEqual(emVitoria.cidades, todas.cidades)
+})
+
+test('o painel do WhatsApp diz o estado do canal antes dos números', async () => {
+  // Número bonito com a fila pausada engana. Os dois campos existem separados
+  // para a tela poder dizer isso primeiro.
+  const c = await comoMaster()
+  const p = await c.painelDoWhatsApp()
+
+  assert.equal(typeof p.pausado, 'boolean')
+  assert.equal(typeof p.canal.conectada, 'boolean')
+  assert.ok(p.canal.estado.length > 10, 'o estado precisa ser uma frase que se lê')
+})
+
+test('o contador de templates aprovados bate com a lista', async () => {
+  const c = await comoMaster()
+  const p = await c.painelDoWhatsApp()
+
+  assert.equal(
+    p.indicadores.find(i => i.chave === 'templates')!.valor,
+    p.templates.filter(t => t.situacao === 'aprovado').length,
+  )
+  assert.ok(p.templates.some(t => t.situacao !== 'aprovado'), 'faltou um em análise ou rejeitado')
+})

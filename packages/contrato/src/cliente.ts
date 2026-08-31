@@ -16,6 +16,7 @@ import type {
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
   MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe, Portaria,
+  BaseDeFuncionarios, BuscaRegional, ListaDeOrganizacoes, PainelDoWhatsApp,
   ResultadoDaImportacao, ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida,
   ResumoParticipacao, SetorDetalhado, Sessao,
 } from './tipos.js'
@@ -256,6 +257,26 @@ export interface ClienteApi {
 
   /** Cria o acesso de um supervisor, preso a um setor. */
   criarAcesso(dados: NovoAcesso): Promise<{ acesso?: Acesso; erro?: string }>
+
+  // ── Plataforma ──────────────────────────────────────────────────────────
+  //
+  // Tudo aqui é só do master. O servidor recusa os outros papéis — o menu já
+  // esconde, mas menu escondido é arrumação, não segurança.
+
+  /** Os clientes da plataforma. */
+  organizacoes(): Promise<ListaDeOrganizacoes>
+
+  /** Suspende ou reativa um cliente. Suspender bloqueia sem apagar histórico. */
+  alternarOrganizacao(organizacaoId: string, ativa: boolean): Promise<{ erro?: string }>
+
+  /** Todo mundo que já foi credenciado por qualquer cliente, por CPF. */
+  baseDeFuncionarios(busca?: string): Promise<BaseDeFuncionarios>
+
+  /** A base regional, para montar equipe para o evento de um cliente. */
+  encontrarColaborador(filtro?: { busca?: string; cidade?: string }): Promise<BuscaRegional>
+
+  /** O estado do canal de WhatsApp e os templates aprovados pela Meta. */
+  painelDoWhatsApp(): Promise<PainelDoWhatsApp>
 
   // ── Supervisor ──────────────────────────────────────────────────────────
   painelDaEquipe(eventoId: string): Promise<PainelDaEquipe>
