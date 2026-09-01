@@ -43,6 +43,7 @@ import LogIn from 'lucide-react-native/icons/log-in'
 import LogOut from 'lucide-react-native/icons/log-out'
 import MapPin from 'lucide-react-native/icons/map-pin'
 import MessageCircle from 'lucide-react-native/icons/message-circle'
+import Plus from 'lucide-react-native/icons/plus'
 import QrCode from 'lucide-react-native/icons/qr-code'
 import Radio from 'lucide-react-native/icons/radio'
 import RefreshCw from 'lucide-react-native/icons/refresh-cw'
@@ -93,6 +94,7 @@ const ICONES: Record<string, LucideIcon> = {
   MapPin,
   MessageCircle,
   MoreHorizontal: Ellipsis,
+  Plus,
   QrCode,
   Radio,
   RefreshCw,

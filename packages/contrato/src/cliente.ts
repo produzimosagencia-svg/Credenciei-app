@@ -12,7 +12,7 @@
 import type {
   Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  ArquivoDePlanilha, ConfiguracaoDoEvento, EdicaoDoEvento, EquipeDoSetor,
+  ArquivoDePlanilha, ConfiguracaoDoEvento, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
   MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe, Portaria,
@@ -133,6 +133,13 @@ export interface ClienteApi {
 
   /** O log da operação: cada batida, na ordem em que aconteceu. */
   atividades(eventoId: string): Promise<AtividadesDoEvento>
+
+  /**
+   * Cria um evento novo. O master escolhe a organização dona; o admin cria
+   * sempre para a própria, sem escolher — e nunca vê um evento que não seja
+   * dela, antes ou depois de criado.
+   */
+  criarEvento(dados: DadosDeNovoEvento): Promise<{ eventoId?: string; erro?: string }>
 
   // ── O evento por dentro ─────────────────────────────────────────────────
   /** A tela de configuração de um evento: setores, progresso e portaria. */

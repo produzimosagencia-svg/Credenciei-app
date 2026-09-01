@@ -13,10 +13,10 @@
 // token. Se a tela filtrasse, bastaria adulterar o pedido para ver a operação
 // de outro cliente.
 
-import { View, StyleSheet, Text } from 'react-native'
+import { Pressable, View, StyleSheet, Text } from 'react-native'
 import { useRouter } from 'expo-router'
 import type { AtividadeRecente, IndicadorDoPainel } from '@credenciei/contrato'
-import { formatarBR } from '@credenciei/dominio'
+import { formatarBR, podeGerenciarEventos } from '@credenciei/dominio'
 import { usePedido } from '../dados/pedido'
 import { useSessao } from '../sessao/contexto'
 import { haQuantoTempo, porExtenso } from '../data'
@@ -39,7 +39,7 @@ const ICONE_DO_INDICADOR: Record<string, string> = {
 
 export function Painel() {
   const router = useRouter()
-  const { cliente, semRede } = useSessao()
+  const { cliente, sessao, semRede } = useSessao()
   const { pedido, recarregar } = usePedido(() => cliente.painel(), [cliente])
 
   return (
@@ -71,9 +71,23 @@ export function Painel() {
           <GradeDeIndicadores indicadores={pedido.dados.indicadores} />
 
           <Respiro altura={espaco.s} />
-          <View style={e.cabecalhoDaLista}>
-            <Etiqueta>Acontecendo agora</Etiqueta>
-            <Selo texto={String(pedido.dados.eventos.length)} tipo="sucesso" />
+          <View style={e.cabecalhoComAcao}>
+            <View style={e.cabecalhoDaLista}>
+              <Etiqueta>Acontecendo agora</Etiqueta>
+              <Selo texto={String(pedido.dados.eventos.length)} tipo="sucesso" />
+            </View>
+
+            {podeGerenciarEventos(sessao?.papel) ? (
+              <Pressable
+                onPress={() => router.push('/criar-evento' as never)}
+                accessibilityRole="button"
+                accessibilityLabel="Novo evento"
+                style={({ pressed }) => [e.botaoNovo, pressed && e.botaoNovoTocado]}
+              >
+                <Icone nome="Plus" tamanho={16} tom={cor.acento600} />
+                <Text style={e.botaoNovoTexto}>Novo evento</Text>
+              </Pressable>
+            ) : null}
           </View>
           <Respiro altura={espaco.m} />
 
@@ -216,7 +230,24 @@ const e = StyleSheet.create({
    */
   gradeItem: { width: '48%', flexGrow: 1 },
 
+  cabecalhoComAcao: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espaco.s,
+  },
   cabecalhoDaLista: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
+
+  botaoNovo: {
+    minHeight: 36,
+    paddingHorizontal: espaco.m,
+    borderRadius: raio.pilula,
+    borderWidth: 1,
+    borderColor: cor.acento200,
+    backgroundColor: cor.acento50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  botaoNovoTocado: { backgroundColor: cor.acento100 },
+  botaoNovoTexto: { ...texto.xs, fontFamily: tipo.semi, color: cor.acento700 },
 
   linhaDoTitulo: { flexDirection: 'row', alignItems: 'center', gap: espaco.m },
   blocoDoIcone: {

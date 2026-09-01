@@ -123,6 +123,7 @@ export default function Dentro() {
       */}
       {[
         { nome: 'novo-evento', titulo: 'Entrar num evento' },
+        { nome: 'criar-evento', titulo: 'Novo evento' },
         { nome: 'novo-acesso', titulo: 'Criar acesso' },
         { nome: 'evento/[id]/index', titulo: 'Configurar evento' },
         { nome: 'evento/[id]/editar', titulo: 'Editar evento' },

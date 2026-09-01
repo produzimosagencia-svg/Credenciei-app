@@ -29,7 +29,7 @@ import type { ClienteApi } from './cliente.js'
 import type {
   Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  ArquivoDePlanilha, ConfiguracaoDoEvento, EdicaoDoEvento, EquipeDoSetor,
+  ArquivoDePlanilha, ConfiguracaoDoEvento, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada,
   FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
@@ -388,6 +388,11 @@ export class ClienteHttp implements ClienteApi {
   async atividades(_eventoId: string): Promise<AtividadesDoEvento> {
     void _eventoId
     throw new AindaNaoNaApi('atividades')
+  }
+
+  async criarEvento(_dados: DadosDeNovoEvento): Promise<{ eventoId?: string; erro?: string }> {
+    void _dados
+    throw new AindaNaoNaApi('criarEvento')
   }
 
   // ─── O evento por dentro ──────────────────────────────────────────────────

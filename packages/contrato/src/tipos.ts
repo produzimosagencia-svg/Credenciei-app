@@ -719,6 +719,31 @@ export type EdicaoDoEvento = {
   janelaFimFim: string | null
 }
 
+/**
+ * O que "Novo evento" pede.
+ *
+ * Batida livre e dias de preparação ficam de fora de propósito — são de
+ * EDITAR, não de criar: o sistema web só deixa marcar os dias depois que o
+ * evento existe, porque a grade de dias depende da data de início já salva.
+ */
+export type DadosDeNovoEvento = {
+  /**
+   * Obrigatório só para o master, que não pertence a organização nenhuma.
+   * Sem dono, o evento não aparece pra nenhum admin — por isso o admin nem
+   * vê este campo: o evento dele é sempre da própria organização.
+   */
+  organizacaoId?: string | null
+  nome: string
+  descricao?: string | null
+  local?: string | null
+  dataInicio: string
+  dataFim: string
+  janelaEntradaInicio?: string | null
+  janelaEntradaFim?: string | null
+  janelaFimInicio?: string | null
+  janelaFimFim?: string | null
+}
+
 export type ResultadoDosDias = {
   /** Quantos dias de PREPARAÇÃO ficaram salvos — sem contar o dia do evento. */
   dias: number

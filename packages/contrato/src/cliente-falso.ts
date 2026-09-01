@@ -32,7 +32,7 @@ import type { ClienteApi } from './cliente.js'
 import type {
   Acesso, ArquivoDePlanilha, AtividadeRecente, AtividadesDoEvento,
   BatidaAssistida, CandidatoLocalizado, ConferenciaPorCpf, ConfiguracaoDoEvento,
-  ConviteDoEvento, DiaDaParticipacao, EdicaoDoEvento, EnvioDeBatida,
+  ConviteDoEvento, DadosDeNovoEvento, DiaDaParticipacao, EdicaoDoEvento, EnvioDeBatida,
   EquipeDoSetor, Eu, EventoComSetores, EventoDetalhado, EventoEscaneavel,
   FichaDaPessoa, FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao,
   LinhaDaAtividade,
@@ -104,6 +104,7 @@ const EVENTOS_DO_PAINEL = [
     equipe: 61,
     presentes: 0,
     aoVivo: true,
+    organizacaoId: 'org-1',
   },
   {
     eventoId: 'ev-2',
@@ -114,6 +115,7 @@ const EVENTOS_DO_PAINEL = [
     equipe: 3,
     presentes: 1,
     aoVivo: true,
+    organizacaoId: 'org-1',
   },
   {
     eventoId: 'ev-3',
@@ -124,8 +126,21 @@ const EVENTOS_DO_PAINEL = [
     equipe: 2,
     presentes: 0,
     aoVivo: true,
+    organizacaoId: 'org-1',
   },
 ]
+
+/**
+ * De qual organização é a conta de admin/gerente/cliente de demonstração.
+ *
+ * No servidor de verdade isso viaja na sessão (`organizacao_id` do perfil).
+ * Aqui não há sessão real — só um papel —, então este servidor de mentira
+ * fixa a resposta em "Produzimos" (`org-1`), a mesma organização das contas
+ * de demonstração (Marina, Carlos, Débora). É o suficiente para provar a
+ * regra — admin não vê evento de organização que não é a dele — sem
+ * inventar um sistema de sessão que a API de verdade é quem vai ter.
+ */
+const ORGANIZACAO_DO_ADMIN_DE_MENTIRA = 'org-1'
 
 export type ContaDeDemonstracao = {
   nome: string
@@ -1017,10 +1032,18 @@ export class ClienteFalso implements ClienteApi {
      * O supervisor cuida de UM setor. Ele vê o próprio evento e a própria
      * equipe, e não a operação inteira — o recorte é feito aqui, no servidor,
      * e não na tela: se a tela filtrasse, bastaria adulterar o pedido.
+     *
+     * O master vê a plataforma inteira — não pertence a organização
+     * nenhuma. Todo outro papel de painel (admin, gerente, cliente) vê só os
+     * eventos da PRÓPRIA organização: o mesmo isolamento que já existe entre
+     * setores, um nível acima.
      */
-    const meus = this.sessao!.papel === 'supervisor'
+    const papel = this.sessao!.papel
+    const meus = papel === 'supervisor'
       ? EVENTOS_DO_PAINEL.filter(e => e.eventoId === 'ev-2')
-      : EVENTOS_DO_PAINEL
+      : ehMaster(papel)
+        ? EVENTOS_DO_PAINEL
+        : EVENTOS_DO_PAINEL.filter(e => e.organizacaoId === ORGANIZACAO_DO_ADMIN_DE_MENTIRA)
 
     const equipe = meus.reduce((a, e) => a + e.equipe, 0)
     const presentes = meus.reduce((a, e) => a + e.presentes, 0)
@@ -1404,6 +1427,92 @@ export class ClienteFalso implements ClienteApi {
       aindaNoEvento,
       noTeto: linhas.length >= TETO_DO_LOG,
     }
+  }
+
+  /**
+   * Cria um evento novo.
+   *
+   * O master não pertence a organização nenhuma — precisa DIZER de quem é o
+   * evento, senão ele nasceria órfão: invisível para todo admin, e com
+   * supervisores criados sem vínculo. O admin não escolhe: o evento dele é
+   * sempre da própria organização, por construção, e não por confiar que ele
+   * vai escolher certo.
+   */
+  async criarEvento(dados: DadosDeNovoEvento): Promise<{ eventoId?: string; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'criar eventos')
+
+    const nome = (dados.nome ?? '').trim()
+    if (!nome) return { erro: 'O nome do evento é obrigatório.' }
+    if (!dados.dataInicio || !dados.dataFim) {
+      return { erro: 'Data de início e data de fim são obrigatórias.' }
+    }
+
+    const papel = this.sessao!.papel
+    let organizacaoId: string
+
+    if (ehMaster(papel)) {
+      const escolhida = (dados.organizacaoId ?? '').trim()
+      if (!escolhida) return { erro: 'Escolha a organização dona deste evento.' }
+      const org = ORGANIZACOES_DE_MENTIRA.find(o => o.organizacaoId === escolhida)
+      if (!org) return { erro: 'Organização não encontrada.' }
+      if (!org.ativa) return { erro: 'Esta organização está suspensa. Reative-a antes de criar eventos.' }
+      organizacaoId = escolhida
+    } else {
+      // Sempre a própria — o campo nem chega a existir na tela do admin.
+      organizacaoId = ORGANIZACAO_DO_ADMIN_DE_MENTIRA
+      const org = ORGANIZACOES_DE_MENTIRA.find(o => o.organizacaoId === organizacaoId)
+      if (org && !org.ativa) {
+        return { erro: 'Sua organização está suspensa. Fale com o administrador da plataforma.' }
+      }
+      if (org && org.eventos >= org.limiteEventos) {
+        return {
+          erro: `Limite de eventos atingido (${org.limiteEventos}). `
+            + 'Fale com o administrador da plataforma para liberar mais.',
+        }
+      }
+    }
+
+    const eventoId = `ev-${EVENTOS_DO_PAINEL.length + 1}`
+    EVENTOS_DO_PAINEL.push({
+      eventoId,
+      nome,
+      dataInicio: dados.dataInicio,
+      local: dados.local?.trim() || null,
+      setores: 0,
+      equipe: 0,
+      presentes: 0,
+      aoVivo: true,
+      organizacaoId,
+    })
+
+    const org = ORGANIZACOES_DE_MENTIRA.find(o => o.organizacaoId === organizacaoId)
+    if (org) org.eventos += 1
+
+    // Sem isto, "Editar evento" logo depois de criar bateria em "não
+    // encontramos este evento": `configuracaoDoEvento` lê os dois lugares —
+    // o card do painel E esta configuração — e um evento novo só tinha o
+    // primeiro.
+    CONFIGURACAO_DE_MENTIRA[eventoId] = {
+      descricao: dados.descricao?.trim() || null,
+      // Nasce travado por horário, igual ao sistema web: batida livre é
+      // coisa para o produtor ligar deliberadamente depois, na Edição — não
+      // um padrão silencioso que ninguém escolheu.
+      batidaLivre: false,
+      janelaEntradaInicio: dados.janelaEntradaInicio ?? null,
+      janelaEntradaFim: dados.janelaEntradaFim ?? null,
+      janelaFimInicio: dados.janelaFimInicio ?? null,
+      janelaFimFim: dados.janelaFimFim ?? null,
+      preparacao: [],
+      comBatidas: [],
+    }
+    // Mesmo motivo: sem isto, ligar a portaria de um evento recém-criado
+    // bateria em "não encontramos este evento" — ela nasce fechada e sem QR,
+    // que é o próprio estado inicial de um evento no sistema web.
+    PORTARIA_DE_MENTIRA[eventoId] = { aberta: false, token: null, cadastrados: 0 }
+
+    return { eventoId }
   }
 
   // ── O evento por dentro ───────────────────────────────────────────────────

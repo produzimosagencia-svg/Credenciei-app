@@ -1377,6 +1377,133 @@ test('só o master cria organização', async () => {
   )
 })
 
+test('o master escolhe a organização dona do evento novo', async () => {
+  const c = await comoMaster()
+  // O NÚMERO, não o objeto: `find` devolve a mesma referência que
+  // `criarEvento` muta em seguida — guardar o objeto faria "antes" andar
+  // junto com "depois".
+  const antes = (await c.organizacoes()).itens.find(o => o.organizacaoId === 'org-2')!.eventos
+
+  const r = await c.criarEvento({
+    organizacaoId: 'org-2',
+    nome: 'Aniversário da Vibe',
+    dataInicio: '2027-03-10T20:00:00-03:00',
+    dataFim: '2027-03-11T05:00:00-03:00',
+  })
+  assert.ok(!r.erro, r.erro)
+  assert.ok(r.eventoId)
+
+  const depois = (await c.organizacoes()).itens.find(o => o.organizacaoId === 'org-2')!.eventos
+  assert.equal(depois, antes + 1)
+})
+
+test('o master sem escolher organização é recusado', async () => {
+  const c = await comoMaster()
+  const r = await c.criarEvento({
+    nome: 'Evento Órfão',
+    dataInicio: '2027-01-01T20:00:00-03:00',
+    dataFim: '2027-01-02T05:00:00-03:00',
+  })
+  assert.match(r.erro ?? '', /escolha a organização/i)
+})
+
+test('organização suspensa não recebe evento novo', async () => {
+  const c = await comoMaster()
+  const r = await c.criarEvento({
+    organizacaoId: 'org-3', // Casa Rosada Eventos, suspensa no fixture
+    nome: 'Não Devia Existir',
+    dataInicio: '2027-01-01T20:00:00-03:00',
+    dataFim: '2027-01-02T05:00:00-03:00',
+  })
+  assert.match(r.erro ?? '', /suspensa/i)
+})
+
+test('o admin cria sempre para a própria organização — sem escolher', async () => {
+  const master = await comoMaster()
+  const antes = await master.organizacoes()
+  const org1Antes = antes.itens.find(o => o.organizacaoId === 'org-1')!.eventos
+  const org2Antes = antes.itens.find(o => o.organizacaoId === 'org-2')!.eventos
+
+  const c = new ClienteFalso()
+  await entrarComo(c, 'admin')
+
+  // Manda uma organização diferente de propósito: o servidor tem que
+  // ignorar, e não confiar no que a tela mandou.
+  const r = await c.criarEvento({
+    organizacaoId: 'org-2',
+    nome: 'Evento do Admin',
+    dataInicio: '2027-02-01T20:00:00-03:00',
+    dataFim: '2027-02-02T05:00:00-03:00',
+  })
+  assert.ok(!r.erro, r.erro)
+
+  const depois = await master.organizacoes()
+  const org1Depois = depois.itens.find(o => o.organizacaoId === 'org-1')!.eventos
+  const org2Depois = depois.itens.find(o => o.organizacaoId === 'org-2')!.eventos
+
+  assert.equal(org1Depois, org1Antes + 1, 'caiu na própria organização, a Produzimos')
+  assert.equal(org2Depois, org2Antes, 'e não na organização que a tela tentou mandar')
+})
+
+test('o admin não vê evento de outra organização — e o master vê os dois', async () => {
+  const master = await comoMaster()
+  const criado = await master.criarEvento({
+    organizacaoId: 'org-2',
+    nome: 'Só a Vibe Produções Vê Este',
+    dataInicio: '2027-04-01T20:00:00-03:00',
+    dataFim: '2027-04-02T05:00:00-03:00',
+  })
+  assert.ok(!criado.erro, criado.erro)
+
+  const painelDoMaster = await master.painel()
+  assert.ok(painelDoMaster.eventos.some(e => e.eventoId === criado.eventoId))
+
+  const admin = new ClienteFalso()
+  await entrarComo(admin, 'admin')
+  const painelDoAdmin = await admin.painel()
+  assert.ok(
+    !painelDoAdmin.eventos.some(e => e.eventoId === criado.eventoId),
+    'o admin é de outra organização — não pode ver este evento',
+  )
+})
+
+test('evento novo já nasce editável: configuração e portaria não travam com "não encontrado"', async () => {
+  const c = await comoMaster()
+  const criado = await c.criarEvento({
+    organizacaoId: 'org-1',
+    nome: 'Testando Config Nova',
+    descricao: 'Uma descrição qualquer',
+    dataInicio: '2027-05-01T20:00:00-03:00',
+    dataFim: '2027-05-02T05:00:00-03:00',
+    janelaEntradaInicio: '2027-05-01T18:00:00-03:00',
+    janelaEntradaFim: '2027-05-01T21:00:00-03:00',
+  })
+  assert.ok(!criado.erro, criado.erro)
+  const id = criado.eventoId!
+
+  const cfg = await c.configuracaoDoEvento(id)
+  assert.equal(cfg.descricao, 'Uma descrição qualquer')
+  assert.equal(cfg.batidaLivre, false, 'nasce travado por horário, como no sistema web')
+
+  const detalhe = await c.evento(id)
+  assert.equal(detalhe.setores.length, 0, 'evento novo ainda não tem setor nenhum')
+
+  const r = await c.alternarPortaria(id, true)
+  assert.ok(!r.erro, r.erro)
+  assert.equal(r.portaria?.aberta, true)
+})
+
+test('só quem gerencia eventos cria um evento novo', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  await assert.rejects(
+    () => c.criarEvento({
+      nome: 'Não Devia Existir', dataInicio: '2027-01-01T20:00:00-03:00', dataFim: '2027-01-02T05:00:00-03:00',
+    }),
+    /permissão/i,
+  )
+})
+
 test('a ficha da pessoa junta o histórico de todas as organizações', async () => {
   const c = await comoMaster()
   const r = await c.fichaDaPessoaNaBase('037.482.615-09') // Ana Cláudia, com máscara — precisa aceitar

@@ -1,8 +1,8 @@
 # Backlog
 
-**306 tasks · 193 no MVP · 146 concluídas (48%)**
+**307 tasks · 193 no MVP · 148 concluídas (48%)**
 
-**Só o MVP: 118 de 193 (61%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 119 de 193 (62%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -50,11 +50,11 @@ Atualizado em 31/08/2026.
 | 11 | Push | 0 | 12 | — | Depende da conta Apple |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
-| 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
+| 14 | Segurança | 5 | 14 | — | Isolamento e limite feitos; falta LGPD e retenção |
 | 15 | Testes | 9 | 14 | — | 347 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 32 | 39 | ✓ | Falta o que o site tem e nunca foi portado — ver mapeamento |
-| 18 | Configurar evento | 8 | 15 | ✓ | Edição, dias e planilhas; falta criar evento novo e a API |
+| 18 | Configurar evento | 9 | 15 | ✓ | Criação, edição, dias e planilhas; falta a API |
 
 ---
 
@@ -155,6 +155,7 @@ Atualizado em 31/08/2026.
 - Respostas idênticas para "não existe" e "não é seu"
 - Limite de tentativas no código de evento e no login
 - Rotação do token de renovação
+- Isolamento por organização no Painel: admin só vê evento da própria — o mesmo isolamento que já existia entre setores, um nível acima
 
 **Epic 15 — Testes**
 - 31 testes do app, sem emulador e sem rede
@@ -201,6 +202,7 @@ Atualizado em 31/08/2026.
 - Dias de trabalho numa tira que rola, com montagem, evento e desmontagem
 - Dia com batida preservado mesmo se vier desmarcado
 - Campo de data e hora: seletor do sistema no celular, máscara no navegador
+- Criar evento novo: o master escolhe a organização dona, o admin sempre a própria — sem escolher
 
 ---
 
@@ -259,7 +261,7 @@ não falta mapear.
 
 | O que | Onde no site | Pra que serve |
 |---|---|---|
-| Criar evento novo | `admin/eventos/novo` | Hoje o app só edita um evento que já existe — não existe "criar do zero" |
+| Criar evento novo | `admin/eventos/novo` | ✅ **Trazido.** Botão "Novo evento" no Painel, para quem `podeGerenciarEventos` |
 | Criar acesso de admin, gerente ou cliente | `admin/usuarios/novo` | "Criar acesso" no app só cria supervisor, de propósito — os outros papéis ainda não têm formulário |
 | Trocar a senha de um acesso | `UsuarioActions` no site | Falta como ação na lista de Acessos |
 | Excluir um acesso | `UsuarioActions` no site | Só o master; hoje dá para bloquear, não para apagar |
