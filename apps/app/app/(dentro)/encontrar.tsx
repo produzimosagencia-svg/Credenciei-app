@@ -13,6 +13,7 @@
 // decide chamar alguém.
 
 import { useState } from 'react'
+import { useRouter } from 'expo-router'
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatTelefone, formatarBR } from '@credenciei/dominio'
 import type { PessoaRegional } from '@credenciei/contrato'
@@ -142,6 +143,8 @@ export default function EncontrarColaborador() {
 }
 
 function LinhaRegional({ pessoa }: { pessoa: PessoaRegional }) {
+  const router = useRouter()
+
   /*
    * Chamar abre o WhatsApp com a conversa já aberta.
    *
@@ -161,7 +164,14 @@ function LinhaRegional({ pessoa }: { pessoa: PessoaRegional }) {
   return (
     <View style={e.pessoa}>
       <View style={e.linhaDoNome}>
-        <TituloDeCartao>{pessoa.nome}</TituloDeCartao>
+        {/*
+          O nome abre a ficha: histórico entre organizações e o botão de
+          atribuir a um evento. É o passo que fecha "achei" em "chamei" — sem
+          ele, esta tela só serve para telefonar.
+        */}
+        <Pressable onPress={() => router.push(`/pessoa/${pessoa.cpf}` as never)} hitSlop={8}>
+          <TituloDeCartao>{pessoa.nome}</TituloDeCartao>
+        </Pressable>
         <Selo
           texto={pessoa.eventosTrabalhados > 0
             ? `${pessoa.eventosTrabalhados} evento${pessoa.eventosTrabalhados === 1 ? '' : 's'} trabalhado${pessoa.eventosTrabalhados === 1 ? '' : 's'}`

@@ -11,7 +11,8 @@
 // procura desconfiar de que são homônimos.
 
 import { useState } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { useRouter } from 'expo-router'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatTelefone, formatarBR } from '@credenciei/dominio'
 import type { PessoaDaBase } from '@credenciei/contrato'
 import { usePedido } from '../../src/dados/pedido'
@@ -124,9 +125,14 @@ export default function BaseDeFuncionarios() {
 }
 
 function LinhaDaBase({ pessoa }: { pessoa: PessoaDaBase }) {
+  const router = useRouter()
+
   return (
     <View style={e.pessoa}>
-      <TituloDeCartao>{pessoa.nome}</TituloDeCartao>
+      {/* O nome abre a ficha: histórico entre organizações, e atribuir a um evento. */}
+      <Pressable onPress={() => router.push(`/pessoa/${pessoa.cpf}` as never)} hitSlop={8}>
+        <TituloDeCartao>{pessoa.nome}</TituloDeCartao>
+      </Pressable>
       <Legenda>{formatCpf(pessoa.cpf)}</Legenda>
 
       <View style={e.selos}>

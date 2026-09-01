@@ -1,8 +1,8 @@
 # Backlog
 
-**296 tasks · 183 no MVP · 144 concluídas (49%)**
+**306 tasks · 193 no MVP · 146 concluídas (48%)**
 
-**Só o MVP: 116 de 183 (63%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 118 de 193 (61%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -16,6 +16,16 @@ o outro inclui push, publicação, web e escala, que vêm depois.
 > não só a parte do colaborador. Isso é a Epic 17, com 20 tasks novas. O
 > percentual caiu de 24% para 25% mesmo com trabalho feito porque o
 > denominador cresceu — é o número honesto.
+
+> **31/08/2026 — mapeamento completo contra o site, e o total cresceu de
+> novo.** Não foi diff do dia a dia: foi passar por toda rota de
+> `credenciei-web/app/admin` e marcar o que ainda não tem par no app — criar
+> evento, criar acesso de outros papéis além de supervisor, trocar senha e
+> excluir acesso, a ficha da pessoa da base entre organizações e atribuí-la a
+> um evento, e as três telas de WhatsApp que já eram avisadas dentro do app
+> como "ainda no computador". Dez tasks que existiam sem estar contadas — indo
+> de 296 para 306, o percentual caiu de 49% para 47%. Detalhe na seção
+> "Mapeado em 31/08" mais abaixo.
 
 O percentual reportado ao Juan sai daqui. Nunca estimar: contar.
 
@@ -43,8 +53,8 @@ Atualizado em 31/08/2026.
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
 | 15 | Testes | 9 | 14 | — | 347 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 30 | 30 | ✓ | Pronto |
-| 18 | Configurar evento | 8 | 14 | ✓ | Edição, dias e planilhas; falta a API |
+| 17 | Painel no app | 32 | 39 | ✓ | Falta o que o site tem e nunca foi portado — ver mapeamento |
+| 18 | Configurar evento | 8 | 15 | ✓ | Edição, dias e planilhas; falta criar evento novo e a API |
 
 ---
 
@@ -179,6 +189,8 @@ Atualizado em 31/08/2026.
 - Encontre colaborador: busca regional por cidade, chamar direto no WhatsApp
 - WhatsApp: estado do canal antes dos números — fila pausada não pode parecer fila cheia
 - Nova organização: cadastro do cliente, do admin dono dele e do primeiro evento opcional
+- Ficha da pessoa da base: histórico entre organizações, sem mostrar valor pago (preço de concorrente)
+- Atribuir pessoa da base a um evento: fecha o ciclo "achei" → "chamei", direto na ficha
 
 **Epic 18 — Configurar evento**
 - Tela de edição: informações, duração e horários do dia principal
@@ -198,8 +210,9 @@ O Juan escolheu **telas primeiro, com dados de mentira**: o app inteiro fica
 navegável contra o servidor falso, ele olha e corrige, e só depois a API real
 entra por baixo. Nenhuma tela muda na troca.
 
-1. **O que o sistema web ganhou** (Epic 17). Cartaz da portaria e mover
-   funcionário de setor já vieram; falta a tela de pendências do evento.
+1. **O que o mapeamento de 31/08 achou** (Epic 17 + 18) — ver a seção logo
+   abaixo para a lista com as nove linhas, o que cada uma resolve e onde
+   olhar no site.
 2. **Endpoints do painel na API** (Epic 3 + 17). O cliente HTTP já existe e já
    fala com a API; faltam as rotas de painel, escanear, ponto, atividades,
    acessos e as quatro da Plataforma. Sem elas, essas telas continuam no
@@ -222,9 +235,9 @@ ganhou e que o app precisa espelhar — o procedimento para achá-los está em
 |---|---|---|
 | **Batida livre no dia do evento** | 30/08 | ✅ **Trazido.** Regra do domínio, com teste no domínio e na API |
 | **Cartaz da portaria** — auto cadastro de quem chega sem estar na lista | 30/08 | ✅ **Trazido.** O lado de quem administra o cartaz. A página onde a pessoa se cadastra continua sendo web — é ela que o QR abre |
-| **Histórico de batidas como aba do funcionário** | 31/08 | Vale para a tela "Meus dias" do colaborador |
-| **"Não realizada" só quando é anomalia** | 31/08 | Regra de leitura da tabela de histórico — ver abaixo |
-| **Admin move funcionário de setor** | 31/08 | Ação nova na tela do setor |
+| **Histórico de batidas como aba do funcionário** | 31/08 | ✅ **Trazido.** É a tela "Meus dias" |
+| **"Não realizada" só quando é anomalia** | 31/08 | ✅ **Trazido.** Regra em `historico.ts`, com teste — ver abaixo |
+| **Admin move funcionário de setor** | 31/08 | ✅ **Trazido.** Ação na ficha da pessoa |
 | **Pendências do evento, com todos os dias** | 31/08 | Tela que o app ainda não tem |
 
 **A regra do "não realizada"**, para não repetir o erro quando eu montar a
@@ -233,6 +246,35 @@ esteve no evento e pulou uma etapa. Num dia em que ela não apareceu, repetir o
 selo nas três colunas diz três vezes o que o "Ausente" já disse uma, e onze
 linhas assim viram uma parede vermelha sem informação. Dia inteiro ausente: um
 traço quieto em cinza.
+
+---
+
+## Mapeado em 31/08: o que o site tem e o app ainda não
+
+Levantamento direto pelas rotas do `credenciei-web` (`app/admin/**`), não pelo
+diff de sincronização do dia a dia (esse é o procedimento da seção acima, para
+o que MUDA lá) — este aqui é para pegar o que nunca foi portado. Cada linha já
+está contada no total do backlog, dentro da Epic 17 ou 18: falta só construir,
+não falta mapear.
+
+| O que | Onde no site | Pra que serve |
+|---|---|---|
+| Criar evento novo | `admin/eventos/novo` | Hoje o app só edita um evento que já existe — não existe "criar do zero" |
+| Criar acesso de admin, gerente ou cliente | `admin/usuarios/novo` | "Criar acesso" no app só cria supervisor, de propósito — os outros papéis ainda não têm formulário |
+| Trocar a senha de um acesso | `UsuarioActions` no site | Falta como ação na lista de Acessos |
+| Excluir um acesso | `UsuarioActions` no site | Só o master; hoje dá para bloquear, não para apagar |
+| Ficha da pessoa da base, entre organizações | `admin/pessoas/[cpf]` | ✅ **Trazido.** O nome, em Base de funcionários e Encontre colaborador, abre a ficha |
+| Atribuir pessoa da base a um evento | `AtribuirEvento`, dentro da ficha acima | ✅ **Trazido.** Dentro da ficha, com o mesmo "bloqueada se o setor bateu o teto" do site |
+| WhatsApp: conversas por pessoa | `admin/whatsapp/conversas` | Avisado na própria tela do app como "ainda no computador" |
+| WhatsApp: disparo em massa | `admin/whatsapp/disparo` | Idem |
+| WhatsApp: fluxos automáticos | `admin/whatsapp/fluxos` | Idem |
+
+**Conferido e não é gap:** `admin/clientes` é um redirect morto para o próprio
+`admin/usuarios` (comentário no código do site diz isso). `admin/localizar` é
+o mesmo "Registrar ponto" que já foi trazido, só com nome diferente.
+`funcionarios/[id]/historico` só existe como link direto vindo das Conversas
+de WhatsApp (que ainda não existem); o mesmo conteúdo já mora na ficha da
+pessoa, dentro da tela do setor.
 
 ---
 

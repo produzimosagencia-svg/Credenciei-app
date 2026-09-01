@@ -395,7 +395,9 @@ test('presentes e ainda-não-chegaram somam a equipe', async () => {
   const faltando = p.indicadores.find(i => i.chave === 'nao_chegaram')!
   const equipe = p.eventos.reduce((a, e) => a + e.equipe, 0)
 
-  assert.equal(presentes.valor + faltando.valor, equipe)
+  // Os dois são sempre contagem — `valor` só vira texto em fichas que somam
+  // um "68%" ou uma data, o que não é o caso do painel.
+  assert.equal((presentes.valor as number) + (faltando.valor as number), equipe)
 })
 
 test('o supervisor vê só o próprio setor, e o recorte é do servidor', async () => {
@@ -1373,6 +1375,69 @@ test('só o master cria organização', async () => {
     }),
     /permissão/i,
   )
+})
+
+test('a ficha da pessoa junta o histórico de todas as organizações', async () => {
+  const c = await comoMaster()
+  const r = await c.fichaDaPessoaNaBase('037.482.615-09') // Ana Cláudia, com máscara — precisa aceitar
+
+  assert.equal(r.nome, 'Ana Cláudia Ferreira')
+  assert.equal(r.trabalhos.length, 2)
+  assert.equal(r.trabalhos[0]?.eventoId, 'ev-1', 'do mais recente para o mais antigo')
+  const organizacoes = r.indicadores.find(i => i.chave === 'organizacoes')
+  assert.equal(organizacoes?.valor, 2, 'ela trabalhou pra Produzimos e Vibe Produções')
+})
+
+test('a ficha não mostra valor pago — preço de concorrente', async () => {
+  const c = await comoMaster()
+  const r = await c.fichaDaPessoaNaBase('76431520891')
+  assert.ok(!JSON.stringify(r).match(/valorPorPessoa|valorCobrado/))
+})
+
+test('pessoa sem histórico escrito à mão ganha uma ficha sintética, e não vazia', async () => {
+  // Rodrigo não está no fixture de histórico à mão — só nos números agregados.
+  const c = await comoMaster()
+  const r = await c.fichaDaPessoaNaBase('21890647355')
+  assert.equal(r.trabalhos.length, 4, 'bate com o `eventos` agregado da base')
+})
+
+test('CPF que não existe na base é recusado', async () => {
+  const c = await comoMaster()
+  await assert.rejects(() => c.fichaDaPessoaNaBase('00000000000'), /não encontramos/i)
+})
+
+test('só o master vê a ficha da pessoa, ou atribui alguém a um evento', async () => {
+  const admin = await noPortao()
+  await assert.rejects(() => admin.fichaDaPessoaNaBase('76431520891'), /permissão/i)
+  await assert.rejects(() => admin.atribuirPessoaAoEvento('76431520891', 's-1'), /permissão/i)
+})
+
+test('atribuir coloca a pessoa no setor — bloqueada se o setor bateu o teto', async () => {
+  // Wesley: só 1 dos 2 eventos sintéticos cai em ev-1/ev-2, então ev-3 (setor
+  // s-8, Produção, 2 de 2 — no teto) está livre para atribuir.
+  const c = await comoMaster()
+  const antes = await c.fichaDaPessoaNaBase('30561847210')
+  assert.ok(!antes.jaNosEventos.includes('ev-3'))
+
+  const r = await c.atribuirPessoaAoEvento('30561847210', 's-8')
+  assert.ok(!r.erro, r.erro)
+  assert.equal(r.resultado?.evento, 'Fantastico Mundo do Lukao')
+  assert.equal(r.resultado?.ativo, false, 'o setor já estava no teto')
+  assert.equal(r.resultado?.semTelefone, true, 'Wesley não tem telefone cadastrado')
+
+  const depois = await c.fichaDaPessoaNaBase('30561847210')
+  assert.ok(depois.jaNosEventos.includes('ev-3'))
+})
+
+test('não dá para atribuir a mesma pessoa duas vezes ao mesmo evento', async () => {
+  // Ana Cláudia já está em ev-1 e ev-3 (histórico escrito à mão) — ev-2 (s-6)
+  // está livre para a primeira chamada.
+  const c = await comoMaster()
+  const r1 = await c.atribuirPessoaAoEvento('03748261509', 's-6')
+  assert.ok(!r1.erro, r1.erro)
+
+  const r2 = await c.atribuirPessoaAoEvento('03748261509', 's-6')
+  assert.match(r2.erro ?? '', /já está neste evento/i)
 })
 
 test('a base é por CPF, não por cadastro', async () => {

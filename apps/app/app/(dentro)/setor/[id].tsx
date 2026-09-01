@@ -103,7 +103,8 @@ export default function EquipeDoSetor() {
               <View key={i.chave} style={e.gradeItem}>
                 <Indicador
                   rotulo={i.rotulo}
-                  valor={i.chave === 'a_receber' ? emReais(i.valor) : i.valor}
+                  // "a_receber" é sempre número — só a ficha entre organizações usa texto pronto.
+                  valor={i.chave === 'a_receber' ? emReais(i.valor as number) : i.valor}
                   sub={i.sub}
                   tom={i.tom}
                   icone={<Icone nome={ICONE_DO_INDICADOR[i.chave] ?? 'Users'} tamanho={16} tom="#ffffff" />}

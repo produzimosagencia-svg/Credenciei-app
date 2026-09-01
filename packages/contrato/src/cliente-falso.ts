@@ -24,7 +24,7 @@
 
 import {
   avaliarEntradaSaida, conferirHorariosDoEvento, diaBRT, ehMaster, faseConfere,
-  faseDoDia, formatCpf, gerarCodigoQR, janelaMeio, lerCodigoDeEvento,
+  faseDoDia, formatarBR, formatCpf, gerarCodigoQR, janelaMeio, lerCodigoDeEvento,
   lerCodigoQR, podeAcompanhar, podeEscanear, podeGerenciarEventos,
   podeGerenciarOrganizacoes, podeGerenciarUsuarios,
 } from '@credenciei/dominio'
@@ -38,8 +38,10 @@ import type {
   LinhaDaAtividade,
   ListaDeAcessos, MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe,
   PessoaDaLista, PessoaDoSetor, Portaria, ResultadoDaImportacao,
-  BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, ListaDeOrganizacoes,
+  BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, EventoParaAtribuir,
+  FichaDaPessoaNaBase, ListaDeOrganizacoes,
   Organizacao, PainelDoWhatsApp, PessoaDaBase, PessoaRegional,
+  ResultadoDeAtribuicao, SetorParaAtribuir, TrabalhoDaPessoa,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, StatusDaEtapa, Sessao,
 } from './tipos.js'
@@ -519,6 +521,85 @@ const BASE_DE_MENTIRA: (PessoaDaBase & { cidade: string | null; trabalhou: numbe
   { cpf: '87204953167', nome: 'Simone Vasconcelos', telefone: '27996655443', funcao: 'Encarregada de limpeza', eventos: 1, organizacoes: 1, ultimoCadastro: '2026-08-30T09:00:00-03:00', cidade: 'Vitória', trabalhou: 0 },
   { cpf: '65498732100', nome: 'Larissa Prado Coelho', telefone: '27994433221', funcao: 'Recepcionista', eventos: 5, organizacoes: 2, ultimoCadastro: '2026-06-11T16:00:00-03:00', cidade: 'Vila Velha', trabalhou: 5 },
 ]
+
+/**
+ * O histórico de trabalho de quem está na base — por CPF, os eventos em que
+ * já esteve escalada, em QUALQUER organização.
+ *
+ * Só duas pessoas ganham histórico escrito à mão: uma com etapas completas
+ * num evento e incompleta noutro — para a tela precisar mostrar as duas
+ * bandeiras —, outra com uma linha `ativo: false`, porque o setor bateu o
+ * teto. O resto da base ganha uma linha sintética em
+ * `trabalhoSinteticoDaBase()`: o bastante para a ficha nunca aparecer vazia,
+ * sem inventar uma história rica para quem a tela não está testando.
+ */
+const TRABALHOS_DA_BASE: Record<string, TrabalhoDaPessoa[]> = {
+  '03748261509': [ // Ana Cláudia Ferreira
+    {
+      funcionarioId: 'f-ana-1', eventoId: 'ev-1', evento: 'Henrique e Juliano - Kleber Andrade',
+      organizacaoId: 'org-1', organizacao: 'Produzimos', setor: 'Bar', setorId: 's-3',
+      cargo: 'Auxiliar de palco', data: '2026-09-05T18:30:00-03:00', dataFim: '2026-09-05T18:30:00-03:00',
+      ativo: true, etapas: ['entrada', 'meio', 'fim'], compareceu: true, podeAbrirEvento: true,
+    },
+    {
+      funcionarioId: 'f-ana-2', eventoId: 'ev-3', evento: 'Fantastico Mundo do Lukao',
+      organizacaoId: 'org-2', organizacao: 'Vibe Produções', setor: 'Produção', setorId: 's-8',
+      cargo: 'Auxiliar de palco', data: '2026-08-22T19:00:00-03:00', dataFim: '2026-08-22T19:00:00-03:00',
+      ativo: true, etapas: ['entrada'], compareceu: true, podeAbrirEvento: false,
+    },
+  ],
+  '76431520891': [ // Juan Muzy
+    {
+      funcionarioId: 'f-juan-1', eventoId: 'ev-1', evento: 'Henrique e Juliano - Kleber Andrade',
+      organizacaoId: 'org-1', organizacao: 'Produzimos', setor: 'Produção', setorId: 's-1',
+      cargo: 'Produtor', data: '2026-09-05T18:30:00-03:00', dataFim: '2026-09-05T18:30:00-03:00',
+      ativo: true, etapas: ['entrada', 'meio', 'fim'], compareceu: true, podeAbrirEvento: true,
+    },
+    {
+      // O setor bateu o teto quando ela entrou: fica no histórico, bloqueada.
+      funcionarioId: 'f-juan-2', eventoId: 'ev-2', evento: 'Manos da Vila',
+      organizacaoId: 'org-1', organizacao: 'Produzimos', setor: 'Produção', setorId: 's-6',
+      cargo: 'Produtor', data: '2026-08-29T20:00:00-03:00', dataFim: '2026-08-29T20:00:00-03:00',
+      ativo: false, etapas: [], compareceu: false, podeAbrirEvento: true,
+    },
+  ],
+}
+
+/**
+ * Para quem não tem histórico escrito à mão: gera linhas plausíveis a partir
+ * dos números agregados que a base já tem — determinístico, sem `Math.random`,
+ * para o mesmo CPF sempre voltar com o mesmo histórico.
+ */
+function trabalhoSinteticoDaBase(
+  p: PessoaDaBase & { cidade: string | null; trabalhou: number },
+): TrabalhoDaPessoa[] {
+  const total = Math.max(p.eventos, p.trabalhou)
+  const linhas: TrabalhoDaPessoa[] = []
+  for (let i = 0; i < total; i++) {
+    const evento = EVENTOS_DO_PAINEL[i % EVENTOS_DO_PAINEL.length]!
+    const setores = SETORES_DE_MENTIRA[evento.eventoId] ?? []
+    const setor = setores[i % Math.max(setores.length, 1)] ?? null
+    const org = ORGANIZACOES_DE_MENTIRA[i % ORGANIZACOES_DE_MENTIRA.length]!
+    const compareceu = i < p.trabalhou
+    linhas.push({
+      funcionarioId: `f-sint-${p.cpf}-${i}`,
+      eventoId: evento.eventoId,
+      evento: evento.nome,
+      organizacaoId: org.organizacaoId,
+      organizacao: org.nome,
+      setor: setor?.nome ?? 'Equipe',
+      setorId: setor?.setorId ?? evento.eventoId,
+      cargo: p.funcao ?? '',
+      data: evento.dataInicio,
+      dataFim: evento.dataInicio,
+      ativo: true,
+      etapas: compareceu ? ['entrada'] : [],
+      compareceu,
+      podeAbrirEvento: true,
+    })
+  }
+  return linhas
+}
 
 /** Os templates aprovados pela Meta, do jeito que a leitura devolve. */
 const TEMPLATES_DE_MENTIRA: PainelDoWhatsApp['templates'] = [
@@ -2085,6 +2166,124 @@ export class ClienteFalso implements ClienteApi {
       ],
       pessoas,
       cidades: [...new Set(BASE_DE_MENTIRA.map(p => p.cidade).filter((c): c is string => !!c))].sort(),
+    }
+  }
+
+  /**
+   * A ficha completa: todo evento em que a pessoa já trabalhou, em qualquer
+   * organização. Responde "posso chamar essa pessoa?" — por isso é só do
+   * master, e por isso não carrega valor pago (preço de concorrente).
+   */
+  async fichaDaPessoaNaBase(cpf: string): Promise<FichaDaPessoaNaBase> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrganizacoes, 'ver a ficha da pessoa')
+
+    const digitos = (cpf ?? '').replace(/\D/g, '')
+    const pessoa = BASE_DE_MENTIRA.find(p => p.cpf === digitos)
+    if (!pessoa) throw new Error('Não encontramos ninguém com este CPF na base.')
+
+    const trabalhos = TRABALHOS_DA_BASE[digitos] ?? trabalhoSinteticoDaBase(pessoa)
+    const compareceram = trabalhos.filter(t => t.compareceu).length
+    const organizacoes = new Set(trabalhos.map(t => t.organizacao))
+    const taxa = trabalhos.length ? Math.round((compareceram / trabalhos.length) * 100) : 0
+    const ultimoTrabalho = trabalhos[0]?.data ?? null
+
+    const eventosParaAtribuir: EventoParaAtribuir[] = EVENTOS_DO_PAINEL.map(e => ({
+      id: e.eventoId, nome: e.nome, ativo: e.aoVivo, data: e.dataInicio,
+    }))
+    const setoresParaAtribuir: SetorParaAtribuir[] = Object.entries(SETORES_DE_MENTIRA)
+      .flatMap(([eventoId, setores]) => setores.map(s => ({ id: s.setorId, nome: s.nome, eventoId })))
+
+    return {
+      cpf: digitos,
+      nome: pessoa.nome,
+      telefone: pessoa.telefone,
+      cidade: pessoa.cidade,
+      chavePix: null,
+      cargoMaisComum: pessoa.funcao ?? '',
+      autorizouBaseRegional: true,
+      autorizouEm: pessoa.ultimoCadastro,
+      indicadores: [
+        { chave: 'eventos', rotulo: 'Eventos trabalhados', valor: trabalhos.length, tom: 'acento' },
+        { chave: 'organizacoes', rotulo: 'Organizações', valor: organizacoes.size, tom: 'info' },
+        {
+          chave: 'taxa', rotulo: 'Taxa de presença', valor: `${taxa}%`,
+          sub: trabalhos.length ? `compareceu em ${compareceram}` : undefined, tom: 'sucesso',
+        },
+        {
+          chave: 'ultimo', rotulo: 'Último trabalho',
+          valor: ultimoTrabalho ? formatarBR(ultimoTrabalho, 'data') : '—', tom: 'aviso',
+        },
+      ],
+      trabalhos,
+      eventosParaAtribuir,
+      setoresParaAtribuir,
+      jaNosEventos: [...new Set(trabalhos.map(t => t.eventoId))],
+    }
+  }
+
+  /**
+   * Coloca a pessoa na equipe de um setor — o passo que fecha "achei" em
+   * "chamei". Dois passos no formulário (evento, depois setor) porque o
+   * segundo depende do primeiro; aqui só confere o resultado.
+   */
+  async atribuirPessoaAoEvento(
+    cpf: string, setorId: string,
+  ): Promise<{ resultado?: ResultadoDeAtribuicao; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrganizacoes, 'atribuir alguém a um evento')
+
+    const digitos = (cpf ?? '').replace(/\D/g, '')
+    const pessoa = BASE_DE_MENTIRA.find(p => p.cpf === digitos)
+    if (!pessoa) return { erro: 'Não encontramos ninguém com este CPF na base.' }
+
+    const entrada = Object.entries(SETORES_DE_MENTIRA)
+      .flatMap(([eventoId, setores]) => setores.map(s => ({ eventoId, setor: s })))
+      .find(x => x.setor.setorId === setorId)
+    if (!entrada) return { erro: 'Não encontramos este setor.' }
+
+    const evento = EVENTOS_DO_PAINEL.find(e => e.eventoId === entrada.eventoId)
+    if (!evento) return { erro: 'Não encontramos o evento deste setor.' }
+
+    // Uma pessoa só entra uma vez por evento — a mesma regra do formulário de
+    // convite, só que do outro lado: quem atribui, não quem se cadastra.
+    const trabalhos = TRABALHOS_DA_BASE[digitos] ?? trabalhoSinteticoDaBase(pessoa)
+    if (trabalhos.some(t => t.eventoId === entrada.eventoId)) {
+      return { erro: `${pessoa.nome} já está neste evento. Uma pessoa só entra uma vez por evento.` }
+    }
+
+    // O setor bateu o teto: entra mesmo assim, mas bloqueada — quem decide se
+    // abre uma vaga a mais é quem administra o setor, não esta tela.
+    const noTeto = entrada.setor.estimado !== null && entrada.setor.pessoas >= entrada.setor.estimado
+    entrada.setor.pessoas += 1
+
+    const nova: TrabalhoDaPessoa = {
+      funcionarioId: `f-atrib-${digitos}-${entrada.setor.setorId}`,
+      eventoId: entrada.eventoId,
+      evento: evento.nome,
+      organizacaoId: null,
+      organizacao: 'Produzimos',
+      setor: entrada.setor.nome,
+      setorId: entrada.setor.setorId,
+      cargo: pessoa.funcao ?? '',
+      data: evento.dataInicio,
+      dataFim: evento.dataInicio,
+      ativo: !noTeto,
+      etapas: [],
+      compareceu: false,
+      podeAbrirEvento: true,
+    }
+    TRABALHOS_DA_BASE[digitos] = [nova, ...trabalhos]
+
+    return {
+      resultado: {
+        evento: evento.nome,
+        setor: entrada.setor.nome,
+        ativo: !noTeto,
+        semTelefone: !pessoa.telefone,
+      },
     }
   }
 

@@ -183,7 +183,12 @@ export type PainelDaEquipe = {
 export type IndicadorDoPainel = {
   chave: string
   rotulo: string
-  valor: number
+  /**
+   * Quase sempre uma contagem. Aceita texto pronto — "68%", uma data curta —
+   * para os poucos indicadores que não são contagem; quem monta já formata,
+   * porque o cartão só imprime o que recebe.
+   */
+  valor: number | string
   sub?: string
   tom: 'acento' | 'sucesso' | 'aviso' | 'info' | 'erro' | 'neutro'
 }
@@ -894,6 +899,70 @@ export type BuscaRegional = {
   pessoas: PessoaRegional[]
   /** As cidades que existem na base, para o filtro não ser um campo em branco. */
   cidades: string[]
+}
+
+/** Uma linha do histórico de trabalho: um evento em que a pessoa esteve escalada. */
+export type TrabalhoDaPessoa = {
+  funcionarioId: string
+  eventoId: string
+  evento: string
+  organizacaoId: string | null
+  organizacao: string
+  setor: string
+  setorId: string
+  cargo: string
+  data: string
+  dataFim: string | null
+  /** Bloqueada não é apagada: fica no histórico, marcada. */
+  ativo: boolean
+  etapas: ('entrada' | 'meio' | 'fim')[]
+  /** Bateu entrada — é o que decide "compareceu" ou "chamada e não apareceu". */
+  compareceu: boolean
+  /** Só quem enxerga aquela organização pode abrir o evento a partir daqui. */
+  podeAbrirEvento: boolean
+}
+
+export type EventoParaAtribuir = { id: string; nome: string; ativo: boolean; data: string }
+export type SetorParaAtribuir = { id: string; nome: string; eventoId: string }
+
+/**
+ * A ficha completa de uma pessoa da base, identificada por CPF.
+ *
+ * Junta todo evento em que ela já trabalhou, em QUALQUER organização — é o
+ * que responde "posso chamar essa pessoa?" antes de convidar alguém para um
+ * evento novo. Por isso é só do master: um admin não pode ver o histórico
+ * de outra organização.
+ *
+ * Não carrega valor pago: o que outra organização pagou é preço de
+ * concorrente. Quem contrata precisa saber SE ela aparece, não quanto
+ * custou antes.
+ */
+export type FichaDaPessoaNaBase = {
+  cpf: string
+  nome: string
+  telefone: string | null
+  cidade: string | null
+  chavePix: string | null
+  cargoMaisComum: string
+  /** Autorizou aparecer na busca regional — uma vez só, não por evento. */
+  autorizouBaseRegional: boolean
+  autorizouEm: string | null
+  /** Eventos trabalhados · Organizações · Taxa de presença · Último trabalho. */
+  indicadores: IndicadorDoPainel[]
+  /** Do evento mais recente para o mais antigo. */
+  trabalhos: TrabalhoDaPessoa[]
+  eventosParaAtribuir: EventoParaAtribuir[]
+  setoresParaAtribuir: SetorParaAtribuir[]
+  /** Eventos em que ela já está — não dá para atribuir de novo. */
+  jaNosEventos: string[]
+}
+
+export type ResultadoDeAtribuicao = {
+  evento: string
+  setor: string
+  /** Falso quando o setor bateu o teto: ela entra, mas bloqueada. */
+  ativo: boolean
+  semTelefone: boolean
 }
 
 export type TemplateDoWhatsApp = {

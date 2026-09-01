@@ -34,8 +34,8 @@ import type {
   FichaLocalizada,
   FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
   NovoAcesso, Painel, PainelDaEquipe, Portaria,
-  BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, ListaDeOrganizacoes,
-  Organizacao, PainelDoWhatsApp,
+  BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, FichaDaPessoaNaBase,
+  ListaDeOrganizacoes, Organizacao, PainelDoWhatsApp, ResultadoDeAtribuicao,
   ResultadoDaImportacao,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, Sessao,
@@ -532,6 +532,18 @@ export class ClienteHttp implements ClienteApi {
   ): Promise<BuscaRegional> {
     void _filtro
     throw new AindaNaoNaApi('encontrarColaborador')
+  }
+
+  async fichaDaPessoaNaBase(_cpf: string): Promise<FichaDaPessoaNaBase> {
+    void _cpf
+    throw new AindaNaoNaApi('fichaDaPessoaNaBase')
+  }
+
+  async atribuirPessoaAoEvento(
+    _cpf: string, _setorId: string,
+  ): Promise<{ resultado?: ResultadoDeAtribuicao; erro?: string }> {
+    void _cpf; void _setorId
+    throw new AindaNaoNaApi('atribuirPessoaAoEvento')
   }
 
   async painelDoWhatsApp(): Promise<PainelDoWhatsApp> {

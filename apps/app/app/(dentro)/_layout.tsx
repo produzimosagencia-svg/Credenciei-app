@@ -132,6 +132,7 @@ export default function Dentro() {
         { nome: 'base-funcionarios', titulo: 'Base de funcionários' },
         { nome: 'encontrar', titulo: 'Encontre colaborador' },
         { nome: 'whatsapp', titulo: 'WhatsApp' },
+        { nome: 'pessoa/[cpf]', titulo: 'Ficha da pessoa' },
       ].map(tela => (
         <Tabs.Screen
           key={tela.nome}

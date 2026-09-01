@@ -94,7 +94,8 @@ export function Painel() {
           <Respiro altura={espaco.s} />
           <FluxoDeCredenciamento
             legenda={pedido.dados.legendaDaJanela}
-            batidas={pedido.dados.indicadores.find(i => i.chave === 'batidas')?.valor ?? 0}
+            // "batidas" é sempre número — só a ficha entre organizações usa texto pronto.
+            batidas={(pedido.dados.indicadores.find(i => i.chave === 'batidas')?.valor as number) ?? 0}
           />
 
           <AtividadeDoEvento itens={pedido.dados.atividade} />

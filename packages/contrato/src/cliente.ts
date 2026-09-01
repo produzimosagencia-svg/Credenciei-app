@@ -16,8 +16,8 @@ import type {
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
   MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe, Portaria,
-  BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, ListaDeOrganizacoes,
-  Organizacao, PainelDoWhatsApp,
+  BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, FichaDaPessoaNaBase,
+  ListaDeOrganizacoes, Organizacao, PainelDoWhatsApp, ResultadoDeAtribuicao,
   ResultadoDaImportacao, ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida,
   ResumoParticipacao, SetorDetalhado, Sessao,
 } from './tipos.js'
@@ -281,6 +281,20 @@ export interface ClienteApi {
 
   /** A base regional, para montar equipe para o evento de um cliente. */
   encontrarColaborador(filtro?: { busca?: string; cidade?: string }): Promise<BuscaRegional>
+
+  /**
+   * A ficha completa de alguém da base: todo evento em que já trabalhou, em
+   * qualquer organização. Responde "posso chamar essa pessoa?".
+   */
+  fichaDaPessoaNaBase(cpf: string): Promise<FichaDaPessoaNaBase>
+
+  /**
+   * Coloca a pessoa na equipe de um setor.
+   *
+   * É o passo que fecha o ciclo: a Base e o Encontre colaborador só acham
+   * gente; isto aqui é o "chamei".
+   */
+  atribuirPessoaAoEvento(cpf: string, setorId: string): Promise<{ resultado?: ResultadoDeAtribuicao; erro?: string }>
 
   /** O estado do canal de WhatsApp e os templates aprovados pela Meta. */
   painelDoWhatsApp(): Promise<PainelDoWhatsApp>
