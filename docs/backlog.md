@@ -33,6 +33,32 @@ Atualizado em 31/08/2026.
 
 ---
 
+## O caminho até finalizar, em fases
+
+As 18 epics agrupadas pela ordem em que fazem sentido — não por número.
+Cada fase soma exatamente as tasks restantes (Total − Feito) das epics que
+carrega; a soma das sete bate com as 159 que faltam no total. Onde o resumo
+não é mais fundo que "o que sobrou da epic" é porque a epic não foi
+detalhada tarefa a tarefa ainda — ver a tabela abaixo para o Feito/Total de
+cada uma.
+
+| Fase | Epics | Restam | O que é |
+|---|---|---|---|
+| 1 — Fechar o mapeamento | 17 | 7 | As 6 linhas de `Mapeado em 31/08` que ainda não têm ✅, mais a tela de pendências do evento |
+| 2 — Ligar a API de verdade | 3, 18 | 17 | O maior bloco: toda tela do painel — escanear, ponto, atividades, acessos, Plataforma, configurar evento — ainda fala com `ClienteFalso` |
+| 3 — Fechar os ciclos pela metade | 2, 4, 6, 7, 8, 9, 10 | 48 | Sincronização com o site, recuperação de conta, QR (Ed25519, código giratório), foto no storage, o resto do ciclo de ponto, histórico e polimento do supervisor |
+| 4 — Aguentar 20 mil pessoas | 13, 14 | 23 | Teste de carga, LGPD, retenção de dados |
+| 5 — Publicar | 11, 16 | 30 | Push e as duas lojas — **bloqueado na conta Apple Developer** |
+| 6 — O banco de verdade | 1 | 13 | Rodar as três migrações — **bloqueado no banco de homologação** |
+| 7 — Depois do MVP | 12, 15 | 21 | Versão web e os últimos testes — por definição, o que "vem depois" |
+
+**Onde estamos de verdade hoje**: o app inteiro é navegável, com a lógica de
+negócio real por baixo — mas contra um servidor de mentira. A Fase 2 é o que
+faz a diferença entre "protótipo completo" e "sistema em produção": sem ela,
+nada do resto importa ainda.
+
+---
+
 ## Progresso por epic
 
 | # | Epic | Feito | Total | MVP | Situação |
