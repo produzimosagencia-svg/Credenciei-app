@@ -10,6 +10,7 @@
 // mostrando quem está suspenso, e a ação é reversível com um toque.
 
 import { useState } from 'react'
+import { useRouter } from 'expo-router'
 import { StyleSheet, Text, View } from 'react-native'
 import { formatarBR } from '@credenciei/dominio'
 import type { Organizacao } from '@credenciei/contrato'
@@ -29,6 +30,7 @@ const PERIODO: Record<string, string> = {
 }
 
 export default function Organizacoes() {
+  const router = useRouter()
   const { cliente } = useSessao()
   const [versao, setVersao] = useState(0)
   const [ocupado, setOcupado] = useState<string | null>(null)
@@ -58,6 +60,9 @@ export default function Organizacoes() {
         Os clientes da plataforma — cada um com o próprio painel, equipe e
         limite de eventos
       </Legenda>
+      <Respiro />
+
+      <Botao titulo="Nova organização" onPress={() => router.push('/nova-organizacao')} tipo="acento" />
       <Respiro />
 
       {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}

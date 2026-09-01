@@ -811,6 +811,36 @@ export type ListaDeOrganizacoes = {
 }
 
 /**
+ * O que "Nova organização" pede: o cliente, o admin dono dela e — se vier
+ * preenchido — o primeiro evento.
+ *
+ * A foto de perfil e a pasta no Drive existem no sistema web e não estão
+ * aqui: são passos do servidor, não do formulário, e entram junto quando este
+ * método ligar na API de verdade.
+ */
+export type DadosDeNovaOrganizacao = {
+  nome: string
+  documento?: string | null
+  responsavelNome?: string | null
+  limiteEventos: number
+  valorCobrado?: number | null
+  valorCobradoPeriodo?: 'mensal' | 'anual' | 'por_evento'
+  adminNome: string
+  email: string
+  senha: string
+  /**
+   * Opcional: o master pode já cadastrar o primeiro evento, ou deixar o
+   * admin criar depois, dentro do limite de eventos definido acima.
+   */
+  primeiroEvento?: {
+    nome: string
+    dataInicio: string
+    dataFim: string
+    local?: string | null
+  } | null
+}
+
+/**
  * Alguém da base de funcionários.
  *
  * A base é por CPF, e não por cadastro: a mesma pessoa credenciada em cinco

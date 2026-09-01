@@ -34,7 +34,8 @@ import type {
   FichaLocalizada,
   FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
   NovoAcesso, Painel, PainelDaEquipe, Portaria,
-  BaseDeFuncionarios, BuscaRegional, ListaDeOrganizacoes, PainelDoWhatsApp,
+  BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, ListaDeOrganizacoes,
+  Organizacao, PainelDoWhatsApp,
   ResultadoDaImportacao,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, Sessao,
@@ -509,6 +510,11 @@ export class ClienteHttp implements ClienteApi {
 
   async organizacoes(): Promise<ListaDeOrganizacoes> {
     throw new AindaNaoNaApi('organizacoes')
+  }
+
+  async criarOrganizacao(_dados: DadosDeNovaOrganizacao): Promise<{ organizacao?: Organizacao; erro?: string }> {
+    void _dados
+    throw new AindaNaoNaApi('criarOrganizacao')
   }
 
   async alternarOrganizacao(_id: string, _ativa: boolean): Promise<{ erro?: string }> {

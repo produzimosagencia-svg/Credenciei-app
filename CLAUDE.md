@@ -40,13 +40,13 @@ uma regra só.
 ```
 packages/dominio     a regra de negócio, pura — 48 testes
 packages/offline     a fila de batidas sem internet — 22 testes
-packages/contrato    o que o app pode pedir + servidor falso — 113 testes
+packages/contrato    o que o app pode pedir + servidor falso — 118 testes
 apps/api             a API HTTP completa — 89 testes
 apps/app             o aplicativo, em React Native + Expo — 85 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**357 testes.** `npm run verificar` roda tipos e testes de
+**362 testes.** `npm run verificar` roda tipos e testes de
 tudo, sem banco e sem rede. Só `npm run teste` NÃO confere tipos — o `tsx` não
 olha para eles.
 
@@ -162,7 +162,7 @@ o erro volta.
 ## Como acompanhar
 
 O Juan pede status assim: *"como estamos?"*. Responda com **percentual real do
-backlog** (295 tasks, 182 no MVP) — e o do MVP é o que responde "quando dá para usar"; `npm run backlog` calcula os dois — nunca invente número. O que está feito por
+backlog** (296 tasks, 183 no MVP) — e o do MVP é o que responde "quando dá para usar"; `npm run backlog` calcula os dois — nunca invente número. O que está feito por
 epic está em `docs/backlog.md`.
 
 Ao terminar um dia de trabalho, ele espera um resumo: feito, alterado, testado,

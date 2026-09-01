@@ -1294,6 +1294,87 @@ test('suspender bloqueia sem apagar', async () => {
   assert.equal((await c.organizacoes()).ativas, antes.ativas)
 })
 
+test('cria a organização, o admin dono dela e conta o primeiro evento', async () => {
+  const c = await comoMaster()
+  const antes = await c.organizacoes()
+
+  const r = await c.criarOrganizacao({
+    nome: '  Brilha Shows  ',
+    limiteEventos: 5,
+    adminNome: 'Fernanda Lima',
+    email: 'fernanda@brilhashows.com.br',
+    senha: 'senha123',
+    primeiroEvento: {
+      nome: 'Réveillon 2027',
+      dataInicio: '2027-01-01T00:00:00-03:00',
+      dataFim: '2027-01-01T06:00:00-03:00',
+      local: 'Praia do Canto',
+    },
+  })
+
+  assert.ok(!r.erro, r.erro)
+  assert.equal(r.organizacao?.nome, 'Brilha Shows', 'os espaços nas pontas não sobrevivem')
+  assert.equal(r.organizacao?.ativa, true)
+  assert.equal(r.organizacao?.eventos, 1, 'o primeiro evento já entra na contagem')
+
+  const depois = await c.organizacoes()
+  assert.equal(depois.total, antes.total + 1)
+  assert.ok(depois.itens.some(o => o.organizacaoId === r.organizacao?.organizacaoId))
+})
+
+test('sem primeiro evento, a organização nasce com zero eventos', async () => {
+  const c = await comoMaster()
+  const r = await c.criarOrganizacao({
+    nome: 'Eventos da Serra',
+    limiteEventos: 3,
+    adminNome: 'Caio Nogueira',
+    email: 'caio@eventosdaserra.com.br',
+    senha: 'senha123',
+  })
+  assert.equal(r.organizacao?.eventos, 0)
+})
+
+test('e-mail já usado por outra organização é recusado', async () => {
+  // Sem isso, duas organizações disputariam o mesmo login de admin.
+  const c = await comoMaster()
+  const alguma = (await c.organizacoes()).itens.find(o => o.adminIdentificador)!
+
+  const r = await c.criarOrganizacao({
+    nome: 'Outra Produtora',
+    limiteEventos: 1,
+    adminNome: 'Alguém',
+    email: alguma.adminIdentificador!.toUpperCase(),
+    senha: 'senha123',
+  })
+  assert.match(r.erro ?? '', /e-mail/i)
+})
+
+test('senha curta é recusada antes de criar a conta', async () => {
+  const c = await comoMaster()
+  const r = await c.criarOrganizacao({
+    nome: 'Produtora Nova',
+    limiteEventos: 1,
+    adminNome: 'Alguém',
+    email: 'alguem@produtoranova.com.br',
+    senha: '123',
+  })
+  assert.match(r.erro ?? '', /senha/i)
+})
+
+test('só o master cria organização', async () => {
+  const admin = await noPortao()
+  await assert.rejects(
+    () => admin.criarOrganizacao({
+      nome: 'Não Devia Existir',
+      limiteEventos: 1,
+      adminNome: 'X',
+      email: 'x@x.com',
+      senha: 'senha123',
+    }),
+    /permissão/i,
+  )
+})
+
 test('a base é por CPF, não por cadastro', async () => {
   /*
    * A mesma pessoa credenciada em cinco eventos de três clientes é UMA linha.

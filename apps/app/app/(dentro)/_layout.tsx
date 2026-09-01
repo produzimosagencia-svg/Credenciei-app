@@ -128,6 +128,7 @@ export default function Dentro() {
         { nome: 'evento/[id]/editar', titulo: 'Editar evento' },
         { nome: 'setor/[id]', titulo: 'Equipe do setor' },
         { nome: 'organizacoes', titulo: 'Organizações' },
+        { nome: 'nova-organizacao', titulo: 'Nova organização' },
         { nome: 'base-funcionarios', titulo: 'Base de funcionários' },
         { nome: 'encontrar', titulo: 'Encontre colaborador' },
         { nome: 'whatsapp', titulo: 'WhatsApp' },

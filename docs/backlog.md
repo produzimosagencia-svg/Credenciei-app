@@ -1,8 +1,8 @@
 # Backlog
 
-**295 tasks · 182 no MVP · 143 concluídas (48%)**
+**296 tasks · 183 no MVP · 144 concluídas (49%)**
 
-**Só o MVP: 115 de 182 (63%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 116 de 183 (63%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -43,7 +43,7 @@ Atualizado em 31/08/2026.
 | 14 | Segurança | 4 | 13 | — | Isolamento e limite feitos; falta LGPD e retenção |
 | 15 | Testes | 9 | 14 | — | 347 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 29 | 29 | ✓ | Pronto |
+| 17 | Painel no app | 30 | 30 | ✓ | Pronto |
 | 18 | Configurar evento | 8 | 14 | ✓ | Edição, dias e planilhas; falta a API |
 
 ---
@@ -178,6 +178,7 @@ Atualizado em 31/08/2026.
 - Base de funcionários: busca por CPF, a pessoa uma vez só e não um cadastro por evento
 - Encontre colaborador: busca regional por cidade, chamar direto no WhatsApp
 - WhatsApp: estado do canal antes dos números — fila pausada não pode parecer fila cheia
+- Nova organização: cadastro do cliente, do admin dono dele e do primeiro evento opcional
 
 **Epic 18 — Configurar evento**
 - Tela de edição: informações, duração e horários do dia principal

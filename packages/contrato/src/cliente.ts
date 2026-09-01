@@ -16,7 +16,8 @@ import type {
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
   MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe, Portaria,
-  BaseDeFuncionarios, BuscaRegional, ListaDeOrganizacoes, PainelDoWhatsApp,
+  BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, ListaDeOrganizacoes,
+  Organizacao, PainelDoWhatsApp,
   ResultadoDaImportacao, ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida,
   ResumoParticipacao, SetorDetalhado, Sessao,
 } from './tipos.js'
@@ -265,6 +266,12 @@ export interface ClienteApi {
 
   /** Os clientes da plataforma. */
   organizacoes(): Promise<ListaDeOrganizacoes>
+
+  /**
+   * Cadastra um cliente novo: a organização, o admin dono dela e — se vier
+   * preenchido — o primeiro evento.
+   */
+  criarOrganizacao(dados: DadosDeNovaOrganizacao): Promise<{ organizacao?: Organizacao; erro?: string }>
 
   /** Suspende ou reativa um cliente. Suspender bloqueia sem apagar histórico. */
   alternarOrganizacao(organizacaoId: string, ativa: boolean): Promise<{ erro?: string }>

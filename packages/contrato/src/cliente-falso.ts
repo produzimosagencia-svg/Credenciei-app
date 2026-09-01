@@ -38,8 +38,8 @@ import type {
   LinhaDaAtividade,
   ListaDeAcessos, MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe,
   PessoaDaLista, PessoaDoSetor, Portaria, ResultadoDaImportacao,
-  BaseDeFuncionarios, BuscaRegional, ListaDeOrganizacoes, Organizacao,
-  PainelDoWhatsApp, PessoaDaBase, PessoaRegional,
+  BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, ListaDeOrganizacoes,
+  Organizacao, PainelDoWhatsApp, PessoaDaBase, PessoaRegional,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, StatusDaEtapa, Sessao,
 } from './tipos.js'
@@ -1949,6 +1949,51 @@ export class ClienteFalso implements ClienteApi {
       total: ORGANIZACOES_DE_MENTIRA.length,
       ativas: ORGANIZACOES_DE_MENTIRA.filter(o => o.ativa).length,
     }
+  }
+
+  /**
+   * Cria o cliente, o admin dono dele e — se vier preenchido — o primeiro
+   * evento.
+   *
+   * O sistema web também cria a pasta no Drive e sobe a foto de perfil; são
+   * passos de servidor, e este servidor é de mentira. O que a tela precisa
+   * conferir — nome, e-mail único, senha com tamanho mínimo — está aqui.
+   */
+  async criarOrganizacao(dados: DadosDeNovaOrganizacao): Promise<{ organizacao?: Organizacao; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrganizacoes, 'criar organizações')
+
+    const nome = dados.nome.trim()
+    if (!nome) return { erro: 'O nome da organização é obrigatório.' }
+
+    const email = dados.email.trim().toLowerCase()
+    if (!email) return { erro: 'O e-mail do admin é obrigatório.' }
+
+    const emEmUso = ORGANIZACOES_DE_MENTIRA.some(o => o.adminIdentificador?.toLowerCase() === email)
+      || CONTAS_DE_DEMONSTRACAO.some(c => c.email.toLowerCase() === email)
+    if (emEmUso) return { erro: 'Já existe uma conta com este e-mail.' }
+
+    if (dados.senha.length < 6) return { erro: 'A senha precisa ter pelo menos 6 caracteres.' }
+
+    const novo: Organizacao = {
+      organizacaoId: `org-${ORGANIZACOES_DE_MENTIRA.length + 1}`,
+      nome,
+      documento: dados.documento?.trim() || null,
+      ativa: true,
+      adminNome: dados.adminNome.trim(),
+      adminIdentificador: email,
+      // O primeiro evento, se veio preenchido, já conta na contagem: é para
+      // isso que ele serve — poupar o admin de criar o próprio evento no
+      // primeiro acesso.
+      eventos: dados.primeiroEvento ? 1 : 0,
+      limiteEventos: dados.limiteEventos,
+      valorCobrado: dados.valorCobrado ?? null,
+      periodo: dados.valorCobrado ? (dados.valorCobradoPeriodo ?? 'mensal') : null,
+      criadaEm: new Date(this.agora()).toISOString(),
+    }
+    ORGANIZACOES_DE_MENTIRA.push(novo)
+    return { organizacao: novo }
   }
 
   async alternarOrganizacao(organizacaoId: string, ativa: boolean) {
