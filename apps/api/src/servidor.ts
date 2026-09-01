@@ -20,10 +20,11 @@
 
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import type { Papel } from '@credenciei/dominio'
 import type { Sessoes } from './sessoes.js'
 import type { Repositorio } from './dados/repositorio.js'
 import type { Dependencias as DepSessao } from './rotas/sessao.js'
-import { entrar, pedirCodigo } from './rotas/sessao.js'
+import { entrar, entrarComSenha, pedirCodigo } from './rotas/sessao.js'
 import { registrarBatida } from './rotas/batidas.js'
 import { painelDaEquipe } from './rotas/equipe.js'
 import {
@@ -40,7 +41,7 @@ export type Ambiente = {
   novoToken: () => string
 }
 
-type Variaveis = { pessoaId: string }
+type Variaveis = { pessoaId: string; papel: Papel }
 
 export function criarServidor(amb: Ambiente) {
   const app = new Hono<{ Variables: Variaveis }>()
@@ -59,7 +60,21 @@ export function criarServidor(amb: Ambiente) {
     const { telefone, codigo } = await c.req.json<{ telefone?: string; codigo?: string }>()
     const r = await entrar(amb.sessao, telefone ?? '', codigo ?? '')
     if (!r.ok) return c.json({ erro: r.erro }, 401)
-    return c.json({ sessao: await amb.sessoes.abrir(r.pessoaId) })
+    return c.json({ sessao: await amb.sessoes.abrir(r.pessoaId, 'colaborador') })
+  })
+
+  /*
+   * O caminho de quem tem conta de painel: CPF (supervisor), e-mail
+   * (admin/master) ou o nome de usuário antigo — mais senha. Existe em
+   * paralelo ao de cima porque são duas populações diferentes: dezenas de
+   * pessoas com conta permanente, e dezenas de MILHARES contratadas por um
+   * dia, que não vão criar nem lembrar de senha nenhuma.
+   */
+  app.post('/v1/entrar/senha', async c => {
+    const { identificador, senha } = await c.req.json<{ identificador?: string; senha?: string }>()
+    const r = await entrarComSenha(amb.sessao, identificador ?? '', senha ?? '')
+    if (!r.ok) return c.json({ erro: r.erro }, 401)
+    return c.json({ sessao: await amb.sessoes.abrir(r.pessoaId, r.papel) })
   })
 
   app.post('/v1/renovar', async c => {
@@ -75,24 +90,50 @@ export function criarServidor(amb: Ambiente) {
 
     const cabecalho = c.req.header('Authorization') ?? ''
     const token = cabecalho.startsWith('Bearer ') ? cabecalho.slice(7) : ''
-    const pessoaId = await amb.sessoes.pessoaDoToken(token)
-    if (!pessoaId) return c.json({ erro: 'Sessão expirada. Entre de novo.' }, 401)
+    const s = await amb.sessoes.sessaoDoToken(token)
+    if (!s) return c.json({ erro: 'Sessão expirada. Entre de novo.' }, 401)
 
-    c.set('pessoaId', pessoaId)
+    c.set('pessoaId', s.pessoaId)
+    c.set('papel', s.papel)
     return next()
   })
 
   app.get('/v1/eu', async c => {
-    const p = await amb.repo.pessoaPorId(c.get('pessoaId'))
-    if (!p) return c.json({ erro: 'Conta não encontrada.' }, 404)
+    const papel = c.get('papel')
+
+    /*
+     * Colaborador é `Pessoa`; quem tem conta de painel é `Perfil` — são
+     * tabelas diferentes, e um id de uma nunca bate na outra. `/v1/eu`
+     * decide qual buscar pelo papel da SESSÃO (nunca por tentar as duas e
+     * ver qual responde: isso deixaria uma pessoa ler o perfil de outra se
+     * os ids colidissem por acaso).
+     */
+    if (papel === 'colaborador') {
+      const p = await amb.repo.pessoaPorId(c.get('pessoaId'))
+      if (!p) return c.json({ erro: 'Conta não encontrada.' }, 404)
+      return c.json({
+        pessoaId: p.id,
+        nome: p.nome,
+        // Só os últimos dígitos: a tela confirma a identidade sem trafegar o CPF.
+        cpfFinal: `**${(p.cpf ?? '').slice(-2)}`,
+        telefone: p.telefone,
+        fotoUrl: p.fotoPath,
+        papel,
+      })
+    }
+
+    const perfil = await amb.repo.perfilPorId(c.get('pessoaId'))
+    if (!perfil) return c.json({ erro: 'Conta não encontrada.' }, 404)
     return c.json({
-      pessoaId: p.id,
-      nome: p.nome,
-      // Só os últimos dígitos: a tela confirma a identidade sem trafegar o CPF.
-      cpfFinal: `**${(p.cpf ?? '').slice(-2)}`,
-      telefone: p.telefone,
-      fotoUrl: p.fotoPath,
-      papel: 'colaborador',
+      pessoaId: perfil.id,
+      nome: perfil.nome,
+      // Quem tem conta de painel entra por e-mail ou CPF-usuário, não por
+      // CPF exibido em tela — as telas que mostram `cpfFinal` são do
+      // colaborador, e o menu já nem oferece esse caminho a este papel.
+      cpfFinal: '',
+      telefone: null,
+      fotoUrl: null,
+      papel: perfil.papel,
     })
   })
 

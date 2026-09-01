@@ -18,7 +18,9 @@
 // Se a conta de WhatsApp for restringida (já aconteceu neste projeto), o login
 // para junto com os avisos. É um ponto único de falha conhecido.
 
+import type { Papel } from '@credenciei/dominio'
 import { podePassar } from '../limite.js'
+import { identificadorParaEmail } from '../identificador.js'
 import type { Repositorio } from '../dados/repositorio.js'
 
 /** Por quanto tempo o código enviado continua valendo. */
@@ -44,6 +46,15 @@ export interface GuardaDeCodigos {
 /** Como o código chega até a pessoa. Injetado para o teste não mandar nada. */
 export type EnviarPorWhatsapp = (telefone: string, codigo: string) => Promise<void>
 
+/**
+ * Confere a senha contra o Supabase Auth e devolve o id do dono, se bateu.
+ *
+ * Fica fora do `Repositorio` de propósito: não é uma consulta de dado, é uma
+ * chamada a um serviço de autenticação — `signInWithPassword`, no Supabase.
+ * Injetado pelo mesmo motivo do `enviar`: o teste não pode depender de rede.
+ */
+export type AutenticarComSenha = (email: string, senha: string) => Promise<{ userId: string } | null>
+
 export type Sorteio = () => string
 
 const seisDigitos: Sorteio = () => {
@@ -62,6 +73,11 @@ export type Dependencias = {
   repo: Repositorio
   codigos: GuardaDeCodigos
   enviar: EnviarPorWhatsapp
+  /**
+   * Opcional porque nem todo ambiente de teste precisa dele — só quem chama
+   * `entrarComSenha` exige que esteja configurado.
+   */
+  autenticar?: AutenticarComSenha
   sortear?: Sorteio
   agora?: () => number
 }
@@ -168,4 +184,59 @@ export async function entrar(
   if (!pessoa) return recusa
 
   return { ok: true, pessoaId: pessoa.id }
+}
+
+// ── Entrar com senha (conta de painel) ──────────────────────────────────────
+
+export type ResultadoEntradaComSenha =
+  | { ok: true; pessoaId: string; papel: Papel }
+  | { ok: false; erro: string }
+
+/**
+ * O caminho de quem tem conta de painel: CPF, e-mail ou usuário antigo, mais
+ * senha.
+ *
+ * A resposta é sempre a mesma quando falha — "CPF ou senha incorretos" —,
+ * nunca "esse CPF não existe" nem "senha errada": diferenciar entregaria uma
+ * forma de descobrir quem tem conta no sistema, exatamente como no login por
+ * WhatsApp.
+ */
+export async function entrarComSenha(
+  dep: Dependencias,
+  identificadorBruto: string,
+  senha: string,
+): Promise<ResultadoEntradaComSenha> {
+  const agora = dep.agora ?? (() => Date.now())
+  const recusa = { ok: false as const, erro: 'CPF ou senha incorretos.' }
+
+  const identificador = (identificadorBruto ?? '').trim()
+  if (!identificador || !senha) return recusa
+
+  if (!dep.autenticar) {
+    throw new Error('Login por senha não está configurado neste ambiente.')
+  }
+
+  /*
+   * Limite por identificador, não por IP.
+   *
+   * IP muda a cada torre de celular e cada CGNAT de operadora — bloquear por
+   * IP tranca gente de verdade e deixa passar quem troca de rede a cada
+   * tentativa. O identificador é o que o atacante não pode variar sem também
+   * variar a conta que está tentando invadir.
+   */
+  if (!podePassar(`senha:${identificador.toLowerCase()}`, 5, 10 * 60_000, agora())) {
+    return { ok: false, erro: 'Muitas tentativas. Espere alguns minutos e tente de novo.' }
+  }
+
+  const email = identificadorParaEmail(identificador)
+  const auth = await dep.autenticar(email, senha)
+  if (!auth) return recusa
+
+  const perfil = await dep.repo.perfilPorId(auth.userId)
+  // Suspensa responde igual a senha errada: dizer "sua organização foi
+  // suspensa" a quem só errou a senha entregaria informação de graça, e
+  // quem FOI suspenso já sabe por quê — não precisa que a tela confirme.
+  if (!perfil || !perfil.ativo) return recusa
+
+  return { ok: true, pessoaId: perfil.id, papel: perfil.papel }
 }

@@ -19,12 +19,32 @@
 // Os nomes aqui já são os do modelo NOVO. A implementação sobre o banco atual
 // traduz; quando o banco migrar, a tradução some e o resto continua igual.
 
+import type { Papel } from '@credenciei/dominio'
+
 export type Pessoa = {
   id: string
   nome: string
   cpf: string
   telefone: string | null
   fotoPath: string | null
+}
+
+/**
+ * Quem tem conta de painel — master, admin, gerente, cliente ou supervisor.
+ *
+ * `id` é o mesmo id do Supabase Auth (`perfis.id`), não um id à parte: é por
+ * ele que a senha já foi conferida antes de chegar aqui. Este tipo não
+ * carrega senha nenhuma — a senha nunca sai do Supabase Auth, que já a
+ * verificou antes de `perfilPorId` ser chamado.
+ */
+export type Perfil = {
+  id: string
+  nome: string
+  papel: Papel
+  /** Null para o master: ele não pertence a organização nenhuma. */
+  organizacaoId: string | null
+  /** Bloqueado no login, sem apagar. É o "Suspender acesso" das telas. */
+  ativo: boolean
 }
 
 export type Evento = {
@@ -95,6 +115,9 @@ export interface Repositorio {
   pessoaPorTelefone(telefone: string): Promise<Pessoa | null>
   pessoaPorId(id: string): Promise<Pessoa | null>
   criarPessoa(p: Omit<Pessoa, 'id'>): Promise<Pessoa>
+
+  /** Quem tem conta de painel, pelo id do Supabase Auth. */
+  perfilPorId(id: string): Promise<Perfil | null>
 
   // ── Evento ──────────────────────────────────────────────────────────────
   eventoPorCodigo(codigo: string): Promise<Evento | null>

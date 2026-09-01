@@ -9,8 +9,8 @@ import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import { esquecerLimites } from '../limite.js'
 import {
-  pedirCodigo, entrar, TENTATIVAS_MAXIMAS, VALIDADE_DO_CODIGO_MS,
-  type CodigoPendente, type Dependencias, type GuardaDeCodigos,
+  entrar, entrarComSenha, pedirCodigo, TENTATIVAS_MAXIMAS, VALIDADE_DO_CODIGO_MS,
+  type AutenticarComSenha, type CodigoPendente, type Dependencias, type GuardaDeCodigos,
 } from './sessao.js'
 
 /** Guarda de códigos em memória. */
@@ -37,6 +37,33 @@ function montar(agora = () => Date.parse('2026-09-01T10:00:00-03:00')) {
     agora,
   }
   return { dep, repo, pessoa, enviados, codigos }
+}
+
+/**
+ * Um Supabase Auth de mentira: um mapa de e-mail para senha e id.
+ *
+ * Fica fora do repositório de propósito — é exatamente o que
+ * `AutenticarComSenha` existe para isolar: a API nunca compara senha
+ * sozinha, sempre pergunta pro Auth.
+ */
+function autenticadorFalso(contas: Record<string, { senha: string; userId: string }>): AutenticarComSenha {
+  return async (email, senha) => {
+    const c = contas[email]
+    if (!c || c.senha !== senha) return null
+    return { userId: c.userId }
+  }
+}
+
+function montarComSenha(agora = () => Date.parse('2026-09-01T10:00:00-03:00')) {
+  const { repo, master, admin, adminSuspenso } = cenarioHenriqueEJuliano()
+  const autenticar = autenticadorFalso({
+    'juan@produzimos.com.br': { senha: 'segredo123', userId: master.id },
+    'marina@produzimos.com.br': { senha: 'segredo123', userId: admin.id },
+    '12345678900@supervisor.credenciei': { senha: 'segredo123', userId: admin.id },
+    'ana@produzimos.com.br': { senha: 'segredo123', userId: adminSuspenso.id },
+  })
+  const dep: Dependencias = { repo, codigos: guardaFalsa(), enviar: async () => {}, autenticar, agora }
+  return { dep, repo, master, admin, adminSuspenso }
 }
 
 beforeEach(() => esquecerLimites())
@@ -163,4 +190,73 @@ test('a máscara do telefone não separa as tentativas', async () => {
 
   const r = await entrar(dep, '(27) 99925-5959', '123 456')
   assert.ok(r.ok)
+})
+
+// ─── Entrar com senha (conta de painel) ─────────────────────────────────────
+
+test('e-mail e senha certos abrem a sessão com o papel de verdade', async () => {
+  const { dep, admin } = montarComSenha()
+  const r = await entrarComSenha(dep, 'marina@produzimos.com.br', 'segredo123')
+  assert.ok(r.ok && r.pessoaId === admin.id && r.papel === 'admin')
+})
+
+test('o master também entra, e o papel vem certo', async () => {
+  const { dep, master } = montarComSenha()
+  const r = await entrarComSenha(dep, 'juan@produzimos.com.br', 'segredo123')
+  assert.ok(r.ok && r.pessoaId === master.id && r.papel === 'master')
+})
+
+test('CPF de supervisor entra pelo e-mail interno, sem a pessoa saber disso', async () => {
+  const { dep, admin } = montarComSenha()
+  const r = await entrarComSenha(dep, '123.456.789-00', 'segredo123')
+  assert.ok(r.ok && r.pessoaId === admin.id)
+})
+
+test('senha errada, identificador inexistente e conta suspensa dizem a mesma coisa', async () => {
+  /*
+   * Mensagens diferentes contariam se aquele e-mail existe, e se a conta
+   * está suspensa — informação de graça pra quem só está testando senhas.
+   */
+  const { dep } = montarComSenha()
+
+  const senhaErrada = await entrarComSenha(dep, 'marina@produzimos.com.br', 'errada')
+  const naoExiste = await entrarComSenha(dep, 'ninguem@produzimos.com.br', 'segredo123')
+  const suspensa = await entrarComSenha(dep, 'ana@produzimos.com.br', 'segredo123')
+
+  const motivos = [senhaErrada, naoExiste, suspensa].map(r => (r.ok ? '' : r.erro))
+  assert.equal(new Set(motivos).size, 1, `divergiram: ${JSON.stringify(motivos)}`)
+})
+
+test('identificador ou senha em branco nem chega a perguntar pro Auth', async () => {
+  let chamadas = 0
+  const { repo } = cenarioHenriqueEJuliano()
+  const dep: Dependencias = {
+    repo,
+    codigos: guardaFalsa(),
+    enviar: async () => {},
+    autenticar: async () => { chamadas++; return null },
+  }
+
+  await entrarComSenha(dep, '', 'segredo123')
+  await entrarComSenha(dep, 'marina@produzimos.com.br', '')
+  assert.equal(chamadas, 0, 'campo em branco é recusado sem gastar chamada ao Auth')
+})
+
+test('força bruta na senha é barrada, por identificador', async () => {
+  const { dep } = montarComSenha()
+
+  for (let i = 0; i < 5; i++) await entrarComSenha(dep, 'marina@produzimos.com.br', 'errada')
+  const sexta = await entrarComSenha(dep, 'marina@produzimos.com.br', 'segredo123')
+
+  assert.ok(!sexta.ok)
+  assert.match(sexta.erro, /Muitas tentativas/)
+})
+
+test('o limite de senha é por conta, não global — outra conta continua livre', async () => {
+  const { dep } = montarComSenha()
+
+  for (let i = 0; i < 5; i++) await entrarComSenha(dep, 'marina@produzimos.com.br', 'errada')
+
+  const master = await entrarComSenha(dep, 'juan@produzimos.com.br', 'segredo123')
+  assert.ok(master.ok, 'o limite de uma conta não pode travar outra')
 })

@@ -126,7 +126,16 @@ export class ClienteHttp implements ClienteApi {
       throw new FalhaDeTransporte()
     }
 
-    if (resposta.status === 401) {
+    /*
+     * 401 é transporte — EXCETO em quem entra sem sessão nenhuma.
+     *
+     * Sem token não existe "sessão que caiu": é `pedirCodigo`/`entrar`/
+     * `entrarComSenha`, e um 401 ali só pode ser código ou senha errados —
+     * uma DECISÃO, do mesmo jeito que `renovar` já trata a própria. Se
+     * caísse na regra geral, a tela de login mostraria "sessão expirada,
+     * entre de novo" para quem simplesmente digitou a senha errada.
+     */
+    if (resposta.status === 401 && !op.semToken) {
       this.aoPerderSessao?.()
       throw new FalhaDeTransporte('Sessão expirada. Entre de novo.')
     }
@@ -159,11 +168,16 @@ export class ClienteHttp implements ClienteApi {
 
   // ─── Identidade ───────────────────────────────────────────────────────────
 
-  async entrarComSenha(
-    _identificador: string, _senha: string,
-  ): Promise<{ sessao?: Sessao; erro?: string }> {
-    void _identificador; void _senha
-    throw new AindaNaoNaApi('entrarComSenha')
+  async entrarComSenha(identificador: string, senha: string): Promise<{ sessao?: Sessao; erro?: string }> {
+    const r = await this.pedir('/v1/entrar/senha', {
+      metodo: 'POST',
+      corpo: { identificador, senha },
+      semToken: true,
+    })
+    if (r.status >= 400 || !r.corpo.sessao) {
+      return { erro: this.erroDe(r, 'CPF ou senha incorretos.') }
+    }
+    return { sessao: r.corpo.sessao as Sessao }
   }
 
   async pedirCodigo(telefone: string) {

@@ -41,7 +41,7 @@ const CODIGO_DO_EVENTO = 'HJK-2026-K7M2'
 /** A API inteira, no mesmo processo, com o cliente do app falando com ela. */
 function montar(op: { aoPerderSessao?: () => void } = {}) {
   esquecerLimites()
-  const { repo } = cenarioHenriqueEJuliano()
+  const { repo, master, admin } = cenarioHenriqueEJuliano()
 
   /*
    * Alguém que ainda não está em evento nenhum.
@@ -67,7 +67,23 @@ function montar(op: { aoPerderSessao?: () => void } = {}) {
   const amb: Ambiente = {
     repo,
     sessoes: new SessoesEmMemoria({ novoToken: () => `tk-${++n}` }),
-    sessao: { repo, codigos, enviar: async () => {}, sortear: () => '123456' },
+    sessao: {
+      repo,
+      codigos,
+      enviar: async () => {},
+      sortear: () => '123456',
+      // Um Supabase Auth de mentira, com as mesmas duas contas do cenário.
+      autenticar: async (email, senha) => {
+        if (senha !== 'segredo123') return null
+        if (email === 'juan@produzimos.com.br') return { userId: master.id }
+        // Também pelo e-mail interno: é para onde um CPF de supervisor
+        // resolve — `identificadorParaEmail('123.456.789-00')`.
+        if (email === 'marina@produzimos.com.br' || email === '12345678900@supervisor.credenciei') {
+          return { userId: admin.id }
+        }
+        return null
+      },
+    },
     campos: async () => [
       { chave: 'funcao', rotulo: 'Sua função', tipo: 'texto', obrigatorio: true },
     ],
@@ -238,6 +254,45 @@ test('renovação recusada é DECISÃO, e volta como erro', async () => {
   const r = await m.cliente.renovar('renovacao-inventada')
   assert.equal(r.sessao, undefined)
   assert.ok(r.erro)
+})
+
+// ─── Entrar com senha (conta de painel) ─────────────────────────────────────
+
+test('entrarComSenha vai e volta pela API, com o papel de verdade', async () => {
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+
+  assert.ok(r.sessao, r.erro)
+  assert.equal(r.sessao.papel, 'admin')
+  assert.ok(r.sessao.token)
+  assert.ok(r.sessao.renovacao)
+})
+
+test('depois de entrar com senha, /v1/eu responde o papel de painel', async () => {
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('juan@produzimos.com.br', 'segredo123')
+  assert.ok(r.sessao, r.erro)
+  m.guardarToken(r.sessao.token)
+
+  const eu = await m.cliente.eu()
+  assert.equal(eu.papel, 'master')
+  assert.equal(eu.nome, 'Juan Muzy')
+})
+
+test('senha errada por HTTP devolve erro, não exceção', async () => {
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'errada')
+  assert.equal(r.sessao, undefined)
+  assert.ok(r.erro)
+})
+
+test('CPF de supervisor entra pelo mesmo caminho HTTP', async () => {
+  // O identificador vira e-mail interno ANTES de chegar no Auth — a API
+  // nunca vê "CPF", só o e-mail que `identificadorParaEmail` já resolveu.
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('123.456.789-00', 'segredo123')
+  assert.ok(r.sessao, r.erro)
+  assert.equal(r.sessao.papel, 'admin')
 })
 
 test('renovar gira o token, como a guarda espera', async () => {

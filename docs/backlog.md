@@ -1,8 +1,8 @@
 # Backlog
 
-**307 tasks · 193 no MVP · 148 concluídas (48%)**
+**307 tasks · 193 no MVP · 154 concluídas (50%)**
 
-**Só o MVP: 119 de 193 (62%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 125 de 193 (65%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -65,7 +65,7 @@ nada do resto importa ainda.
 |---|---|---|---|---|---|
 | 1 | Modelo de dados | 3 | 16 | ✓ | SQL escrito, nada executado |
 | 2 | Fundação | 7 | 12 | ✓ | Domínio sincronizado; conferência de horários em uso |
-| 3 | API v1 | 21 | 32 | ✓ | Cliente HTTP ligado; faltam as rotas do painel |
+| 3 | API v1 | 27 | 32 | ✓ | Login de painel real; faltam painel, escanear, ponto, atividades, acessos, evento e Plataforma |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
 | 5 | App base | 14 | 14 | ✓ | Navegação com voltar, tema, campos e data/hora |
 | 6 | QR | 7 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
@@ -113,6 +113,12 @@ nada do resto importa ainda.
 - Cliente HTTP de verdade, com a régua de recusa × falha de transporte
 - Troca entre servidor falso e API por variável de ambiente
 - Teste que roda o mesmo roteiro nos dois clientes e exige comportamento igual
+- `Perfil` no Repositorio — quem tem conta de painel, por cima do Supabase Auth
+- Login por senha de verdade: CPF (supervisor) ou e-mail (admin/master), a mesma régua de tentativas do WhatsApp
+- Sessão carrega o papel de quem entrou, de verdade — não mais fixo em "colaborador"
+- `/v1/eu` responde o papel certo pra quem tem conta de painel
+- `ClienteHttp.entrarComSenha` ligado — a tela de entrar não mudou uma linha
+- Corrigido: 401 no login virava "sessão expirada" em vez de "senha errada" — achado testando o caminho novo, valia pro WhatsApp também
 
 **Epic 4 — Conta do colaborador**
 - Código de evento: geração, leitura, máscara, tolerância a confusão
@@ -241,10 +247,20 @@ entra por baixo. Nenhuma tela muda na troca.
 1. **O que o mapeamento de 31/08 achou** (Epic 17 + 18) — ver a seção logo
    abaixo para a lista com as nove linhas, o que cada uma resolve e onde
    olhar no site.
-2. **Endpoints do painel na API** (Epic 3 + 17). O cliente HTTP já existe e já
-   fala com a API; faltam as rotas de painel, escanear, ponto, atividades,
-   acessos e as quatro da Plataforma. Sem elas, essas telas continuam no
-   servidor falso.
+2. **Endpoints do painel na API** (Epic 3 + 17). O login de conta de painel
+   (`entrarComSenha`) já está pronto e testado — é a base de tudo o resto,
+   porque nenhuma rota de painel faz sentido sem saber quem entrou. Faltam
+   as rotas de painel, escanear, ponto, atividades, acessos, evento e as
+   quatro da Plataforma. Sem elas, essas telas continuam no servidor falso.
+
+   **Achado ao começar esta fase**: a API nunca foi de fato ligada a nada —
+   não existe arquivo que suba um servidor de verdade (`servidor.ts` só
+   exporta a fábrica do Hono; quem chama `serve()` e ouve uma porta ainda
+   não existe), nem implementação real de `GuardaDeCodigos` sobre o
+   Supabase, nem `.env` com as credenciais. "Ligar a API" não é só escrever
+   mais rotas: em algum ponto precisa de um entrypoint publicável e de uma
+   decisão de onde ele roda — ainda não é hoje, mas vai ser antes do fim
+   desta fase.
 3. **Upload de foto ao storage** (Epic 3 + 7). Hoje a selfie do meio viaja
    dentro da batida; o caminho que aguenta pico é subir direto ao storage.
 4. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.

@@ -32,7 +32,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type {
-  DiaDeTrabalho, Evento, NovoRegistro, Participacao, Pessoa, Registro, Repositorio,
+  DiaDeTrabalho, Evento, NovoRegistro, Participacao, Perfil, Pessoa, Registro, Repositorio,
 } from './repositorio.js'
 
 const soDigitos = (v: string | null | undefined) => (v ?? '').replace(/\D/g, '')
@@ -148,6 +148,32 @@ export class RepositorioSupabase implements Repositorio {
     throw new Error(
       'Criar pessoa sem vínculo com evento exige a tabela `pessoas`. Ver docs/decisoes/006-migracao-pessoas.md',
     )
+  }
+
+  /*
+   * `id` é o mesmo id do Supabase Auth: quem chama aqui já verificou a
+   * senha (`entrarComSenha`, via `signInWithPassword`) e só precisa saber o
+   * papel e a organização de quem acabou de entrar.
+   */
+  async perfilPorId(id: string): Promise<Perfil | null> {
+    const { data } = await this.db
+      .from('perfis')
+      .select('id, nome, role, organizacao_id, ativo')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (!data) return null
+    return {
+      id: data.id as string,
+      nome: data.nome as string,
+      papel: data.role as Perfil['papel'],
+      organizacaoId: (data.organizacao_id as string | null) ?? null,
+      // Coluna nova o suficiente para não existir em toda linha antiga —
+      // ausente é o mesmo que ativo, nunca o contrário: uma conta virando
+      // "bloqueada" por um `null` no meio da migração trancaria gente de
+      // fora sem ninguém ter suspendido nada.
+      ativo: data.ativo !== false,
+    }
   }
 
   // ── Evento ────────────────────────────────────────────────────────────────

@@ -23,25 +23,34 @@
 // É uma etapa, não um desenho: a interface já está certa, e trocar por uma
 // tabela é substituir a implementação. Antes da produção, obrigatório.
 
+import type { Papel } from '@credenciei/dominio'
+
 export type SessaoAberta = {
   token: string
   expiraEm: string
   renovacao: string
-  papel: 'colaborador' | 'supervisor' | 'admin' | 'master'
+  papel: Papel
 }
 
 export const VALIDADE_ACESSO_MS = 60 * 60_000
 export const VALIDADE_RENOVACAO_MS = 60 * 24 * 60 * 60_000
 
 export interface Sessoes {
-  abrir(pessoaId: string): Promise<SessaoAberta>
-  pessoaDoToken(token: string): Promise<string | null>
+  /**
+   * O papel é decidido por quem chama `abrir` — login por WhatsApp sempre
+   * abre como `'colaborador'`; login por senha lê o papel do perfil. A
+   * sessão nunca descobre o papel sozinha, e não o reconsulta depois: mudar
+   * o papel de alguém no meio da sessão dela é assunto de derrubar a
+   * sessão, não de ela se atualizar sozinha.
+   */
+  abrir(pessoaId: string, papel: Papel): Promise<SessaoAberta>
+  sessaoDoToken(token: string): Promise<{ pessoaId: string; papel: Papel } | null>
   renovar(renovacao: string): Promise<SessaoAberta | null>
   /** Sair, ou aparelho perdido. */
   encerrar(token: string): Promise<void>
 }
 
-type Registro = { pessoaId: string; expiraEm: number }
+type Registro = { pessoaId: string; papel: Papel; expiraEm: number }
 
 export class SessoesEmMemoria implements Sessoes {
   private acessos = new Map<string, Registro>()
@@ -54,30 +63,30 @@ export class SessoesEmMemoria implements Sessoes {
     this.novoToken = op.novoToken ?? padraoToken
   }
 
-  async abrir(pessoaId: string): Promise<SessaoAberta> {
+  async abrir(pessoaId: string, papel: Papel): Promise<SessaoAberta> {
     const token = this.novoToken()
     const renovacao = this.novoToken()
     const agora = this.agora()
 
-    this.acessos.set(token, { pessoaId, expiraEm: agora + VALIDADE_ACESSO_MS })
-    this.renovacoes.set(renovacao, { pessoaId, expiraEm: agora + VALIDADE_RENOVACAO_MS })
+    this.acessos.set(token, { pessoaId, papel, expiraEm: agora + VALIDADE_ACESSO_MS })
+    this.renovacoes.set(renovacao, { pessoaId, papel, expiraEm: agora + VALIDADE_RENOVACAO_MS })
 
     return {
       token,
       renovacao,
       expiraEm: new Date(agora + VALIDADE_ACESSO_MS).toISOString(),
-      papel: 'colaborador',
+      papel,
     }
   }
 
-  async pessoaDoToken(token: string): Promise<string | null> {
+  async sessaoDoToken(token: string): Promise<{ pessoaId: string; papel: Papel } | null> {
     const r = this.acessos.get(token)
     if (!r) return null
     if (this.agora() > r.expiraEm) {
       this.acessos.delete(token)
       return null
     }
-    return r.pessoaId
+    return { pessoaId: r.pessoaId, papel: r.papel }
   }
 
   async renovar(renovacao: string): Promise<SessaoAberta | null> {
@@ -95,7 +104,7 @@ export class SessoesEmMemoria implements Sessoes {
      * aconteceu.
      */
     this.renovacoes.delete(renovacao)
-    return this.abrir(r.pessoaId)
+    return this.abrir(r.pessoaId, r.papel)
   }
 
   async encerrar(token: string): Promise<void> {

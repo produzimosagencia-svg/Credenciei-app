@@ -8,7 +8,7 @@
 // desenvolvimento local antes de a implementação sobre o Supabase ficar pronta.
 
 import type {
-  DiaDeTrabalho, Evento, NovoRegistro, Participacao, Pessoa, Registro, Repositorio,
+  DiaDeTrabalho, Evento, NovoRegistro, Participacao, Perfil, Pessoa, Registro, Repositorio,
 } from './repositorio.js'
 
 let seq = 0
@@ -16,6 +16,7 @@ const novoId = (p: string) => `${p}-${++seq}`
 
 export class RepositorioEmMemoria implements Repositorio {
   pessoas: Pessoa[] = []
+  perfis: Perfil[] = []
   eventos: Evento[] = []
   participacoes: Participacao[] = []
   registros: Registro[] = []
@@ -37,6 +38,10 @@ export class RepositorioEmMemoria implements Repositorio {
     const nova = { ...p, id: novoId('pes') }
     this.pessoas.push(nova)
     return nova
+  }
+
+  async perfilPorId(id: string) {
+    return this.perfis.find(p => p.id === id) ?? null
   }
 
   // ── Evento ────────────────────────────────────────────────────────────────
@@ -155,6 +160,17 @@ export function cenarioHenriqueEJuliano() {
 
   repo.equipes.push({ id: 'eq-1', nome: 'Produção', eventoId: evento.id })
 
+  // Duas contas de painel prontas, na mesma organização do evento: o master
+  // não pertence a nenhuma; o admin é sempre da Produzimos (org-1) — a mesma
+  // regra de isolamento que `entrarComSenha` e as rotas do painel precisam
+  // respeitar.
+  const master: Perfil = { id: 'auth-master', nome: 'Juan Muzy', papel: 'master', organizacaoId: null, ativo: true }
+  const admin: Perfil = { id: 'auth-admin', nome: 'Marina Alves', papel: 'admin', organizacaoId: 'org-1', ativo: true }
+  const adminSuspenso: Perfil = {
+    id: 'auth-suspenso', nome: 'Conta Bloqueada', papel: 'admin', organizacaoId: 'org-1', ativo: false,
+  }
+  repo.perfis.push(master, admin, adminSuspenso)
+
   const participacao: Participacao = {
     id: 'part-joao',
     pessoaId: pessoa.id,
@@ -172,5 +188,5 @@ export function cenarioHenriqueEJuliano() {
   }
   repo.participacoes.push(participacao)
 
-  return { repo, pessoa, evento, participacao }
+  return { repo, pessoa, evento, participacao, master, admin, adminSuspenso }
 }
