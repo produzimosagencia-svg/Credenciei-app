@@ -23,6 +23,7 @@ import type {
   CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
   ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
   DadosParaLancarPonto, BuscaDeColaboradores,
+  DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte,
 } from './tipos.js'
 import type { TipoBatida } from './comum.js'
 
@@ -493,4 +494,18 @@ export interface ClienteApi {
   eventosParaEditarColaborador(): Promise<EventoEscaneavel[]>
 
   colaboradoresDoEvento(eventoId: string): Promise<BuscaDeColaboradores>
+
+  // ── Suporte de Sistema ───────────────────────────────────────────────────
+  //
+  // Só o master gerencia — o escopo atravessa organizações, quem contrata é
+  // a plataforma. Trazido do site em 11/09/2026.
+
+  dadosDeSuporte(): Promise<DadosDeSuporte>
+
+  criarSuporte(dados: DadosDeNovoSuporte): Promise<{ id?: string; erro?: string }>
+
+  editarSuporte(id: string, dados: EdicaoDeSuporte): Promise<{ erro?: string }>
+
+  /** Diferente de excluir: o histórico do que a pessoa fez continua na Auditoria. */
+  revogarSuporte(id: string): Promise<{ erro?: string }>
 }

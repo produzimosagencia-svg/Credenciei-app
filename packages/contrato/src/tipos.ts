@@ -1278,3 +1278,57 @@ export type BuscaDeColaboradores = {
   eventoNome: string
   colaboradores: ColaboradorDoEvento[]
 }
+
+// ─── Suporte de Sistema ─────────────────────────────────────────────────────
+//
+// Gente CONTRATADA pro dia do evento, pra resolver problema de operação (CPF
+// errado, setor errado, ponto que não bateu) sem ser dona da conta. Corrige a
+// operação; nunca administra: não exclui, não mexe em financeiro, não cria
+// admin. Trazido do site em 11/09/2026 — só o master gerencia, porque o
+// escopo dela atravessa organizações (quem contrata é a plataforma).
+//
+// O escopo é organização inteira (todos os eventos dela, atuais e futuros) e/
+// ou eventos avulsos — os dois cabem juntos no mesmo acesso. Sem nenhum dos
+// dois marcados, o acesso não teria onde atuar.
+
+export type OpcaoDeEscopo = { id: string; nome: string }
+export type EventoParaEscopo = { id: string; nome: string; organizacaoNome: string }
+
+export type SuporteAcesso = {
+  id: string
+  nome: string
+  telefone: string | null
+  ativo: boolean
+  /** 'AAAA-MM-DD', ou null — sem expiração. */
+  acessoExpiraEm: string | null
+  /** Passada a data: o acesso para de funcionar sozinho, mesmo com `ativo: true`. */
+  expirado: boolean
+  escopoOrganizacoes: OpcaoDeEscopo[]
+  escopoEventos: EventoParaEscopo[]
+}
+
+export type DadosDeSuporte = {
+  suportes: SuporteAcesso[]
+  /** As opções pro seletor de escopo — organizações e os 100 eventos mais recentes. */
+  organizacoes: OpcaoDeEscopo[]
+  eventos: EventoParaEscopo[]
+}
+
+export type DadosDeNovoSuporte = {
+  nome: string
+  cpf: string
+  telefone: string
+  ativo: boolean
+  acessoExpiraEm: string | null
+  escopoOrganizacaoIds: string[]
+  escopoEventoIds: string[]
+}
+
+export type EdicaoDeSuporte = {
+  nome: string
+  telefone: string
+  ativo: boolean
+  acessoExpiraEm: string | null
+  escopoOrganizacaoIds: string[]
+  escopoEventoIds: string[]
+}

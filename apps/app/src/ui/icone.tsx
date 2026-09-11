@@ -54,6 +54,7 @@ import Send from 'lucide-react-native/icons/send'
 import ShieldBan from 'lucide-react-native/icons/shield-ban'
 import ShieldCheck from 'lucide-react-native/icons/shield-check'
 import SwitchCamera from 'lucide-react-native/icons/switch-camera'
+import Trash2 from 'lucide-react-native/icons/trash-2'
 import TriangleAlert from 'lucide-react-native/icons/triangle-alert'
 import Truck from 'lucide-react-native/icons/truck'
 import User from 'lucide-react-native/icons/user'
@@ -112,6 +113,7 @@ const ICONES: Record<string, LucideIcon> = {
   ShieldBan,
   ShieldCheck,
   SwitchCamera,
+  Trash2,
   Truck,
   User,
   UserCheck,

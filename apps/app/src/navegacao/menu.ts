@@ -122,6 +122,9 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
         // O canal de WhatsApp é da plataforma, não de um evento: quem dispara
         // em massa e responde conversa é o dono, nunca o produtor de um cliente.
         { rota: '/whatsapp', rotulo: 'WhatsApp', icone: 'MessageCircle', pronta: true },
+        // Suporte é gente contratada pela PLATAFORMA — o escopo atravessa
+        // organizações, e só o master decide quem tem esse acesso.
+        { rota: '/suporte', rotulo: 'Suporte de Sistema', icone: 'UserCog', pronta: true },
       ],
     })
   }

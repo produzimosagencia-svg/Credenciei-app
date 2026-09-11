@@ -1502,8 +1502,8 @@ test('pessoa que não existe responde igual em todas as ações', async () => {
 // ─── Plataforma ─────────────────────────────────────────────────────────────
 
 /** O dono da plataforma, que é o único que enxerga este bloco. */
-async function comoMaster() {
-  const c = new ClienteFalso()
+async function comoMaster(op: ComportamentoFalso = {}) {
+  const c = new ClienteFalso(op)
   await entrarComo(c, 'master')
   return c
 }
@@ -2451,4 +2451,149 @@ test('a pessoa achada pelo atalho abre na mesma ficha que a tela do setor usa', 
   const ficha = await c.fichaDaPessoa(alguem.participacaoId)
   assert.equal(ficha.nome, alguem.nome)
   assert.equal(ficha.cpf, alguem.cpf)
+})
+
+// ─── Suporte de Sistema ─────────────────────────────────────────────────────
+//
+// Gente contratada pro dia do evento — corrige a operação, nunca administra.
+// Só o master gerencia. Trazido do site em 11/09.
+
+test('só o master gerencia suporte — admin é recusado', async () => {
+  const admin = await noPortao()
+  await assert.rejects(() => admin.dadosDeSuporte(), /permissão/i)
+})
+
+test('os dados trazem os suportes com o escopo resolvido, e as opções pra montar o escopo', async () => {
+  const c = await comoMaster()
+  const r = await c.dadosDeSuporte()
+
+  assert.ok(r.suportes.length >= 2)
+  assert.ok(r.organizacoes.length > 0)
+  assert.ok(r.eventos.length > 0)
+
+  const porOrganizacao = r.suportes.find(s => s.escopoOrganizacoes.length > 0)!
+  assert.equal(porOrganizacao.escopoOrganizacoes[0]?.nome, 'Produzimos')
+
+  const porEvento = r.suportes.find(s => s.escopoEventos.length > 0)!
+  assert.ok(porEvento.escopoEventos[0]?.nome)
+  assert.ok(porEvento.escopoEventos[0]?.organizacaoNome)
+})
+
+test('quem tem expiração no passado vem marcado como expirado — quem não tem, não', async () => {
+  const c = await comoMaster({ agora: () => Date.parse('2026-10-15T12:00:00-03:00') })
+  const r = await c.dadosDeSuporte()
+
+  const comExpiracao = r.suportes.find(s => s.acessoExpiraEm === '2026-09-30')!
+  assert.equal(comExpiracao.expirado, true)
+
+  const semExpiracao = r.suportes.find(s => s.acessoExpiraEm === null)!
+  assert.equal(semExpiracao.expirado, false)
+})
+
+test('criar suporte exige nome, telefone válido, escopo e CPF de 11 dígitos', async () => {
+  const c = await comoMaster()
+  const base = {
+    nome: 'Camila Reis', cpf: '11122233344', telefone: '27999887766',
+    ativo: true, acessoExpiraEm: null, escopoOrganizacaoIds: ['org-1'], escopoEventoIds: [],
+  }
+
+  assert.match((await c.criarSuporte({ ...base, nome: '' })).erro ?? '', /nome/i)
+  assert.match((await c.criarSuporte({ ...base, telefone: '123' })).erro ?? '', /telefone/i)
+  assert.match(
+    (await c.criarSuporte({ ...base, escopoOrganizacaoIds: [], escopoEventoIds: [] })).erro ?? '',
+    /organização ou evento/i,
+  )
+  assert.match((await c.criarSuporte({ ...base, cpf: '123' })).erro ?? '', /cpf/i)
+})
+
+test('criar suporte com CPF já usado por outro suporte é recusado', async () => {
+  const c = await comoMaster()
+  const r = await c.criarSuporte({
+    nome: 'Outra Pessoa', cpf: '55566677788', telefone: '27999887766',
+    ativo: true, acessoExpiraEm: null, escopoOrganizacaoIds: ['org-1'], escopoEventoIds: [],
+  })
+  assert.match(r.erro ?? '', /já existe/i)
+})
+
+test('criar suporte com CPF já usado por QUALQUER acesso é recusado — não só entre suportes', async () => {
+  const c = await comoMaster()
+  const eventos = await c.eventosComSetores()
+  await c.criarAcesso({
+    funcao: 'operador_portao', nome: 'Já Existe', cpf: '66677788899', telefone: '27999887766',
+    eventoId: eventos[0]!.eventoId, ativo: true,
+  })
+
+  const r = await c.criarSuporte({
+    nome: 'Outra Pessoa', cpf: '66677788899', telefone: '27999887766',
+    ativo: true, acessoExpiraEm: null, escopoOrganizacaoIds: ['org-1'], escopoEventoIds: [],
+  })
+  assert.match(r.erro ?? '', /já existe/i)
+})
+
+test('suporte criado aparece na lista, com o escopo certo', async () => {
+  const c = await comoMaster()
+  const antes = await c.dadosDeSuporte()
+
+  const r = await c.criarSuporte({
+    nome: 'Camila Reis', cpf: '11122233344', telefone: '27999887766',
+    ativo: true, acessoExpiraEm: '2026-12-01', escopoOrganizacaoIds: ['org-1'], escopoEventoIds: [],
+  })
+  assert.ok(r.id, r.erro)
+
+  const depois = await c.dadosDeSuporte()
+  assert.equal(depois.suportes.length, antes.suportes.length + 1)
+  const novo = depois.suportes.find(s => s.id === r.id)!
+  assert.equal(novo.nome, 'Camila Reis')
+  assert.equal(novo.acessoExpiraEm, '2026-12-01')
+  assert.equal(novo.escopoOrganizacoes[0]?.nome, 'Produzimos')
+})
+
+test('editar troca nome, status, expiração e escopo — mas não exige telefone válido, como no site', async () => {
+  const c = await comoMaster()
+  const antes = await c.dadosDeSuporte()
+  const alvo = antes.suportes[0]!
+
+  const r = await c.editarSuporte(alvo.id, {
+    nome: 'Nome Corrigido', telefone: '123', ativo: false,
+    acessoExpiraEm: '2027-01-01', escopoOrganizacaoIds: [], escopoEventoIds: ['ev-1'],
+  })
+  assert.equal(r.erro, undefined)
+
+  const depois = await c.dadosDeSuporte()
+  const editado = depois.suportes.find(s => s.id === alvo.id)!
+  assert.equal(editado.nome, 'Nome Corrigido')
+  assert.equal(editado.ativo, false)
+  assert.equal(editado.acessoExpiraEm, '2027-01-01')
+  assert.equal(editado.escopoOrganizacoes.length, 0)
+  assert.equal(editado.escopoEventos[0]?.id, 'ev-1')
+})
+
+test('editar sem nenhum escopo é recusado, e id que não existe também', async () => {
+  const c = await comoMaster()
+  const alvo = (await c.dadosDeSuporte()).suportes[0]!
+
+  const semEscopo = await c.editarSuporte(alvo.id, {
+    nome: alvo.nome, telefone: '', ativo: true, acessoExpiraEm: null,
+    escopoOrganizacaoIds: [], escopoEventoIds: [],
+  })
+  assert.match(semEscopo.erro ?? '', /organização ou evento/i)
+
+  const idInexistente = await c.editarSuporte('sup-999', {
+    nome: 'Qualquer', telefone: '', ativo: true, acessoExpiraEm: null,
+    escopoOrganizacaoIds: ['org-1'], escopoEventoIds: [],
+  })
+  assert.ok(idInexistente.erro)
+})
+
+test('revogar desativa e expira na hora — diferente de excluir, o histórico fica', async () => {
+  const c = await comoMaster()
+  const alvo = (await c.dadosDeSuporte()).suportes[0]!
+
+  const r = await c.revogarSuporte(alvo.id)
+  assert.equal(r.erro, undefined)
+
+  const depois = await c.dadosDeSuporte()
+  const revogado = depois.suportes.find(s => s.id === alvo.id)!
+  assert.equal(revogado.ativo, false)
+  assert.equal(revogado.expirado, true)
 })

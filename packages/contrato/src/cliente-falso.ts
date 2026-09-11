@@ -49,6 +49,7 @@ import type {
   CondutorEncontrado, DadosDeVeiculo, Veiculo, VeiculosDoEvento, CpfBloqueado,
   ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
   DadosParaLancarPonto, BuscaDeColaboradores,
+  DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte, SuporteAcesso,
 } from './tipos.js'
 import { VISOES_DE_ATIVIDADE } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
@@ -402,6 +403,38 @@ const BLOQUEIOS_DE_MENTIRA: Record<string, CpfBloqueado[]> = {
   'ev-2': [],
   'ev-3': [],
 }
+
+/**
+ * Os acessos de Suporte de Sistema — gente contratada pro dia do evento.
+ *
+ * Um com data de expiração, outro sem — a tela precisa saber mostrar as
+ * duas situações. O escopo é próprio (organização inteira e/ou eventos
+ * avulsos), separado de `ACESSOS_DE_MENTIRA`: aquele é só "quem loga e com
+ * que papel", este é "onde essa pessoa pode atuar".
+ */
+const SUPORTES_DE_MENTIRA: {
+  id: string
+  nome: string
+  cpf: string
+  telefone: string | null
+  ativo: boolean
+  /** 'AAAA-MM-DD', ou null. */
+  acessoExpiraEm: string | null
+  criadoEm: string
+  escopoOrganizacaoIds: string[]
+  escopoEventoIds: string[]
+}[] = [
+  {
+    id: 'sup-1', nome: 'Bruno Tavares', cpf: '55566677788', telefone: '27998887766',
+    ativo: true, acessoExpiraEm: '2026-09-30', criadoEm: '2026-09-01T10:00:00-03:00',
+    escopoOrganizacaoIds: ['org-1'], escopoEventoIds: [],
+  },
+  {
+    id: 'sup-2', nome: 'Fernanda Lacerda', cpf: '99988877766', telefone: '27997776655',
+    ativo: true, acessoExpiraEm: null, criadoEm: '2026-08-20T14:30:00-03:00',
+    escopoOrganizacaoIds: [], escopoEventoIds: ['ev-2'],
+  },
+]
 
 /**
  * O poço de nomes da equipe de mentira.
@@ -3439,6 +3472,133 @@ export class ClienteFalso implements ClienteApi {
     )
 
     return { eventoNome: evento.nome, colaboradores }
+  }
+
+  // ── Suporte de Sistema ───────────────────────────────────────────────────
+  //
+  // Gente contratada pro dia do evento — corrige a operação, nunca
+  // administra. Só o master gerencia: o escopo atravessa organizações, quem
+  // contrata é a plataforma. Trazido do site em 11/09/2026.
+
+  private paraSuporteAcesso(s: (typeof SUPORTES_DE_MENTIRA)[number]): SuporteAcesso {
+    const agora = new Date(this.agora())
+    return {
+      id: s.id,
+      nome: s.nome,
+      telefone: s.telefone,
+      ativo: s.ativo,
+      acessoExpiraEm: s.acessoExpiraEm,
+      expirado: !!s.acessoExpiraEm && new Date(`${s.acessoExpiraEm}T23:59:59-03:00`) < agora,
+      escopoOrganizacoes: s.escopoOrganizacaoIds.map(id => ({
+        id, nome: ORGANIZACOES_DE_MENTIRA.find(o => o.organizacaoId === id)?.nome ?? '—',
+      })),
+      escopoEventos: s.escopoEventoIds.map(id => {
+        const ev = EVENTOS_DO_PAINEL.find(e => e.eventoId === id)
+        return {
+          id,
+          nome: ev?.nome ?? '—',
+          organizacaoNome: ORGANIZACOES_DE_MENTIRA.find(o => o.organizacaoId === ev?.organizacaoId)?.nome ?? '—',
+        }
+      }),
+    }
+  }
+
+  async dadosDeSuporte(): Promise<DadosDeSuporte> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(ehMaster, 'gerenciar acessos de suporte')
+
+    return {
+      suportes: SUPORTES_DE_MENTIRA.map(s => this.paraSuporteAcesso(s)),
+      organizacoes: ORGANIZACOES_DE_MENTIRA.map(o => ({ id: o.organizacaoId, nome: o.nome })),
+      eventos: EVENTOS_DO_PAINEL.map(ev => ({
+        id: ev.eventoId,
+        nome: ev.nome,
+        organizacaoNome: ORGANIZACOES_DE_MENTIRA.find(o => o.organizacaoId === ev.organizacaoId)?.nome ?? '—',
+      })),
+    }
+  }
+
+  async criarSuporte(dados: DadosDeNovoSuporte): Promise<{ id?: string; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(ehMaster, 'criar acesso de suporte')
+
+    const nome = (dados.nome ?? '').trim()
+    if (!nome) return { erro: 'Informe o nome.' }
+
+    const telefone = (dados.telefone ?? '').replace(/\D/g, '')
+    if (telefone.length < 10 || telefone.length > 13) {
+      return { erro: 'Informe um telefone válido para enviar o acesso pelo WhatsApp.' }
+    }
+
+    const escopos = [...(dados.escopoOrganizacaoIds ?? []), ...(dados.escopoEventoIds ?? [])]
+    if (escopos.length === 0) return { erro: 'Escolha ao menos uma organização ou evento de atendimento.' }
+
+    const cpf = (dados.cpf ?? '').replace(/\D/g, '')
+    if (cpf.length !== 11) return { erro: 'Informe o CPF, com 11 dígitos.' }
+
+    // O CPF é a chave de identidade — mesma régua de `criarAcesso`.
+    const jaExiste = SUPORTES_DE_MENTIRA.some(s => s.cpf === cpf)
+      || ACESSOS_DE_MENTIRA.some(a => a.identificador.replace(/\D/g, '') === cpf)
+    if (jaExiste) {
+      return { erro: `Já existe um acesso com o CPF ${formatCpf(cpf)}. Edite esse acesso em vez de criar outro.` }
+    }
+
+    const novo = {
+      id: `sup-${SUPORTES_DE_MENTIRA.length + 1}`,
+      nome, cpf, telefone,
+      ativo: dados.ativo,
+      acessoExpiraEm: dados.acessoExpiraEm || null,
+      criadoEm: new Date(this.agora()).toISOString(),
+      escopoOrganizacaoIds: dados.escopoOrganizacaoIds ?? [],
+      escopoEventoIds: dados.escopoEventoIds ?? [],
+    }
+    SUPORTES_DE_MENTIRA.push(novo)
+    return { id: novo.id }
+  }
+
+  async editarSuporte(id: string, dados: EdicaoDeSuporte): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(ehMaster, 'editar acesso de suporte')
+
+    const alvo = SUPORTES_DE_MENTIRA.find(s => s.id === id)
+    if (!alvo) return { erro: 'Acesso de suporte não encontrado.' }
+
+    const nome = (dados.nome ?? '').trim()
+    if (!nome) return { erro: 'Informe o nome.' }
+
+    const escopos = [...(dados.escopoOrganizacaoIds ?? []), ...(dados.escopoEventoIds ?? [])]
+    if (escopos.length === 0) return { erro: 'Escolha ao menos uma organização ou evento de atendimento.' }
+
+    // Sem checagem de tamanho do telefone aqui — mesma assimetria do site:
+    // `criarSuporte` valida, `editarSuporte` não.
+    alvo.nome = nome
+    alvo.telefone = (dados.telefone ?? '').replace(/\D/g, '') || null
+    alvo.ativo = dados.ativo
+    alvo.acessoExpiraEm = dados.acessoExpiraEm || null
+    alvo.escopoOrganizacaoIds = dados.escopoOrganizacaoIds ?? []
+    alvo.escopoEventoIds = dados.escopoEventoIds ?? []
+
+    return {}
+  }
+
+  /** Diferente de excluir: o histórico do que a pessoa fez continua na Auditoria. */
+  async revogarSuporte(id: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(ehMaster, 'revogar acesso de suporte')
+
+    const alvo = SUPORTES_DE_MENTIRA.find(s => s.id === id)
+    if (!alvo) return { erro: 'Acesso de suporte não encontrado.' }
+
+    // "Imediatamente", não "até o fim de hoje": ontem, não hoje — porque
+    // `expirado` conta como válido até as 23:59:59 do dia guardado (o mesmo
+    // que a criação/edição fazem ao gravar "válido até").
+    alvo.ativo = false
+    alvo.acessoExpiraEm = diaBRT(new Date(this.agora() - 24 * 60 * 60 * 1000))
+    return {}
   }
 
   // ── Guardas ───────────────────────────────────────────────────────────────

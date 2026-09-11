@@ -1,8 +1,8 @@
 # Backlog
 
-**332 tasks · 211 no MVP · 169 concluídas (51%)**
+**332 tasks · 211 no MVP · 170 concluídas (51%)**
 
-**Só o MVP: 140 de 211 (66%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 141 de 211 (67%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -91,9 +91,9 @@ nada do resto importa ainda.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 5 | 15 | — | Isolamento e limite feitos; falta LGPD, retenção e a trilha de auditoria |
-| 15 | Testes | 9 | 14 | — | 481 testes rodando |
+| 15 | Testes | 9 | 14 | — | 491 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 44 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
+| 17 | Painel no app | 45 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
 | 18 | Configurar evento | 9 | 17 | ✓ | Falta a API, o auto-atendimento no dia principal e a configuração do meio por setor |
 | 19 | Gastos (produto do Produtor) | 0 | 6 | — | Produto novo e isolado do credenciamento — escopo a confirmar com o Juan |
 
@@ -360,7 +360,7 @@ countable, cada linha já dentro do total da tabela acima.
 | Veículos: cadastro por evento, consulta manual na portaria | 17 | ✅ **Trazido** — `podeGerenciarVeiculos` novo no domínio (master/admin/suporte); condutor primeiro, o resto só depois |
 | Bloquear CPF do evento inteiro, sem apagar histórico | 17 | ✅ **Trazido** — `podeBloquearCpf` novo no domínio; supervisor entra, operador de portão não |
 | Conferência de equipe (D-1): supervisor confirma a lista antes do evento | 17 | ✅ **Trazido** — abre 24h antes e não fecha mais; `packages/dominio` tem a janela |
-| Suporte: tela de gerenciar o acesso externo, com escopo e expiração | 17 | Falta |
+| Suporte: tela de gerenciar o acesso externo, com escopo e expiração | 17 | ✅ **Trazido** — organização inteira e/ou eventos avulsos; revogar expira na hora |
 | Relatórios: exportar presença/ponto da equipe em planilha | 17 | ✅ **Trazido** — mesmo padrão de `exportarEquipe`: o app pede `{ nome, url }` e compartilha |
 | Lançar ponto manual: regulariza quem já foi embora, com motivo | 17 | ✅ **Trazido** — dia de trabalho ≠ hora da batida; motivo mínimo de 5 caracteres |
 | Editar colaborador: atalho que busca em todos os setores do evento | 17 | ✅ **Trazido** — reaproveita a ficha que já existe; sem supervisor de propósito |

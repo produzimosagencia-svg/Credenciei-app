@@ -42,6 +42,7 @@ import type {
   CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
   ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
   DadosParaLancarPonto, BuscaDeColaboradores,
+  DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte,
 } from './tipos.js'
 import type { TipoBatida } from './comum.js'
 
@@ -744,5 +745,26 @@ export class ClienteHttp implements ClienteApi {
   async colaboradoresDoEvento(_eventoId: string): Promise<BuscaDeColaboradores> {
     void _eventoId
     throw new AindaNaoNaApi('colaboradoresDoEvento')
+  }
+
+  // ─── Suporte de Sistema ───────────────────────────────────────────────────
+
+  async dadosDeSuporte(): Promise<DadosDeSuporte> {
+    throw new AindaNaoNaApi('dadosDeSuporte')
+  }
+
+  async criarSuporte(_dados: DadosDeNovoSuporte): Promise<{ id?: string; erro?: string }> {
+    void _dados
+    throw new AindaNaoNaApi('criarSuporte')
+  }
+
+  async editarSuporte(_id: string, _dados: EdicaoDeSuporte): Promise<{ erro?: string }> {
+    void _id; void _dados
+    throw new AindaNaoNaApi('editarSuporte')
+  }
+
+  async revogarSuporte(_id: string): Promise<{ erro?: string }> {
+    void _id
+    throw new AindaNaoNaApi('revogarSuporte')
   }
 }
