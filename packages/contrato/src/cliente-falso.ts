@@ -48,6 +48,7 @@ import type {
   SetorDetalhado, StatusDaEtapa, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, Veiculo, VeiculosDoEvento, CpfBloqueado,
   ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
+  DadosParaLancarPonto,
 } from './tipos.js'
 import { VISOES_DE_ATIVIDADE } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
@@ -836,6 +837,13 @@ export class ClienteFalso implements ClienteApi {
     totalMantidos: number
     totalRemovidos: number
   }>()
+  /**
+   * As batidas lançadas manualmente, por pessoa — `${dataRef}:${etapa}` → a
+   * hora escolhida. Separado de `batidasDaEquipe`: aquele guarda só "hoje";
+   * este guarda o DIA DE TRABALHO explícito, porque o lançamento manual
+   * grava no passado (a saída de madrugada pertence ao dia anterior).
+   */
+  private lancamentosManuais = new Map<string, Map<string, string>>()
   /**
    * As etapas que cada pessoa da equipe já registrou hoje, com o horário.
    *
@@ -3232,6 +3240,159 @@ export class ClienteFalso implements ClienteApi {
       nome: `relatorios-${eventoId}-${periodo.de}-a-${periodo.ate}.zip`,
       url: `${ENDERECO_DE_ARQUIVOS}/relatorios/${eventoId}/zip?de=${periodo.de}&ate=${periodo.ate}&quem=${quem}`,
     }
+  }
+
+  // ── Lançar ponto manual ──────────────────────────────────────────────────
+  //
+  // A batida de quem já foi embora — retroativa, com motivo. Mais restrito
+  // que o registro assistido de propósito: lá o operador registra o que
+  // acontece na frente dele; aqui se escreve o passado, com hora arbitrária
+  // — ato de gestão. Trazido do site em 11/09/2026.
+
+  /** Mesmo alcance de `podeBloquearCpf`, mais o recorte por setor do supervisor. */
+  private exigirAcessoALancamento(eventoId: string): { setoresPermitidos: string[] | null } {
+    this.exigirSessao()
+    const setores = SETORES_DE_MENTIRA[eventoId]
+    if (!setores) throw new Error('Evento não encontrado.')
+
+    const papel = this.sessao!.papel
+    if (papel === 'supervisor') {
+      const meuAcesso = ACESSOS_DE_MENTIRA.find(a => a.nome === this.quemEntrou.nome)
+      const meus = setores
+        .filter(s => s.supervisores.some(sup => sup.id === meuAcesso?.id))
+        .map(s => s.setorId)
+      if (meus.length === 0) throw new Error('Sem permissão sobre este evento.')
+      return { setoresPermitidos: meus }
+    }
+    if (!podeBloquearCpf(papel)) throw new Error('Você não tem permissão para lançar ponto manualmente.')
+    return { setoresPermitidos: null }
+  }
+
+  async eventosParaLancarPonto(): Promise<EventoEscaneavel[]> {
+    await this.rede()
+    this.exigirSessao()
+    const papel = this.sessao!.papel
+
+    let meus: typeof EVENTOS_DO_PAINEL
+    if (papel === 'supervisor') {
+      const meuAcesso = ACESSOS_DE_MENTIRA.find(a => a.nome === this.quemEntrou.nome)
+      meus = EVENTOS_DO_PAINEL.filter(ev =>
+        (SETORES_DE_MENTIRA[ev.eventoId] ?? []).some(s => s.supervisores.some(sup => sup.id === meuAcesso?.id)),
+      )
+    } else if (!podeBloquearCpf(papel)) {
+      throw new Error('Você não tem permissão para lançar ponto manualmente.')
+    } else {
+      meus = ehMaster(papel)
+        ? EVENTOS_DO_PAINEL
+        : EVENTOS_DO_PAINEL.filter(ev => ev.organizacaoId === ORGANIZACAO_DO_ADMIN_DE_MENTIRA)
+    }
+    return meus.map(ev => ({ eventoId: ev.eventoId, nome: ev.nome }))
+  }
+
+  async dadosParaLancarPonto(eventoId: string): Promise<DadosParaLancarPonto> {
+    await this.rede()
+    const { setoresPermitidos } = this.exigirAcessoALancamento(eventoId)
+    const evento = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+    if (!evento) throw new Error('Evento não encontrado.')
+
+    const todos = SETORES_DE_MENTIRA[eventoId] ?? []
+    const visiveis = setoresPermitidos ? todos.filter(s => setoresPermitidos.includes(s.setorId)) : todos
+
+    const pessoas = visiveis.flatMap(setor =>
+      equipeDoSetorDeMentira(setor.setorId, setor.pessoas).map(p => {
+        const lancados = this.lancamentosManuais.get(p.participacaoId)
+        const batidas: Record<string, string> = {}
+        if (lancados) for (const [chave, hora] of lancados) batidas[chave] = hora
+        return {
+          id: p.participacaoId,
+          nome: p.nome,
+          cpf: p.cpf,
+          setorNome: setor.nome,
+          cargo: p.funcao ?? '',
+          ativo: p.ativo,
+          batidas,
+        }
+      }),
+    )
+
+    const dias = DIAS_DE_ATIVIDADE_DE_MENTIRA[eventoId] ?? [diaBRT(evento.dataInicio)]
+    // O último dia da lista é o mais próximo do evento em si — heurística do
+    // falso; o site tem essa informação de verdade em `jornada_dias.tipo`.
+    const diasDaOperacao = dias.map((data, i) => ({
+      data,
+      tipo: (i === dias.length - 1 ? 'principal' : 'preparacao') as 'principal' | 'preparacao',
+    }))
+
+    const hoje = diaBRT(new Date(this.agora()))
+    const diaPadrao = dias.includes(hoje)
+      ? hoje
+      : [...dias].reverse().find(d => d <= hoje) ?? dias[0]!
+
+    return { eventoNome: evento.nome, pessoas, dias: diasDaOperacao, diaPadrao }
+  }
+
+  async lancarPontoManual(
+    funcionarioId: string, tipo: TipoBatida, dataRef: string, quandoISO: string, motivo: string,
+  ): Promise<{ nome?: string; etapa?: string; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+
+    const match = /^(.+)-p\d+$/.exec(funcionarioId)
+    const setorId = match?.[1]
+    let achado: { eventoId: string; setor: (typeof SETORES_DE_MENTIRA)[string][number] } | null = null
+    if (setorId) {
+      for (const [eventoId, setores] of Object.entries(SETORES_DE_MENTIRA)) {
+        const setor = setores.find(s => s.setorId === setorId)
+        if (setor) { achado = { eventoId, setor }; break }
+      }
+    }
+    if (!achado) return { erro: 'Funcionário não encontrado.' }
+
+    const { setoresPermitidos } = this.exigirAcessoALancamento(achado.eventoId)
+    if (setoresPermitidos && !setoresPermitidos.includes(setorId!)) {
+      return { erro: 'Esta pessoa é de outro setor. Você só lança ponto da sua equipe.' }
+    }
+
+    if (!ORDEM_DAS_ETAPAS.includes(tipo)) return { erro: 'Etapa inválida.' }
+
+    const justificativa = (motivo ?? '').trim()
+    if (justificativa.length < 5) {
+      return { erro: 'Escreva o motivo do lançamento manual — é ele que sustenta a batida numa conferência.' }
+    }
+
+    const dias = DIAS_DE_ATIVIDADE_DE_MENTIRA[achado.eventoId] ?? []
+    if (!dias.includes(dataRef)) {
+      return { erro: 'Esse dia não é um dia de trabalho deste evento. Marque-o em Editar evento antes de lançar o ponto.' }
+    }
+
+    const quando = new Date(quandoISO)
+    if (Number.isNaN(quando.getTime())) return { erro: 'Informe a data e a hora da batida.' }
+
+    // Rede contra o dedo escorregar no ano ou no mês: um turno nunca passa de
+    // ~36h do início do dia de trabalho a que pertence.
+    const inicioDoDia = new Date(`${dataRef}T00:00:00-03:00`).getTime()
+    const distancia = quando.getTime() - inicioDoDia
+    if (distancia < -12 * 60 * 60 * 1000 || distancia > 36 * 60 * 60 * 1000) {
+      return {
+        erro: `A data e hora informadas estão longe demais do dia ${dataRef.split('-').reverse().join('/')}. Confira antes de salvar.`,
+      }
+    }
+
+    const pessoa = equipeDoSetorDeMentira(setorId!, achado.setor.pessoas)
+      .find(p => p.participacaoId === funcionarioId)
+    if (!pessoa) return { erro: 'Funcionário não encontrado.' }
+    if (!pessoa.ativo) {
+      return { erro: 'Esta pessoa não está ativada no evento. Ative no painel do setor antes de lançar o ponto.' }
+    }
+
+    let porPessoa = this.lancamentosManuais.get(funcionarioId)
+    if (!porPessoa) {
+      porPessoa = new Map()
+      this.lancamentosManuais.set(funcionarioId, porPessoa)
+    }
+    porPessoa.set(`${dataRef}:${tipo}`, quando.toISOString())
+
+    return { nome: pessoa.nome, etapa: ROTULO_DA_ETAPA[tipo] }
   }
 
   // ── Guardas ───────────────────────────────────────────────────────────────

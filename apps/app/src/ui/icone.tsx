@@ -29,6 +29,7 @@ import Check from 'lucide-react-native/icons/check'
 import ChevronLeft from 'lucide-react-native/icons/chevron-left'
 import ChevronRight from 'lucide-react-native/icons/chevron-right'
 import ClipboardCheck from 'lucide-react-native/icons/clipboard-check'
+import ClipboardPen from 'lucide-react-native/icons/clipboard-pen'
 import Clock from 'lucide-react-native/icons/clock'
 import Download from 'lucide-react-native/icons/download'
 import Ellipsis from 'lucide-react-native/icons/ellipsis'
@@ -84,6 +85,7 @@ const ICONES: Record<string, LucideIcon> = {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  ClipboardPen,
   Clock,
   Download,
   EyeOff,

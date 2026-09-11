@@ -41,7 +41,9 @@ import type {
   SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
   ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
+  DadosParaLancarPonto,
 } from './tipos.js'
+import type { TipoBatida } from './comum.js'
 
 export type OpcoesDoClienteHttp = {
   /** Onde a API mora. Sem barra no fim. */
@@ -713,5 +715,23 @@ export class ClienteHttp implements ClienteApi {
   ): Promise<ArquivoDePlanilha> {
     void _eventoId; void _periodo; void _quem
     throw new AindaNaoNaApi('relatoriosPorSetorZip')
+  }
+
+  // ─── Lançar ponto manual ──────────────────────────────────────────────────
+
+  async eventosParaLancarPonto(): Promise<EventoEscaneavel[]> {
+    throw new AindaNaoNaApi('eventosParaLancarPonto')
+  }
+
+  async dadosParaLancarPonto(_eventoId: string): Promise<DadosParaLancarPonto> {
+    void _eventoId
+    throw new AindaNaoNaApi('dadosParaLancarPonto')
+  }
+
+  async lancarPontoManual(
+    _funcionarioId: string, _tipo: TipoBatida, _dataRef: string, _quandoISO: string, _motivo: string,
+  ): Promise<{ nome?: string; etapa?: string; erro?: string }> {
+    void _funcionarioId; void _tipo; void _dataRef; void _quandoISO; void _motivo
+    throw new AindaNaoNaApi('lancarPontoManual')
   }
 }

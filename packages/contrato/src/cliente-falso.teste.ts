@@ -2285,3 +2285,128 @@ test('o supervisor exporta o próprio setor, mas não o setor de outro superviso
     /permissão/i,
   )
 })
+
+// ─── Lançar ponto manual ────────────────────────────────────────────────────
+//
+// A batida de quem já foi embora — retroativa, com motivo. Trazido do site
+// em 11/09.
+
+test('os dados trazem a equipe dos setores visíveis, os dias e o dia padrão', async () => {
+  const c = await noPortao()
+  const r = await c.dadosParaLancarPonto('ev-1')
+
+  assert.ok(r.pessoas.length > 0)
+  assert.deepEqual(r.dias.map(d => d.data), ['2026-08-29', '2026-08-30'])
+  assert.ok(r.dias.some(d => d.tipo === 'principal'))
+  assert.ok(r.dias.includes(r.dias.find(d => d.data === r.diaPadrao)!))
+})
+
+test('o supervisor só vê a própria equipe pra lançar ponto', async () => {
+  const admin = await noPortao()
+  const doEventoInteiro = await admin.dadosParaLancarPonto('ev-1')
+
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const r = await c.dadosParaLancarPonto('ev-1')
+
+  // s-1 (Produção) é o único setor do Carlos em ev-1 — menos gente que o
+  // evento inteiro, e todo mundo do mesmo setor.
+  assert.ok(r.pessoas.length > 0)
+  assert.ok(r.pessoas.length < doEventoInteiro.pessoas.length)
+  assert.ok(r.pessoas.every(p => p.setorNome === 'Produção'))
+})
+
+test('lançar exige motivo com pelo menos 5 caracteres', async () => {
+  const c = await noPortao()
+  const { pessoas } = await c.dadosParaLancarPonto('ev-1')
+  const alvo = pessoas[0]!
+
+  const r = await c.lancarPontoManual(alvo.id, 'entrada', '2026-08-30', '2026-08-30T08:00:00-03:00', 'oi')
+  assert.match(r.erro ?? '', /motivo/i)
+})
+
+test('lançar exige um dia que seja de trabalho do evento', async () => {
+  const c = await noPortao()
+  const { pessoas } = await c.dadosParaLancarPonto('ev-1')
+  const alvo = pessoas[0]!
+
+  const r = await c.lancarPontoManual(
+    alvo.id, 'entrada', '2026-01-01', '2026-01-01T08:00:00-03:00', 'Chegou antes da fila abrir',
+  )
+  assert.match(r.erro ?? '', /dia de trabalho/i)
+})
+
+test('lançar recusa hora longe demais do dia de trabalho', async () => {
+  const c = await noPortao()
+  const { pessoas } = await c.dadosParaLancarPonto('ev-1')
+  const alvo = pessoas[0]!
+
+  // Três dias de distância do dia 30 — passa longe da janela de -12h/+36h.
+  const r = await c.lancarPontoManual(
+    alvo.id, 'entrada', '2026-08-30', '2026-09-02T08:00:00-03:00', 'Testando data absurda',
+  )
+  assert.match(r.erro ?? '', /longe demais/i)
+})
+
+test('lançar grava a batida no dia certo, e ela aparece na próxima consulta', async () => {
+  const c = await noPortao()
+  const antes = await c.dadosParaLancarPonto('ev-1')
+  const alvo = antes.pessoas.find(p => p.ativo)!
+  assert.equal(alvo.batidas['2026-08-30:fim'], undefined)
+
+  const r = await c.lancarPontoManual(
+    alvo.id, 'fim', '2026-08-30', '2026-08-31T01:30:00-03:00', 'Saiu depois do fechamento da portaria',
+  )
+  assert.equal(r.erro, undefined)
+  assert.equal(r.etapa, 'Saída')
+  assert.equal(r.nome, alvo.nome)
+
+  const depois = await c.dadosParaLancarPonto('ev-1')
+  const mesmaPessoa = depois.pessoas.find(p => p.id === alvo.id)!
+  assert.equal(Date.parse(mesmaPessoa.batidas['2026-08-30:fim']!), Date.parse('2026-08-31T01:30:00-03:00'))
+})
+
+test('lançar de novo na mesma etapa e dia sobrescreve — é correção, não duplicata', async () => {
+  const c = await noPortao()
+  const { pessoas } = await c.dadosParaLancarPonto('ev-1')
+  const alvo = pessoas.find(p => p.ativo)!
+
+  await c.lancarPontoManual(alvo.id, 'entrada', '2026-08-29', '2026-08-29T08:00:00-03:00', 'Primeiro lançamento')
+  await c.lancarPontoManual(alvo.id, 'entrada', '2026-08-29', '2026-08-29T08:30:00-03:00', 'Corrigindo o horário')
+
+  const depois = await c.dadosParaLancarPonto('ev-1')
+  const mesmaPessoa = depois.pessoas.find(p => p.id === alvo.id)!
+  assert.equal(Date.parse(mesmaPessoa.batidas['2026-08-29:entrada']!), Date.parse('2026-08-29T08:30:00-03:00'))
+})
+
+test('pessoa não ativada não recebe lançamento manual', async () => {
+  const c = await noPortao()
+  const { pessoas } = await c.dadosParaLancarPonto('ev-1')
+  const inativa = pessoas.find(p => !p.ativo)
+  assert.ok(inativa, 'faltou alguém inativo na equipe de mentira')
+
+  const r = await c.lancarPontoManual(
+    inativa!.id, 'entrada', '2026-08-30', '2026-08-30T08:00:00-03:00', 'Tentando lançar mesmo assim',
+  )
+  assert.match(r.erro ?? '', /não está ativada/i)
+})
+
+test('o supervisor não lança ponto de gente de outro setor', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  // s-2 (Portaria) não é do Carlos.
+  const r = await c.lancarPontoManual(
+    's-2-p0', 'entrada', '2026-08-30', '2026-08-30T08:00:00-03:00', 'Tentando lançar fora da equipe',
+  )
+  assert.match(r.erro ?? '', /outro setor/i)
+})
+
+test('o operador de portão não lança ponto — é ato de gestão, não leitura no portão', async () => {
+  const c = new ClienteFalso({
+    sessaoInicial: {
+      token: 'tok-op3', expiraEm: new Date(Date.now() + 999_999).toISOString(),
+      renovacao: 'ren-op3', papel: 'operador_portao',
+    },
+  })
+  await assert.rejects(() => c.eventosParaLancarPonto(), /permissão/i)
+})

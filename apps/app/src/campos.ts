@@ -17,6 +17,13 @@ export function mascararData(parcial: string): string {
   return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`
 }
 
+/** Formata enquanto a pessoa digita: 0830 → 08:30 */
+export function mascararHora(parcial: string): string {
+  const d = (parcial ?? '').replace(/\D/g, '').slice(0, 4)
+  if (d.length <= 2) return d
+  return `${d.slice(0, 2)}:${d.slice(2)}`
+}
+
 /**
  * O que ainda falta preencher.
  *

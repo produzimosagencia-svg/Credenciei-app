@@ -93,6 +93,13 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
     principal.push({ rota: '/relatorios', rotulo: 'Relatórios', icone: 'FileSpreadsheet', pronta: true })
   }
 
+  // Mesmo alcance de `podeBloquearCpf` — quem gerencia evento, supervisor e
+  // suporte. Mais restrito que o registro assistido de propósito: aqui se
+  // escreve o passado, com hora arbitrária — ato de gestão.
+  if (podeBloquearCpf(papel)) {
+    principal.push({ rota: '/lancar-ponto', rotulo: 'Lançamento manual', icone: 'ClipboardPen', pronta: true })
+  }
+
   grupos.push({ itens: principal })
 
   // "Plataforma" continua rotulado: é o que só o dono da plataforma enxerga, e

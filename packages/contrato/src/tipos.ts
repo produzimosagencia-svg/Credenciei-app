@@ -1223,3 +1223,35 @@ export type ResumoDeRelatorios = {
 
 /** Quem entra na planilha: quem bateu ponto, ou o avesso — quem não bateu nada. */
 export type QuemNoRelatorio = 'credenciados' | 'ausentes'
+
+// ─── Lançar ponto manual ────────────────────────────────────────────────────
+//
+// A batida de quem já foi embora — retroativa, com hora escolhida e motivo
+// escrito à mão. Trazido do site em 11/09/2026.
+//
+// É PARENTE do registro assistido (`registrarPresencaAssistida`), mas não é
+// a mesma coisa: o assistido acontece COM A PESSOA NA FRENTE (por isso exige
+// foto, e grava agora). Este aqui acontece DEPOIS, na mesa — a foto é
+// impossível, e a hora certa é no passado. A prova é a trilha: autor, motivo,
+// e a marca de que não foi a própria pessoa.
+
+export type DiaDaOperacao = { data: string; tipo: 'principal' | 'preparacao' }
+
+export type PessoaParaLancamento = {
+  id: string
+  nome: string
+  cpf: string
+  setorNome: string
+  cargo: string
+  ativo: boolean
+  /** O que ela já tem registrado, por dia: `${dataRef}:${etapa}` → hora ISO. */
+  batidas: Record<string, string>
+}
+
+export type DadosParaLancarPonto = {
+  eventoNome: string
+  pessoas: PessoaParaLancamento[]
+  dias: DiaDaOperacao[]
+  /** O dia de hoje se for dia de trabalho, senão o último que já passou. */
+  diaPadrao: string
+}

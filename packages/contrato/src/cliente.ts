@@ -22,7 +22,9 @@ import type {
   ResumoParticipacao, SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
   ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
+  DadosParaLancarPonto,
 } from './tipos.js'
+import type { TipoBatida } from './comum.js'
 
 export interface ClienteApi {
   // ── Identidade ──────────────────────────────────────────────────────────
@@ -456,4 +458,28 @@ export interface ClienteApi {
     periodo: Periodo,
     quem: QuemNoRelatorio,
   ): Promise<ArquivoDePlanilha>
+
+  // ── Lançar ponto manual ──────────────────────────────────────────────────
+  //
+  // A batida de quem já foi embora — retroativa, com motivo. Diferente do
+  // registro assistido: aqui não há foto, a hora é escolhida (no passado), e
+  // é ato de gestão — mais restrito. Trazido do site em 11/09/2026.
+
+  /** Os eventos que ESTA pessoa pode lançar ponto — mesmo alcance de `podeBloquearCpf`. */
+  eventosParaLancarPonto(): Promise<EventoEscaneavel[]>
+
+  dadosParaLancarPonto(eventoId: string): Promise<DadosParaLancarPonto>
+
+  /**
+   * `dataRef` é o dia de TRABALHO a que a batida pertence ('AAAA-MM-DD');
+   * `quandoISO`, o instante real. Numa saída de madrugada os dois divergem —
+   * a pessoa trabalhou no dia 05 e bateu às 02:00 do dia 06.
+   */
+  lancarPontoManual(
+    funcionarioId: string,
+    tipo: TipoBatida,
+    dataRef: string,
+    quandoISO: string,
+    motivo: string,
+  ): Promise<{ nome?: string; etapa?: string; erro?: string }>
 }
