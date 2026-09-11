@@ -1,27 +1,36 @@
-// Encontre colaborador — a base regional da plataforma.
+// Encontre colaborador — e a base inteira, atrás de um toggle.
 //
-// Serviço vendido à parte: quem consulta e monta equipe para o evento de um
-// cliente é o dono da plataforma, não o cliente. Por isso a CIDADE importa
-// aqui e não importa na base comum — a pergunta desta tela é "quem eu tenho em
-// Vitória que já trabalhou?".
+// Até 11/09/2026 esta tela e "Base de funcionários" eram duas telas
+// separadas, com fixtures diferentes. O site fundiu as duas em uma só, com
+// um toggle (`/admin/encontrar?ver=todos`), porque são a MESMA pergunta —
+// "quem eu tenho?" — só que com filtros e ordenação diferentes:
 //
-// ─── O NÚMERO QUE VALE É PRESENÇA, NÃO CADASTRO ─────────────────────────────
+//   Prontas pra recrutar   só quem autorizou aparecer na base regional
+//                          (consentimento_base), ordenado por quem mais
+//                          trabalhou. É a lista pra montar equipe — serviço
+//                          vendido à parte, por isso a CIDADE importa aqui.
+//   Toda a base            todo mundo já credenciado, sem filtro de
+//                          autorização, ordenado por cadastro mais recente.
+//                          Responde "esta pessoa já trabalhou com a gente?".
 //
-// A lista mostra em quantos eventos a pessoa de fato TRABALHOU, e não em
-// quantos se inscreveu. Cadastro sem presença não diz nada sobre ela; presença
-// diz. É a diferença entre "está na lista" e "apareceu" — e é sobre isso que se
-// decide chamar alguém.
+// As duas continuam sendo chamadas separadas ao servidor — os dados têm
+// formato diferente (`PessoaRegional` tem cidade e eventos TRABALHADOS;
+// `PessoaDaBase` tem organizações e data de cadastro) — só a TELA é uma só,
+// como no site.
+//
+// `base-funcionarios.tsx` virou um redirect pra cá, com `?ver=todos`,
+// exatamente como o site fez com a rota antiga.
 
 import { useState } from 'react'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatTelefone, formatarBR } from '@credenciei/dominio'
-import type { PessoaRegional } from '@credenciei/contrato'
+import type { BaseDeFuncionarios, BuscaRegional, PessoaDaBase, PessoaRegional } from '@credenciei/contrato'
 import { usePedido } from '../../src/dados/pedido'
 import { useSessao } from '../../src/sessao/contexto'
 import {
-  Aviso, Botao, Campo, Carregando, Cartao, Corpo, Indicador, Legenda, Respiro,
-  Selo, Tela, TituloDaTela, TituloDeCartao,
+  Aviso, Botao, Campo, Carregando, Cartao, Corpo, Escolha, Indicador, Legenda,
+  Respiro, Selo, Tela, TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
 import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
@@ -31,31 +40,56 @@ const ICONE: Record<string, string> = {
   com_historico: 'UserCheck',
   cidades: 'MapPin',
   com_telefone: 'MessageCircle',
+  pessoas: 'IdCard',
+  cadastros: 'Users',
+  organizacoes: 'Building2',
+  recorrentes: 'UserCheck',
 }
 
+const PRONTAS_PRA_RECRUTAR = 'Prontas pra recrutar'
+const TODA_A_BASE = 'Toda a base'
+
 export default function EncontrarColaborador() {
+  const { ver } = useLocalSearchParams<{ ver?: string }>()
   const { cliente } = useSessao()
+  const [modo, setModo] = useState<typeof PRONTAS_PRA_RECRUTAR | typeof TODA_A_BASE>(
+    ver === 'todos' ? TODA_A_BASE : PRONTAS_PRA_RECRUTAR,
+  )
   const [busca, setBusca] = useState('')
   const [cidade, setCidade] = useState('')
 
-  const { pedido, recarregar } = usePedido(
-    () => cliente.encontrarColaborador({ busca, cidade }),
-    [cliente, busca, cidade],
+  const todaABase = modo === TODA_A_BASE
+
+  // Uma busca só, para o modo ativo — trocar de aba não deveria custar duas
+  // chamadas ao servidor por vez.
+  const { pedido, recarregar } = usePedido<BaseDeFuncionarios | BuscaRegional>(
+    () => (todaABase ? cliente.baseDeFuncionarios(busca) : cliente.encontrarColaborador({ busca, cidade })),
+    [cliente, busca, cidade, todaABase],
   )
-  const dados = pedido.estado === 'pronto' ? pedido.dados : null
+  const dadosBase = todaABase && pedido.estado === 'pronto' ? pedido.dados as BaseDeFuncionarios : null
+  const dadosRecrutar = !todaABase && pedido.estado === 'pronto' ? pedido.dados as BuscaRegional : null
+  const indicadores = todaABase ? dadosBase?.indicadores : dadosRecrutar?.indicadores
 
   return (
     <Tela>
       <TituloDaTela>Encontre colaborador</TituloDaTela>
       <Legenda>
-        Base regional da plataforma — para montar equipe para o evento de um
-        cliente que contratou o serviço
+        {todaABase
+          ? 'Todo mundo que já foi credenciado por qualquer cliente, identificado pelo CPF'
+          : 'Base regional da plataforma — para montar equipe para o evento de um cliente que contratou o serviço'}
       </Legenda>
       <Respiro />
 
-      {dados ? (
+      <Escolha
+        opcoes={[PRONTAS_PRA_RECRUTAR, TODA_A_BASE]}
+        valor={modo}
+        aoEscolher={v => setModo(v as typeof modo)}
+      />
+      <Respiro altura={espaco.m} />
+
+      {indicadores ? (
         <View style={e.grade}>
-          {dados.indicadores.map(i => (
+          {indicadores.map(i => (
             <View key={i.chave} style={e.gradeItem}>
               <Indicador
                 rotulo={i.rotulo}
@@ -74,17 +108,17 @@ export default function EncontrarColaborador() {
       <Campo
         value={busca}
         onChangeText={setBusca}
-        placeholder="Nome ou CPF…"
+        placeholder={todaABase ? 'Buscar por CPF ou nome…' : 'Nome ou CPF…'}
         autoCapitalize="none"
         autoCorrect={false}
       />
 
       {/*
-        As cidades vêm prontas do servidor e NÃO encolhem com o filtro: uma
-        lista que some conforme se usa vira um beco sem saída — a pessoa filtra
-        por uma cidade e perde o caminho para as outras.
+        A cidade só faz sentido em "Prontas pra recrutar": é o filtro do
+        serviço vendido à parte. Em "Toda a base" a pergunta é outra —
+        "já trabalhou com a gente?" — e cidade não entra nela.
       */}
-      {dados && dados.cidades.length > 0 ? (
+      {!todaABase && dadosRecrutar && dadosRecrutar.cidades.length > 0 ? (
         <>
           <Text style={e.rotulo}>CIDADE</Text>
           <Respiro altura={espaco.s} />
@@ -95,7 +129,7 @@ export default function EncontrarColaborador() {
             >
               <Text style={[e.cidadeTexto, cidade === '' && e.cidadeTextoAtivo]}>Todas</Text>
             </Pressable>
-            {dados.cidades.map(c => (
+            {dadosRecrutar.cidades.map(c => (
               <Pressable
                 key={c}
                 onPress={() => setCidade(c === cidade ? '' : c)}
@@ -118,8 +152,42 @@ export default function EncontrarColaborador() {
         </>
       ) : null}
 
-      {dados ? (
-        dados.pessoas.length === 0 ? (
+      {todaABase ? (
+        dadosBase ? (
+          dadosBase.pessoas.length === 0 ? (
+            <Cartao>
+              <Corpo>
+                {busca
+                  ? 'Ninguém encontrado com esse CPF ou nome.'
+                  : 'A base ainda está vazia. Ela se preenche sozinha conforme as equipes se cadastram nos eventos.'}
+              </Corpo>
+            </Cartao>
+          ) : (
+            <>
+              {/*
+                O total NÃO muda com a busca: ele responde "quantas existem".
+                Recalculá-lo pela busca faria a base parecer encolher a cada
+                letra digitada.
+              */}
+              <Legenda>
+                {busca
+                  ? `${dadosBase.pessoas.length} de ${dadosBase.total} pessoas`
+                  : `${dadosBase.total} pessoas na base`}
+              </Legenda>
+              <Respiro altura={espaco.s} />
+              <Cartao semPadding>
+                {dadosBase.pessoas.map((p, i) => (
+                  <View key={p.cpf}>
+                    {i > 0 ? <View style={e.fio} /> : null}
+                    <LinhaDaBase pessoa={p} />
+                  </View>
+                ))}
+              </Cartao>
+            </>
+          )
+        ) : null
+      ) : dadosRecrutar ? (
+        dadosRecrutar.pessoas.length === 0 ? (
           <Cartao>
             <Corpo>
               {busca || cidade
@@ -129,7 +197,7 @@ export default function EncontrarColaborador() {
           </Cartao>
         ) : (
           <Cartao semPadding>
-            {dados.pessoas.map((p, i) => (
+            {dadosRecrutar.pessoas.map((p, i) => (
               <View key={p.cpf}>
                 {i > 0 ? <View style={e.fio} /> : null}
                 <LinhaRegional pessoa={p} />
@@ -201,6 +269,37 @@ function LinhaRegional({ pessoa }: { pessoa: PessoaRegional }) {
   )
 }
 
+function LinhaDaBase({ pessoa }: { pessoa: PessoaDaBase }) {
+  const router = useRouter()
+
+  return (
+    <View style={e.pessoa}>
+      {/* O nome abre a ficha: histórico entre organizações, e atribuir a um evento. */}
+      <Pressable onPress={() => router.push(`/pessoa/${pessoa.cpf}` as never)} hitSlop={8}>
+        <TituloDeCartao>{pessoa.nome}</TituloDeCartao>
+      </Pressable>
+      <Legenda>{formatCpf(pessoa.cpf)}</Legenda>
+
+      <View style={e.selos}>
+        <Selo
+          texto={`${pessoa.eventos} evento${pessoa.eventos === 1 ? '' : 's'}`}
+          tipo={pessoa.eventos >= 2 ? 'sucesso' : 'info'}
+        />
+        <Selo
+          texto={`${pessoa.organizacoes} organizaç${pessoa.organizacoes === 1 ? 'ão' : 'ões'}`}
+          tipo="info"
+        />
+        {pessoa.funcao ? <Selo texto={pessoa.funcao} tipo="info" /> : null}
+      </View>
+
+      <Text style={e.rodape}>
+        {pessoa.telefone ? `${formatTelefone(pessoa.telefone)} · ` : ''}
+        último cadastro em {formatarBR(pessoa.ultimoCadastro, 'curto')}
+      </Text>
+    </View>
+  )
+}
+
 function Meta({ icone, texto: valor }: { icone: string; texto: string }) {
   return (
     <View style={e.meta}>
@@ -236,4 +335,6 @@ const e = StyleSheet.create({
   metas: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m, marginTop: espaco.s },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' },
   metaTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, flexShrink: 1 },
+  selos: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s, marginTop: espaco.xs },
+  rodape: { ...texto.xxs, fontFamily: tipo.regular, color: uso.tintaFraca, marginTop: espaco.xs },
 })
