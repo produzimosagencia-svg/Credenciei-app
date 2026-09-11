@@ -49,7 +49,7 @@ import type {
   CondutorEncontrado, DadosDeVeiculo, Veiculo, VeiculosDoEvento, CpfBloqueado,
   ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
   DadosParaLancarPonto, BuscaDeColaboradores,
-  DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte, SuporteAcesso,
+  DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte, SuporteAcesso, ConfiguracaoDoMeio,
 } from './tipos.js'
 import { VISOES_DE_ATIVIDADE } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
@@ -78,6 +78,13 @@ export type ComportamentoFalso = {
    * não há como um teste "desligar" uma constante do módulo por fora.
    */
   checkinAutonomoDoEvento?: boolean
+  /**
+   * Sobrepõe se o SETOR do colaborador de demonstração pede o meio — o outro
+   * lado do E fica em `DIAS[].exigeMeio`, fixo por dia. Mesmo motivo do
+   * `checkinAutonomoDoEvento`: o cenário nasce com um valor, e só um teste
+   * precisa do outro.
+   */
+  meioExigidoNoMeuSetor?: boolean
 }
 
 const EVENTO = {
@@ -98,12 +105,20 @@ const EVENTO = {
   checkinAutonomo: true,
 }
 
-/** Os dias de trabalho — montagem, o dia, e desmontagem. */
-const DIAS: { data: string; tipo: 'principal' | 'preparacao' }[] = [
-  { data: '2026-09-03', tipo: 'preparacao' },
-  { data: '2026-09-04', tipo: 'preparacao' },
-  { data: '2026-09-05', tipo: 'principal' },
-  { data: '2026-09-06', tipo: 'preparacao' },
+/**
+ * Os dias de trabalho — montagem, o dia, e desmontagem.
+ *
+ * `exigeMeio` aqui é só o lado do DIA — o outro lado, o do SETOR, é
+ * `ClienteFalso.meioExigido` (ver o comentário lá). A desmontagem sai
+ * desligada de propósito: é o mesmo dia que `CONFIGURACAO_DE_MENTIRA['ev-1']
+ * .diasSemMeio` desliga do lado do painel — os dois lados contam a mesma
+ * história, um pra cada modelo de dados deste servidor de mentira.
+ */
+const DIAS: { data: string; tipo: 'principal' | 'preparacao'; exigeMeio: boolean }[] = [
+  { data: '2026-09-03', tipo: 'preparacao', exigeMeio: true },
+  { data: '2026-09-04', tipo: 'preparacao', exigeMeio: true },
+  { data: '2026-09-05', tipo: 'principal', exigeMeio: true },
+  { data: '2026-09-06', tipo: 'preparacao', exigeMeio: false },
 ]
 
 /**
@@ -307,20 +322,25 @@ const SETORES_DE_MENTIRA: Record<string, {
   valorPorPessoa: number | null
   token: string
   supervisores: { id: string; nome: string; ativo: boolean }[]
+  /**
+   * Pede a confirmação do meio? Nasce desligado — ver `ConfiguracaoDoMeio` e
+   * `lib/meio.ts` no site: só faz sentido em equipe paga por pessoa.
+   */
+  exigeMeio: boolean
 }[]> = {
   'ev-1': [
-    { setorId: 's-1', nome: 'Produção', pessoas: 18, estimado: 20, valorPorPessoa: 150, token: 'f-prod-1', supervisores: [{ id: 'u-3', nome: 'Carlos Silva', ativo: true }] },
-    { setorId: 's-2', nome: 'Portaria', pessoas: 12, estimado: 12, valorPorPessoa: 140, token: 'f-port-1', supervisores: [] },
-    { setorId: 's-3', nome: 'Bar', pessoas: 7, estimado: 15, valorPorPessoa: 160, token: 'f-bar-1', supervisores: [] },
-    { setorId: 's-4', nome: 'Camarim', pessoas: 4, estimado: null, valorPorPessoa: 180, token: 'f-cam-1', supervisores: [{ id: 'u-4', nome: 'Débora Antunes', ativo: true }] },
-    { setorId: 's-5', nome: 'Limpeza', pessoas: 0, estimado: 8, valorPorPessoa: null, token: 'f-limp-1', supervisores: [] },
+    { setorId: 's-1', nome: 'Produção', pessoas: 18, estimado: 20, valorPorPessoa: 150, token: 'f-prod-1', supervisores: [{ id: 'u-3', nome: 'Carlos Silva', ativo: true }], exigeMeio: true },
+    { setorId: 's-2', nome: 'Portaria', pessoas: 12, estimado: 12, valorPorPessoa: 140, token: 'f-port-1', supervisores: [], exigeMeio: false },
+    { setorId: 's-3', nome: 'Bar', pessoas: 7, estimado: 15, valorPorPessoa: 160, token: 'f-bar-1', supervisores: [], exigeMeio: true },
+    { setorId: 's-4', nome: 'Camarim', pessoas: 4, estimado: null, valorPorPessoa: 180, token: 'f-cam-1', supervisores: [{ id: 'u-4', nome: 'Débora Antunes', ativo: true }], exigeMeio: false },
+    { setorId: 's-5', nome: 'Limpeza', pessoas: 0, estimado: 8, valorPorPessoa: null, token: 'f-limp-1', supervisores: [], exigeMeio: false },
   ],
   'ev-2': [
-    { setorId: 's-6', nome: 'Produção', pessoas: 2, estimado: 2, valorPorPessoa: 150, token: 'f-prod-2', supervisores: [{ id: 'u-3', nome: 'Carlos Silva', ativo: true }] },
-    { setorId: 's-7', nome: 'Portaria', pessoas: 1, estimado: 1, valorPorPessoa: 140, token: 'f-port-2', supervisores: [] },
+    { setorId: 's-6', nome: 'Produção', pessoas: 2, estimado: 2, valorPorPessoa: 150, token: 'f-prod-2', supervisores: [{ id: 'u-3', nome: 'Carlos Silva', ativo: true }], exigeMeio: false },
+    { setorId: 's-7', nome: 'Portaria', pessoas: 1, estimado: 1, valorPorPessoa: 140, token: 'f-port-2', supervisores: [], exigeMeio: false },
   ],
   'ev-3': [
-    { setorId: 's-8', nome: 'Produção', pessoas: 2, estimado: 2, valorPorPessoa: 150, token: 'f-prod-3', supervisores: [] },
+    { setorId: 's-8', nome: 'Produção', pessoas: 2, estimado: 2, valorPorPessoa: 150, token: 'f-prod-3', supervisores: [], exigeMeio: false },
   ],
 }
 
@@ -535,6 +555,12 @@ const CONFIGURACAO_DE_MENTIRA: Record<string, {
   preparacao: string[]
   /** Os que já têm batida e por isso não podem ser desmarcados. */
   comBatidas: string[]
+  /**
+   * Os dias em que o meio está DESLIGADO. Nasce vazio: todo dia pede o meio,
+   * que é o padrão de `jornada_dias.exige_meio` no site (nasce ligado) — só o
+   * SETOR nasce desligado.
+   */
+  diasSemMeio: string[]
 }> = {
   'ev-1': {
     descricao: null,
@@ -552,6 +578,9 @@ const CONFIGURACAO_DE_MENTIRA: Record<string, {
     // servidor preserva mesmo se vier desmarcado. Sem ele no cenário, esse
     // caminho nunca seria exercitado.
     comBatidas: ['2026-08-31'],
+    // A desmontagem sem meio: é o caso que prova que o desligamento é por
+    // DIA, e não só por setor.
+    diasSemMeio: ['2026-09-06'],
   },
   'ev-2': {
     descricao: null,
@@ -563,6 +592,7 @@ const CONFIGURACAO_DE_MENTIRA: Record<string, {
     janelaFimFim: '2026-08-30T06:00:00-03:00',
     preparacao: ['2026-08-28'],
     comBatidas: [],
+    diasSemMeio: [],
   },
   'ev-3': {
     descricao: null,
@@ -574,6 +604,7 @@ const CONFIGURACAO_DE_MENTIRA: Record<string, {
     janelaFimFim: null,
     preparacao: [],
     comBatidas: [],
+    diasSemMeio: [],
   },
 }
 
@@ -858,6 +889,7 @@ export class ClienteFalso implements ClienteApi {
   private falhaDeRede: number
   private agora: () => number
   private checkinAutonomo: boolean
+  private meioExigido: boolean
 
   private sessao: Sessao | null = null
   private participacao: ResumoParticipacao | null = null
@@ -922,6 +954,9 @@ export class ClienteFalso implements ClienteApi {
     this.falhaDeRede = c.falhaDeRede ?? 0
     this.agora = c.agora ?? (() => Date.now())
     this.checkinAutonomo = c.checkinAutonomoDoEvento ?? EVENTO.checkinAutonomo
+    // `true` por padrão: o colaborador de demonstração é da Produção — mesmo
+    // setor que `SETORES_DE_MENTIRA['ev-1']` marca com `exigeMeio: true`.
+    this.meioExigido = c.meioExigidoNoMeuSetor ?? true
     if (c.sessaoInicial) {
       this.sessao = c.sessaoInicial
       this.renovacaoValida = c.sessaoInicial.renovacao
@@ -1112,6 +1147,8 @@ export class ClienteFalso implements ClienteApi {
         horas: entrada && pega('fim')
           ? Math.round(((Date.parse(pega('fim')!) - Date.parse(entrada)) / 3600e3) * 100) / 100
           : null,
+        // O E entre setor e dia — ver o comentário de `meioExigido` e de `DIAS`.
+        meioExigido: this.meioExigido && d.exigeMeio,
       }
     })
   }
@@ -1870,6 +1907,8 @@ export class ClienteFalso implements ClienteApi {
       janelaFimFim: dados.janelaFimFim ?? null,
       preparacao: [],
       comBatidas: [],
+      // Todo dia nasce pedindo o meio — o padrão da coluna no site.
+      diasSemMeio: [],
     }
     // Mesmo motivo: sem isto, ligar a portaria de um evento recém-criado
     // bateria em "não encontramos este evento" — ela nasce fechada e sem QR,
@@ -1980,6 +2019,7 @@ export class ClienteFalso implements ClienteApi {
       estimado?: number | null
       valorPorPessoa?: number | null
       supervisor: { nome: string; cpf: string; telefone: string }
+      exigeMeio?: boolean
     },
   ) {
     await this.rede()
@@ -2036,9 +2076,67 @@ export class ClienteFalso implements ClienteApi {
       valorPorPessoa: dados.valorPorPessoa ?? null,
       token: `f-${Math.random().toString(16).slice(2, 8)}`,
       supervisores: [{ id: supervisor.id, nome: supervisor.nome, ativo: supervisor.ativo }],
+      exigeMeio: dados.exigeMeio === true,
     }
     lista.push(novo)
     return { setor: this.paraSetor(novo) }
+  }
+
+  /**
+   * O que a tela de "Batida do meio" mostra: os setores do evento e os dias
+   * da operação, cada um com o próprio interruptor. Trazido do site em
+   * 11/09/2026.
+   */
+  async configuracaoDoMeio(eventoId: string): Promise<ConfiguracaoDoMeio> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'configurar a batida do meio')
+
+    const setores = SETORES_DE_MENTIRA[eventoId]
+    const base = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+    const cfg = CONFIGURACAO_DE_MENTIRA[eventoId]
+    if (!setores || !base || !cfg) throw new Error('Não encontramos este evento.')
+
+    const diaPrincipal = diaBRT(base.dataInicio)
+    const dias = [
+      { data: diaPrincipal, tipo: 'principal' as const },
+      ...cfg.preparacao.map(d => ({ data: d, tipo: 'preparacao' as const })),
+    ].sort((a, b) => a.data.localeCompare(b.data))
+    const semMeio = new Set(cfg.diasSemMeio)
+
+    return {
+      setores: setores.map(s => ({ setorId: s.setorId, nome: s.nome, exigeMeio: s.exigeMeio })),
+      dias: dias.map(d => ({ ...d, exigeMeio: !semMeio.has(d.data) })),
+    }
+  }
+
+  /**
+   * Liga/desliga a batida do meio: quais SETORES pedem, e em quais DIAS.
+   *
+   * Grava explicitamente o que foi DESMARCADO, e não só o marcado — sem
+   * isso, desligar não desligaria nada, só deixaria de ligar de novo.
+   */
+  async salvarConfiguracaoDoMeio(
+    eventoId: string, setoresLigados: string[], diasLigados: string[],
+  ) {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'configurar a batida do meio')
+
+    const setores = SETORES_DE_MENTIRA[eventoId]
+    const base = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+    const cfg = CONFIGURACAO_DE_MENTIRA[eventoId]
+    if (!setores || !base || !cfg) return { erro: 'Não encontramos este evento.' }
+
+    const ligados = new Set(setoresLigados)
+    for (const s of setores) s.exigeMeio = ligados.has(s.setorId)
+
+    const diaPrincipal = diaBRT(base.dataInicio)
+    const todasAsDatas = [diaPrincipal, ...cfg.preparacao]
+    const diasLigadosSet = new Set(diasLigados)
+    cfg.diasSemMeio = todasAsDatas.filter(d => !diasLigadosSet.has(d))
+
+    return { setores: setoresLigados.length, dias: diasLigados.length }
   }
 
   async configuracaoDoEvento(eventoId: string): Promise<ConfiguracaoDoEvento> {
@@ -2242,6 +2340,7 @@ export class ClienteFalso implements ClienteApi {
      * grade de dias.
      */
     const datas = [...new Set([...(cfg?.preparacao ?? []), diaPrincipal])].sort()
+    const semMeio = new Set(cfg?.diasSemMeio ?? [])
     const dias: DiaDaParticipacao[] = datas.map(data => ({
       data,
       etapa: faseDoDia(data, diaPrincipal),
@@ -2252,6 +2351,7 @@ export class ClienteFalso implements ClienteApi {
       saida: null,
       compareceu: false,
       horas: null,
+      meioExigido: setor.exigeMeio && !semMeio.has(data),
     }))
 
     return {

@@ -23,6 +23,7 @@ function dia(p: Partial<DiaDaParticipacao> = {}): DiaDaParticipacao {
     saida: null,
     compareceu: false,
     horas: null,
+    meioExigido: true,
     ...p,
   }
 }

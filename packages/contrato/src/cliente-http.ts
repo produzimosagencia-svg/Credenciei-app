@@ -29,7 +29,7 @@ import type { ClienteApi } from './cliente.js'
 import type {
   Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  ArquivoDePlanilha, ConfiguracaoDoEvento, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
+  ArquivoDePlanilha, ConfiguracaoDoEvento, ConfiguracaoDoMeio, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada,
   FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
@@ -467,10 +467,25 @@ export class ClienteHttp implements ClienteApi {
       estimado?: number | null
       valorPorPessoa?: number | null
       supervisor: { nome: string; cpf: string; telefone: string }
+      exigeMeio?: boolean
     },
   ): Promise<{ setor?: SetorDetalhado; erro?: string }> {
     void _eventoId; void _dados
     throw new AindaNaoNaApi('criarSetor')
+  }
+
+  async configuracaoDoMeio(_eventoId: string): Promise<ConfiguracaoDoMeio> {
+    void _eventoId
+    throw new AindaNaoNaApi('configuracaoDoMeio')
+  }
+
+  async salvarConfiguracaoDoMeio(
+    _eventoId: string,
+    _setoresLigados: string[],
+    _diasLigados: string[],
+  ): Promise<{ setores?: number; dias?: number; erro?: string }> {
+    void _eventoId; void _setoresLigados; void _diasLigados
+    throw new AindaNaoNaApi('salvarConfiguracaoDoMeio')
   }
 
   async equipeDoSetor(_setorId: string): Promise<EquipeDoSetor> {

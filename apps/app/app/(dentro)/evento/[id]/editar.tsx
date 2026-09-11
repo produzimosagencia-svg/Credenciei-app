@@ -27,7 +27,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { conferirHorariosDoEvento, type ProblemaDeJanela } from '@credenciei/dominio'
 import type {
-  ConfiguracaoDoEvento, DiaDeTrabalho, EdicaoDoEvento, ResultadoDosDias,
+  ConfiguracaoDoEvento, ConfiguracaoDoMeio, DiaDeTrabalho, EdicaoDoEvento, ResultadoDosDias,
 } from '@credenciei/contrato'
 import { diaDoInstante } from '../../../../src/data'
 import { mensagemDoErro, usePedido } from '../../../../src/dados/pedido'
@@ -51,10 +51,13 @@ export default function EditarEvento() {
   const router = useRouter()
   const { cliente } = useSessao()
 
-  const { pedido, recarregar } = usePedido(
-    () => cliente.configuracaoDoEvento(String(id)),
-    [cliente, id],
-  )
+  const { pedido, recarregar } = usePedido(async () => {
+    const [evento, meio] = await Promise.all([
+      cliente.configuracaoDoEvento(String(id)),
+      cliente.configuracaoDoMeio(String(id)),
+    ])
+    return { evento, meio }
+  }, [cliente, id])
 
   return (
     <Tela>
@@ -72,7 +75,9 @@ export default function EditarEvento() {
 
       {pedido.estado === 'pronto' ? (
         <Formulario
-          inicial={pedido.dados}
+          inicial={pedido.dados.evento}
+          meioInicial={pedido.dados.meio}
+          eventoId={String(id)}
           aoSalvar={async dados => cliente.salvarEvento(String(id), dados)}
           aoSalvarDias={async dias => cliente.salvarDiasDeTrabalho(String(id), dias)}
           aoTerminar={() => router.back()}
@@ -83,9 +88,11 @@ export default function EditarEvento() {
 }
 
 function Formulario({
-  inicial, aoSalvar, aoSalvarDias, aoTerminar,
+  inicial, meioInicial, eventoId, aoSalvar, aoSalvarDias, aoTerminar,
 }: {
   inicial: ConfiguracaoDoEvento
+  meioInicial: ConfiguracaoDoMeio
+  eventoId: string
   aoSalvar: (dados: EdicaoDoEvento) => Promise<{ erro?: string }>
   aoSalvarDias: (dias: string[]) => Promise<{ resultado?: ResultadoDosDias; erro?: string }>
   aoTerminar: () => void
@@ -290,31 +297,7 @@ function Formulario({
         <CampoDeDataHora rotulo="FIM" valor={saidaFim} aoMudar={setSaidaFim} />
       </Cartao>
 
-      {/*
-        O meio perdeu o campo, mas NÃO pode perder a explicação: sem esta
-        caixa, quem vê "Entrada" e "Saída" conclui que o meio deixou de
-        existir — quando na verdade ele virou automático.
-      */}
-      <View style={e.meio}>
-        <View style={[e.blocoDoIcone, { backgroundColor: cor.info50 }]}>
-          <Icone nome="Camera" tamanho={14} tom={cor.info600} />
-        </View>
-        <View style={e.meioTexto}>
-          <Corpo forte>Meio — automático</Corpo>
-          <Respiro altura={espaco.xs} />
-          <Corpo>
-            O sistema pede a batida por foto 4 horas depois da entrada de cada
-            pessoa. Quem entrar às 08:00 registra às 12:00; quem entrar às 10:30
-            registra às 14:30.
-          </Corpo>
-          <Respiro altura={espaco.xs} />
-          <Legenda>
-            É pedido uma vez só, e não tem horário para configurar — a equipe
-            não entra junta, e um horário fixo cobraria de quem acabou de
-            chegar.
-          </Legenda>
-        </View>
-      </View>
+      <ConfiguracaoDoMeioBloco eventoId={eventoId} inicial={meioInicial} />
 
       {alertas.length > 0 ? (
         <>
@@ -341,6 +324,156 @@ function Formulario({
         <AvisoDeBloqueio problemas={bloqueio} aoFechar={() => setBloqueio(null)} />
       ) : null}
     </>
+  )
+}
+
+/**
+ * Quem pede a batida do meio, e quando.
+ *
+ * O meio não tem horário para configurar — ele é a entrada real de cada
+ * pessoa + 4h, e continua assim. O que se configura aqui é OUTRA coisa: QUAIS
+ * SETORES pedem, e EM QUAIS DIAS. As duas listas se combinam com E — ver
+ * `lib/meio.ts` no site: é uma decisão de custo (duas mensagens de WhatsApp
+ * cobradas por pessoa por dia), não de estética.
+ */
+function ConfiguracaoDoMeioBloco({
+  eventoId, inicial,
+}: { eventoId: string; inicial: ConfiguracaoDoMeio }) {
+  const { cliente } = useSessao()
+  const [setores, setSetores] = useState<Set<string>>(
+    () => new Set(inicial.setores.filter(s => s.exigeMeio).map(s => s.setorId)),
+  )
+  const [dias, setDias] = useState<Set<string>>(
+    () => new Set(inicial.dias.filter(d => d.exigeMeio).map(d => d.data)),
+  )
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const [feito, setFeito] = useState<string | null>(null)
+
+  const alternar = (atual: Set<string>, valor: string) => {
+    const proximo = new Set(atual)
+    if (proximo.has(valor)) proximo.delete(valor)
+    else proximo.add(valor)
+    return proximo
+  }
+
+  const ligado = setores.size > 0 && dias.size > 0
+
+  async function salvar() {
+    setErro(null)
+    setFeito(null)
+    setSalvando(true)
+    try {
+      const r = await cliente.salvarConfiguracaoDoMeio(eventoId, [...setores], [...dias])
+      if (r.erro) return setErro(r.erro)
+      setFeito(
+        !r.setores || !r.dias
+          ? 'O meio está desligado neste evento — ninguém vai receber lembrete nem aparecer como pendente.'
+          : `Meio ligado em ${r.setores} setor(es), em ${r.dias} dia(s).`,
+      )
+    } catch (e) {
+      setErro(mensagemDoErro(e))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <Cartao>
+      <View style={e.tituloComIcone}>
+        <View style={[e.blocoDoIcone, { backgroundColor: cor.info50 }]}>
+          <Icone nome="Camera" tamanho={14} tom={cor.info600} />
+        </View>
+        <TituloDeCartao>Batida do meio</TituloDeCartao>
+      </View>
+      <Respiro altura={espaco.s} />
+      <Corpo>
+        O sistema pede a batida por foto 4 horas depois da entrada de cada
+        pessoa. Quem entrar às 08:00 registra às 12:00; quem entrar às 10:30
+        registra às 14:30.
+      </Corpo>
+      <Respiro altura={espaco.xs} />
+      <Legenda>
+        Não tem horário pra configurar — a equipe não entra junta, e um
+        horário fixo cobraria de quem acabou de chegar. O que se escolhe
+        aqui é quais setores pedem e em quais dias.
+      </Legenda>
+      <Respiro altura={espaco.m} />
+
+      <Etiqueta>Setores que pedem o meio</Etiqueta>
+      <Respiro altura={espaco.s} />
+      {inicial.setores.length === 0 ? (
+        <Legenda>Este evento ainda não tem setores cadastrados.</Legenda>
+      ) : (
+        <View style={e.meioGradeSetores}>
+          {inicial.setores.map(s => {
+            const marcado = setores.has(s.setorId)
+            return (
+              <Pressable
+                key={s.setorId}
+                onPress={() => { setFeito(null); setSetores(a => alternar(a, s.setorId)) }}
+                style={[e.meioChip, marcado && e.meioChipMarcado]}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: marcado }}
+              >
+                <View style={[e.meioCaixa, marcado && e.caixaMarcada]}>
+                  {marcado ? <Icone nome="Check" tamanho={10} tom="#ffffff" espessura={3} /> : null}
+                </View>
+                <Text style={[e.meioChipTexto, marcado && e.meioChipTextoMarcado]} numberOfLines={1}>
+                  {s.nome}
+                </Text>
+              </Pressable>
+            )
+          })}
+        </View>
+      )}
+
+      <Respiro altura={espaco.m} />
+      <Etiqueta>Dias com batida do meio</Etiqueta>
+      <Respiro altura={espaco.s} />
+      {inicial.dias.length === 0 ? (
+        <Legenda>
+          Marque os dias de trabalho logo abaixo e salve — eles aparecem
+          aqui em seguida.
+        </Legenda>
+      ) : (
+        <View style={e.tira}>
+          {inicial.dias.map(d => {
+            const marcado = dias.has(d.data)
+            const [, m, dd] = d.data.split('-')
+            return (
+              <Pressable
+                key={d.data}
+                onPress={() => { setFeito(null); setDias(a => alternar(a, d.data)) }}
+                style={[e.dia, marcado && e.diaMontagem]}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: marcado }}
+              >
+                <Text style={e.diaSemana}>{d.tipo === 'principal' ? 'EVENTO' : 'PREP.'}</Text>
+                <Text style={e.diaNumero}>{dd}/{m}</Text>
+                <View style={e.diaMarca}>
+                  {marcado ? <Icone nome="Check" tamanho={12} tom={cor.acento700} espessura={3} /> : null}
+                </View>
+              </Pressable>
+            )
+          })}
+        </View>
+      )}
+
+      <Respiro altura={espaco.m} />
+      <Legenda>
+        {ligado
+          ? `O meio vai ser pedido a quem estiver nos ${setores.size} setor(es) marcados, nos ${dias.size} dia(s) marcados — e só neles.`
+          : 'Nenhuma combinação marcada: o meio fica desligado neste evento. O cartão some da credencial, ninguém recebe lembrete e ninguém aparece como pendente do meio.'}
+        {' '}Batida já registrada continua no histórico — desligar não apaga nada.
+      </Legenda>
+
+      {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
+      {feito ? <Aviso tipo="sucesso">{feito}</Aviso> : null}
+
+      <Respiro altura={espaco.m} />
+      <Botao titulo="Salvar configuração do meio" onPress={salvar} ocupado={salvando} tipo="secundario" />
+    </Cartao>
   )
 }
 
@@ -603,17 +736,29 @@ const e = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  meio: {
+  meioGradeSetores: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
+  meioChip: {
     flexDirection: 'row',
-    gap: espaco.m,
-    backgroundColor: cor.info50,
-    borderWidth: 1,
-    borderColor: cor.info200,
-    borderRadius: raio.cartao,
-    padding: espaco.g,
-    marginBottom: espaco.m,
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: '100%',
+    paddingVertical: 6,
+    paddingHorizontal: espaco.s,
+    borderRadius: raio.campo,
+    backgroundColor: cor.neutro100,
   },
-  meioTexto: { flex: 1, minWidth: 0 },
+  meioChipMarcado: { backgroundColor: cor.acento50 },
+  meioChipTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaMedia, flexShrink: 1 },
+  meioChipTextoMarcado: { fontFamily: tipo.semi, color: cor.acento700 },
+  meioCaixa: {
+    width: 15,
+    height: 15,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: cor.neutro300,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   tira: { gap: espaco.s, paddingVertical: 2 },
   dia: {

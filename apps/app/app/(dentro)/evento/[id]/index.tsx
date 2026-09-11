@@ -376,12 +376,14 @@ function FormularioDeSetor({
     estimado?: number | null
     valorPorPessoa?: number | null
     supervisor: { nome: string; cpf: string; telefone: string }
+    exigeMeio?: boolean
   }) => void
   aoCancelar: () => void
 }) {
   const [nome, setNome] = useState('')
   const [estimado, setEstimado] = useState('')
   const [valor, setValor] = useState('')
+  const [exigeMeio, setExigeMeio] = useState(false)
   const [supNome, setSupNome] = useState('')
   const [supCpf, setSupCpf] = useState('')
   const [supTelefone, setSupTelefone] = useState('')
@@ -415,6 +417,30 @@ function FormularioDeSetor({
         placeholder="opcional"
         keyboardType="number-pad"
       />
+
+      {/*
+        Confirmação do meio — só faz sentido em equipe paga POR PESSOA. Vem
+        desligada: pacote fechado não muda pagamento, só gasta WhatsApp.
+      */}
+      <Pressable onPress={() => setExigeMeio(v => !v)} accessibilityRole="checkbox"
+        accessibilityState={{ checked: exigeMeio }}>
+        <View style={e.linhaDaChave}>
+          <View style={[e.caixaDaChave, exigeMeio && e.caixaDaChaveMarcada]}>
+            {exigeMeio ? <Icone nome="Check" tamanho={12} tom="#ffffff" espessura={3} /> : null}
+          </View>
+          <View style={e.textoDaChave}>
+            <Corpo forte>Pedir confirmação no meio do turno</Corpo>
+            <Respiro altura={espaco.xs} />
+            <Legenda>
+              A selfie que comprova que a pessoa ficou no posto. Ligue só em
+              equipe paga por pessoa (segurança, limpeza, carregadores, bar…).
+              Em fornecedor de pacote fechado não muda pagamento e só gasta
+              WhatsApp.
+            </Legenda>
+          </View>
+        </View>
+      </Pressable>
+      <Respiro altura={espaco.s} />
 
       {/*
         O supervisor vem junto, não depois — do jeito que o site fez em
@@ -461,6 +487,7 @@ function FormularioDeSetor({
           estimado: estimado ? Number(estimado) : null,
           valorPorPessoa: valor ? Number(valor) : null,
           supervisor: { nome: supNome, cpf: supCpf, telefone: supTelefone },
+          exigeMeio,
         })}
       />
       <Respiro altura={espaco.s} />
@@ -488,6 +515,20 @@ function emReais(valor: number): string {
 }
 
 const e = StyleSheet.create({
+  linhaDaChave: { flexDirection: 'row', gap: espaco.m },
+  textoDaChave: { flex: 1, minWidth: 0 },
+  caixaDaChave: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: cor.neutro300,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  caixaDaChaveMarcada: { backgroundColor: cor.acento500, borderColor: cor.acento600 },
+
   cabecalho: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, flexWrap: 'wrap' },
   meta: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' },

@@ -175,12 +175,14 @@ export default function Credencial() {
                 aoRegistrarLivre={registrarEntradaLivre}
               />
 
-              <EtapaDoMeio
-                dia={diaDeHoje}
-                naFila={naFila.find(i => i.tipo === 'meio')}
-                aoRegistrar={() => setCamera(true)}
-                aoDescartar={id => { void fila.descartar(id) }}
-              />
+              {diaDeHoje.meioExigido || diaDeHoje.meio ? (
+                <EtapaDoMeio
+                  dia={diaDeHoje}
+                  naFila={naFila.find(i => i.tipo === 'meio')}
+                  aoRegistrar={() => setCamera(true)}
+                  aoDescartar={id => { void fila.descartar(id) }}
+                />
+              ) : null}
 
               <EtapaDoDia
                 tipo="fim"

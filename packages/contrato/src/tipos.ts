@@ -98,6 +98,12 @@ export type DiaDaParticipacao = {
   saida: string | null
   compareceu: boolean
   horas: number | null
+  /**
+   * O meio é pedido HOJE, para esta pessoa? Precisa do setor E do dia — ver
+   * `ConfiguracaoDoMeio`. `false` some com o cartão de meio da credencial: sem
+   * ele, ninguém recebe lembrete nem aparece pendente por causa do meio.
+   */
+  meioExigido: boolean
 }
 
 /**
@@ -755,6 +761,20 @@ export type EdicaoDoEvento = {
   janelaEntradaFim: string | null
   janelaFimInicio: string | null
   janelaFimFim: string | null
+}
+
+/**
+ * O que a tela de "Batida do meio" mostra: os setores do evento e os dias da
+ * operação, cada um com o próprio interruptor.
+ *
+ * O meio não tem horário para configurar — ele é a entrada real de cada
+ * pessoa + 4h, e continua assim (ver `janelaMeio`). O que se escolhe aqui é
+ * OUTRA coisa: quais SETORES pedem a confirmação, e em quais DIAS. As duas
+ * listas se combinam com E — ver `lib/meio.ts` no site.
+ */
+export type ConfiguracaoDoMeio = {
+  setores: { setorId: string; nome: string; exigeMeio: boolean }[]
+  dias: { data: string; tipo: 'principal' | 'preparacao'; exigeMeio: boolean }[]
 }
 
 /**

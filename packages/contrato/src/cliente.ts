@@ -12,7 +12,7 @@
 import type {
   Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
-  ArquivoDePlanilha, ConfiguracaoDoEvento, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
+  ArquivoDePlanilha, ConfiguracaoDoEvento, ConfiguracaoDoMeio, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
   NovoAcesso, Painel, PainelDaEquipe, Portaria,
@@ -244,11 +244,38 @@ export interface ClienteApi {
       estimado?: number | null
       valorPorPessoa?: number | null
       supervisor: { nome: string; cpf: string; telefone: string }
+      /**
+       * Pedir a confirmação do meio para quem entra neste setor. Nasce
+       * desligado — só faz sentido gasto de WhatsApp em equipe paga por
+       * pessoa (ver `ConfiguracaoDoMeio`).
+       */
+      exigeMeio?: boolean
     },
   ): Promise<{ setor?: SetorDetalhado; erro?: string }>
 
   /** A equipe de um setor, com o estado de cada pessoa em cada etapa. */
   equipeDoSetor(setorId: string): Promise<EquipeDoSetor>
+
+  /**
+   * O que a tela de "Batida do meio" mostra: os setores do evento e os dias
+   * da operação, cada um com o próprio interruptor. Trazido do site em
+   * 11/09/2026.
+   */
+  configuracaoDoMeio(eventoId: string): Promise<ConfiguracaoDoMeio>
+
+  /**
+   * Liga/desliga a batida do meio: quais SETORES pedem, e em quais DIAS.
+   *
+   * Escreve os dois lados de uma vez porque a regra é um E entre eles — salvar
+   * metade deixaria a tela dizendo uma coisa e o sistema fazendo outra.
+   * Grava explicitamente o que foi DESMARCADO, e não só o marcado: sem isso,
+   * desligar não desligaria nada — só deixaria de ligar de novo.
+   */
+  salvarConfiguracaoDoMeio(
+    eventoId: string,
+    setoresLigados: string[],
+    diasLigados: string[],
+  ): Promise<{ setores?: number; dias?: number; erro?: string }>
 
   // ── A ficha de uma pessoa ───────────────────────────────────────────────
   /** Tudo sobre uma pessoa da equipe, numa chamada só. */

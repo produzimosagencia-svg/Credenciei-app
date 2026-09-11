@@ -1,6 +1,6 @@
 # Backlog
 
-**332 tasks · 211 no MVP · 171 concluídas (52%)**
+**332 tasks · 211 no MVP · 172 concluídas (52%)**
 
 **Só o MVP: 141 de 211 (67%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -91,10 +91,10 @@ nada do resto importa ainda.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 5 | 15 | — | Isolamento e limite feitos; falta LGPD, retenção e a trilha de auditoria |
-| 15 | Testes | 9 | 14 | — | 498 testes rodando |
+| 15 | Testes | 9 | 14 | — | 505 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 45 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
-| 18 | Configurar evento | 10 | 17 | ✓ | Falta a API e a configuração do meio por setor |
+| 18 | Configurar evento | 11 | 17 | ✓ | Falta a API |
 | 19 | Gastos (produto do Produtor) | 0 | 6 | — | Produto novo e isolado do credenciamento — escopo a confirmar com o Juan |
 
 ---
@@ -365,7 +365,7 @@ countable, cada linha já dentro do total da tabela acima.
 | Lançar ponto manual: regulariza quem já foi embora, com motivo | 17 | ✅ **Trazido** — dia de trabalho ≠ hora da batida; motivo mínimo de 5 caracteres |
 | Editar colaborador: atalho que busca em todos os setores do evento | 17 | ✅ **Trazido** — reaproveita a ficha que já existe; sem supervisor de propósito |
 | Auto-atendimento no dia principal (`checkin_autonomo`) | 18 | ✅ **Trazido** — só entrada, nunca saída (decisão do Juan); QR fixo/cartaz físico ficou de fora desta rodada |
-| Configuração do meio por setor + dia (não mais por horário) | 18 | Falta |
+| Configuração do meio por setor + dia (não mais por horário) | 18 | ✅ **Trazido** — tela em Editar evento; supervisor/pendência da equipe ainda não leem o novo interruptor, só a credencial do colaborador |
 | Trilha de auditoria — visualização simples de quem alterou o quê | 14 | Falta |
 | Gastos — produto do Produtor (voz, manual, lista, painel, exportação) | 19 | Falta — **escopo ainda não confirmado com o Juan**, ver abaixo |
 

@@ -228,6 +228,14 @@ export async function meusDias(
       horas: entrada && saida
         ? Math.round(((Date.parse(saida) - Date.parse(entrada)) / 3600e3) * 100) / 100
         : null,
+      /*
+       * `true` até a Configuração do meio ganhar a mesma leitura defensiva
+       * que `batida_livre` já tem (ver `lib/meio.ts` no site e o comentário
+       * em `paraEvento`, em supabase.ts). Antes desta coluna existir aqui,
+       * `meioExigido` sempre foi `true` — manter o padrão evita esconder o
+       * cartão do meio de quem nunca configurou nada.
+       */
+      meioExigido: true,
     }
   })
 }

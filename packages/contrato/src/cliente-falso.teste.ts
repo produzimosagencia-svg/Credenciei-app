@@ -1303,6 +1303,24 @@ test('setor sem supervisor válido é recusado', async () => {
   assert.match(semTelefone.erro ?? '', /whatsapp/i)
 })
 
+test('setor novo nasce sem pedir o meio, a não ser que o produtor marque', async () => {
+  // "Nasce desligado" — mesmo padrão de `fornecedores.exige_meio` no site.
+  const c = await noPortao()
+  const semMarcar = await c.criarSetor('ev-1', {
+    nome: 'Catering', supervisor: { nome: 'Renata Souza', cpf: '222.333.444-05', telefone: '(27) 99977-6655' },
+  })
+  const marcado = await c.criarSetor('ev-1', {
+    nome: 'Sonorização',
+    supervisor: { nome: 'Igor Ramalho', cpf: '333.444.555-16', telefone: '(27) 99966-5544' },
+    exigeMeio: true,
+  })
+
+  assert.equal(semMarcar.setor?.linkDoFormulario ? true : false, true, semMarcar.erro)
+  const config = await c.configuracaoDoMeio('ev-1')
+  assert.equal(config.setores.find(s => s.nome === 'Catering')?.exigeMeio, false)
+  assert.equal(config.setores.find(s => s.nome === 'Sonorização')?.exigeMeio, true)
+})
+
 // ─── Editar o evento ────────────────────────────────────────────────────────
 
 test('a configuração traz os horários e os dias marcados', async () => {
@@ -1429,6 +1447,78 @@ test('o supervisor não edita o evento', async () => {
   const c = new ClienteFalso()
   await entrarComo(c, 'supervisor')
   await assert.rejects(() => c.configuracaoDoEvento('ev-1'), /permissão/i)
+})
+
+// ─── Configuração do meio (setores × dias) ─────────────────────────────────
+//
+// Trazido do site em 11/09/2026. O meio não tem horário para configurar
+// (é a entrada + 4h, sempre) — o que se escolhe é QUAIS SETORES pedem e EM
+// QUAIS DIAS, e as duas listas se combinam com E (ver `lib/meio.ts`).
+
+test('a configuração traz os setores e os dias, cada um com o próprio interruptor', async () => {
+  const c = await noPortao()
+  const config = await c.configuracaoDoMeio('ev-1')
+
+  assert.ok(config.setores.length > 0)
+  assert.ok(config.dias.some(d => d.tipo === 'principal'))
+  assert.ok(config.dias.some(d => d.tipo === 'preparacao'))
+  // O cenário nasce com Produção pedindo e Portaria não — ver SETORES_DE_MENTIRA.
+  assert.equal(config.setores.find(s => s.nome === 'Produção')?.exigeMeio, true)
+  assert.equal(config.setores.find(s => s.nome === 'Portaria')?.exigeMeio, false)
+})
+
+test('salvar liga exatamente os setores e os dias escolhidos, e desliga o resto', async () => {
+  const c = await noPortao()
+  const antes = await c.configuracaoDoMeio('ev-1')
+  const doisSetores = antes.setores.slice(0, 2).map(s => s.setorId)
+  const umDia = [antes.dias[0]!.data]
+
+  const r = await c.salvarConfiguracaoDoMeio('ev-1', doisSetores, umDia)
+  assert.equal(r.setores, 2)
+  assert.equal(r.dias, 1)
+
+  const depois = await c.configuracaoDoMeio('ev-1')
+  for (const s of depois.setores) {
+    assert.equal(s.exigeMeio, doisSetores.includes(s.setorId), `setor ${s.nome} divergiu`)
+  }
+  for (const d of depois.dias) {
+    assert.equal(d.exigeMeio, umDia.includes(d.data), `dia ${d.data} divergiu`)
+  }
+})
+
+test('nenhum setor ou nenhum dia marcado desliga o meio inteiro do evento', async () => {
+  const c = await noPortao()
+  const r = await c.salvarConfiguracaoDoMeio('ev-2', [], [])
+  assert.equal(r.setores, 0)
+  assert.equal(r.dias, 0)
+
+  const config = await c.configuracaoDoMeio('ev-2')
+  assert.ok(config.setores.every(s => !s.exigeMeio))
+  assert.ok(config.dias.every(d => !d.exigeMeio))
+})
+
+test('o supervisor não configura o meio', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  await assert.rejects(() => c.configuracaoDoMeio('ev-1'), /permissão/i)
+  await assert.rejects(() => c.salvarConfiguracaoDoMeio('ev-1', [], []), /permissão/i)
+})
+
+test('o meio exigido no "meus dias" do colaborador combina setor e dia com E', async () => {
+  // Setor exige (padrão do cenário), mas o dia 06/09 nasce desligado — é a
+  // desmontagem, o mesmo dia que CONFIGURACAO_DE_MENTIRA['ev-1'] desliga do
+  // lado do painel.
+  const c = await comParticipacao()
+  const dias = await c.meusDias('part-1')
+
+  assert.equal(dias.find(d => d.data === '2026-09-05')?.meioExigido, true)
+  assert.equal(dias.find(d => d.data === '2026-09-06')?.meioExigido, false)
+})
+
+test('setor que não pede o meio some com o exigido, mesmo em dia que pede', async () => {
+  const c = await comParticipacao({ meioExigidoNoMeuSetor: false })
+  const dias = await c.meusDias('part-1')
+  assert.ok(dias.every(d => !d.meioExigido))
 })
 
 // ─── A ficha de uma pessoa ──────────────────────────────────────────────────
