@@ -100,6 +100,12 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
     principal.push({ rota: '/lancar-ponto', rotulo: 'Lançamento manual', icone: 'ClipboardPen', pronta: true })
   }
 
+  // Sem supervisor: ele já tem a própria equipe na tela do setor — o atalho
+  // existe pra quem enxerga o evento inteiro (e suporte, no escopo dele).
+  if (podeGerenciarEventos(papel) || papel === 'suporte') {
+    principal.push({ rota: '/editar-colaborador', rotulo: 'Editar colaborador', icone: 'UserCog', pronta: true })
+  }
+
   grupos.push({ itens: principal })
 
   // "Plataforma" continua rotulado: é o que só o dono da plataforma enxerga, e

@@ -41,7 +41,7 @@ import type {
   SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
   ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
-  DadosParaLancarPonto,
+  DadosParaLancarPonto, BuscaDeColaboradores,
 } from './tipos.js'
 import type { TipoBatida } from './comum.js'
 
@@ -733,5 +733,16 @@ export class ClienteHttp implements ClienteApi {
   ): Promise<{ nome?: string; etapa?: string; erro?: string }> {
     void _funcionarioId; void _tipo; void _dataRef; void _quandoISO; void _motivo
     throw new AindaNaoNaApi('lancarPontoManual')
+  }
+
+  // ─── Editar colaborador (atalho) ──────────────────────────────────────────
+
+  async eventosParaEditarColaborador(): Promise<EventoEscaneavel[]> {
+    throw new AindaNaoNaApi('eventosParaEditarColaborador')
+  }
+
+  async colaboradoresDoEvento(_eventoId: string): Promise<BuscaDeColaboradores> {
+    void _eventoId
+    throw new AindaNaoNaApi('colaboradoresDoEvento')
   }
 }

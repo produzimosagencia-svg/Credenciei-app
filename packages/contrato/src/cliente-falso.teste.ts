@@ -2410,3 +2410,45 @@ test('o operador de portão não lança ponto — é ato de gestão, não leitur
   })
   await assert.rejects(() => c.eventosParaLancarPonto(), /permissão/i)
 })
+
+// ─── Editar colaborador (atalho) ────────────────────────────────────────────
+//
+// Achar a pessoa em TODOS os setores do evento, sem saber em qual ela está.
+// Trazido do site em 11/09.
+
+test('a busca traz gente de setores diferentes, todos do mesmo evento', async () => {
+  const c = await noPortao()
+  const r = await c.colaboradoresDoEvento('ev-1')
+
+  assert.ok(r.colaboradores.length > 0)
+  const setores = new Set(r.colaboradores.map(x => x.setorNome))
+  assert.ok(setores.size > 1, 'ev-1 tem vários setores de mentira')
+})
+
+test('o supervisor não tem o atalho — ele já tem a própria equipe na tela do setor', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  await assert.rejects(() => c.eventosParaEditarColaborador(), /permissão/i)
+  await assert.rejects(() => c.colaboradoresDoEvento('ev-1'), /permissão/i)
+})
+
+test('o suporte tem o atalho, do mesmo jeito que quem gerencia o evento', async () => {
+  const c = new ClienteFalso({
+    sessaoInicial: {
+      token: 'tok-sup', expiraEm: new Date(Date.now() + 999_999).toISOString(),
+      renovacao: 'ren-sup', papel: 'suporte',
+    },
+  })
+  const eventos = await c.eventosParaEditarColaborador()
+  assert.ok(eventos.length > 0)
+})
+
+test('a pessoa achada pelo atalho abre na mesma ficha que a tela do setor usa', async () => {
+  const c = await noPortao()
+  const busca = await c.colaboradoresDoEvento('ev-1')
+  const alguem = busca.colaboradores[0]!
+
+  const ficha = await c.fichaDaPessoa(alguem.participacaoId)
+  assert.equal(ficha.nome, alguem.nome)
+  assert.equal(ficha.cpf, alguem.cpf)
+})

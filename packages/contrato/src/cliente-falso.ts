@@ -48,7 +48,7 @@ import type {
   SetorDetalhado, StatusDaEtapa, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, Veiculo, VeiculosDoEvento, CpfBloqueado,
   ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
-  DadosParaLancarPonto,
+  DadosParaLancarPonto, BuscaDeColaboradores,
 } from './tipos.js'
 import { VISOES_DE_ATIVIDADE } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
@@ -3393,6 +3393,52 @@ export class ClienteFalso implements ClienteApi {
     porPessoa.set(`${dataRef}:${tipo}`, quando.toISOString())
 
     return { nome: pessoa.nome, etapa: ROTULO_DA_ETAPA[tipo] }
+  }
+
+  // ── Editar colaborador (atalho) ─────────────────────────────────────────
+  //
+  // Achar a pessoa em TODOS os setores do evento, sem precisar saber em qual
+  // ela está. A ficha em si (mover de setor, corrigir CPF, ajustar valor,
+  // tornar supervisor) já existe em `fichaDaPessoa` — o que faltava era o
+  // caminho até ela. Sem supervisor aqui, de propósito: ele já tem a própria
+  // equipe na tela do setor. Trazido do site em 11/09/2026.
+
+  async eventosParaEditarColaborador(): Promise<EventoEscaneavel[]> {
+    await this.rede()
+    this.exigirSessao()
+    const papel = this.sessao!.papel
+    if (!podeGerenciarEventos(papel) && papel !== 'suporte') {
+      throw new Error('Você não tem permissão para editar colaboradores.')
+    }
+    const meus = ehMaster(papel)
+      ? EVENTOS_DO_PAINEL
+      : EVENTOS_DO_PAINEL.filter(ev => ev.organizacaoId === ORGANIZACAO_DO_ADMIN_DE_MENTIRA)
+    return meus.map(ev => ({ eventoId: ev.eventoId, nome: ev.nome }))
+  }
+
+  async colaboradoresDoEvento(eventoId: string): Promise<BuscaDeColaboradores> {
+    await this.rede()
+    this.exigirSessao()
+    const papel = this.sessao!.papel
+    if (!podeGerenciarEventos(papel) && papel !== 'suporte') {
+      throw new Error('Você não tem permissão para editar colaboradores.')
+    }
+    const evento = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+    if (!evento) throw new Error('Evento não encontrado.')
+
+    const setores = SETORES_DE_MENTIRA[eventoId] ?? []
+    const colaboradores = setores.flatMap(setor =>
+      equipeDoSetorDeMentira(setor.setorId, setor.pessoas).map(p => ({
+        participacaoId: p.participacaoId,
+        nome: p.nome,
+        cpf: p.cpf,
+        setorNome: setor.nome,
+        cargo: p.funcao ?? '',
+        ativo: p.ativo,
+      })),
+    )
+
+    return { eventoNome: evento.nome, colaboradores }
   }
 
   // ── Guardas ───────────────────────────────────────────────────────────────

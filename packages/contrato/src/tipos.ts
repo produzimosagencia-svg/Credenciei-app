@@ -1255,3 +1255,26 @@ export type DadosParaLancarPonto = {
   /** O dia de hoje se for dia de trabalho, senão o último que já passou. */
   diaPadrao: string
 }
+
+// ─── Editar colaborador (atalho) ────────────────────────────────────────────
+//
+// Não é funcionalidade nova: mover de setor, corrigir CPF, ajustar valor e
+// tornar supervisor já existem dentro da ficha da pessoa (`fichaDaPessoa` +
+// a tela que a abre). O que faltava era achar a pessoa sem saber em qual
+// setor ela está — num evento de muitos setores, abrir um por um é a
+// diferença entre resolver na hora e não resolver. Trazido do site em
+// 11/09/2026.
+
+export type ColaboradorDoEvento = {
+  participacaoId: string
+  nome: string
+  cpf: string
+  setorNome: string
+  cargo: string
+  ativo: boolean
+}
+
+export type BuscaDeColaboradores = {
+  eventoNome: string
+  colaboradores: ColaboradorDoEvento[]
+}

@@ -59,6 +59,7 @@ import Truck from 'lucide-react-native/icons/truck'
 import User from 'lucide-react-native/icons/user'
 import ScanLine from 'lucide-react-native/icons/scan-line'
 import UserCheck from 'lucide-react-native/icons/user-check'
+import UserCog from 'lucide-react-native/icons/user-cog'
 import UserSearch from 'lucide-react-native/icons/user-search'
 import UserX from 'lucide-react-native/icons/user-x'
 import Users from 'lucide-react-native/icons/users'
@@ -114,6 +115,7 @@ const ICONES: Record<string, LucideIcon> = {
   Truck,
   User,
   UserCheck,
+  UserCog,
   UserSearch,
   UserX,
   Users,

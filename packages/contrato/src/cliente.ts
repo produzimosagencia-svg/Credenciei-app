@@ -22,7 +22,7 @@ import type {
   ResumoParticipacao, SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
   ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
-  DadosParaLancarPonto,
+  DadosParaLancarPonto, BuscaDeColaboradores,
 } from './tipos.js'
 import type { TipoBatida } from './comum.js'
 
@@ -482,4 +482,15 @@ export interface ClienteApi {
     quandoISO: string,
     motivo: string,
   ): Promise<{ nome?: string; etapa?: string; erro?: string }>
+
+  // ── Editar colaborador (atalho) ─────────────────────────────────────────
+  //
+  // Achar a pessoa em TODOS os setores do evento, sem precisar saber em qual
+  // ela está — a ficha em si (mover de setor, corrigir CPF, etc.) é a mesma
+  // de `fichaDaPessoa`. Trazido do site em 11/09/2026.
+
+  /** Os eventos que ESTA pessoa pode editar colaborador — quem gerencia eventos, e suporte. */
+  eventosParaEditarColaborador(): Promise<EventoEscaneavel[]>
+
+  colaboradoresDoEvento(eventoId: string): Promise<BuscaDeColaboradores>
 }
