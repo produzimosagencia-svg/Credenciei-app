@@ -254,16 +254,6 @@ export type EventoEscaneavel = {
   nome: string
 }
 
-/**
- * O que a leitura vai gravar.
- *
- * Só entrada e saída. **O meio não está aqui de propósito**: ele é registrado
- * pelo próprio colaborador, com foto, na credencial dele — é a etapa que prova
- * que a pessoa continuou no evento, e não faria sentido outra pessoa registrar
- * por ela no portão.
- */
-export type MomentoDaLeitura = 'entrada' | 'fim'
-
 export type PessoaLida = {
   nome: string
   funcao: string | null
@@ -284,6 +274,13 @@ export type PessoaLida = {
 export type ResultadoDaLeitura =
   | { situacao: 'registrado'; momento: TipoBatida; pessoa: PessoaLida; mensagem: string }
   | { situacao: 'duplicado'; momento: TipoBatida; pessoa: PessoaLida; mensagem: string }
+  /**
+   * Saiu e voltou no mesmo dia: a saída anterior foi apagada, o turno está
+   * aberto de novo. Separado de `registrado` de propósito — "turno
+   * reaberto" é uma frase que o operador precisa ler, não uma entrada igual
+   * às outras.
+   */
+  | { situacao: 'reaberto'; pessoa: PessoaLida; mensagem: string }
   | { situacao: 'etapa_errada'; doQr: string; deHoje: string; mensagem: string }
   | { situacao: 'recusado'; mensagem: string }
 

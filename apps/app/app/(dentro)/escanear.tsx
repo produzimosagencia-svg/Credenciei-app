@@ -5,9 +5,13 @@
 //   escura            é uma tela de câmera, usada de noite no portão;
 //   evento primeiro   confirmar o evento antes de começar. Escanear no evento
 //                     errado grava presença em quem não está lá;
-//   momento à vista   o botão Entrada/Saída decide o que cada leitura grava. Se
-//                     o operador esquece de trocar na hora de liberar, os
-//                     registros saem todos na etapa errada;
+//   sem escolher nada o servidor decide sozinho se é entrada ou saída, pelo
+//                     que já foi registrado. Até 11/09/2026 havia um botão
+//                     Entrada/Saída aqui: o site tirou o dele em 03/09,
+//                     porque esquecer de trocar na hora de liberar a equipe
+//                     fazia a noite inteira sair gravada na etapa errada.
+//                     Ver `inferirMomentoDoScanner`, em
+//                     `packages/dominio/src/janelas.ts`;
 //   leitura contínua  não precisa apertar nada entre uma pessoa e outra — a
 //                     fila anda sozinha.
 //
@@ -25,7 +29,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   credenciaisDeDemonstracao, type CredencialDeDemonstracao,
-  type EventoEscaneavel, type MomentoDaLeitura, type ResultadoDaLeitura,
+  type EventoEscaneavel, type ResultadoDaLeitura,
 } from '@credenciei/contrato'
 import { DEMONSTRACAO } from '../../src/dados/cliente'
 import { mensagemDoErro } from '../../src/dados/pedido'
@@ -49,7 +53,6 @@ export default function Escanear() {
 
   const [eventos, setEventos] = useState<EventoEscaneavel[]>([])
   const [eventoId, setEventoId] = useState('')
-  const [momento, setMomento] = useState<MomentoDaLeitura>('entrada')
   const [resultado, setResultado] = useState<ResultadoDaLeitura | null>(null)
   const [conferindo, setConferindo] = useState(false)
   const [erroDeCarga, setErroDeCarga] = useState<string | null>(null)
@@ -63,9 +66,7 @@ export default function Escanear() {
    */
   const lendo = useRef(false)
   const eventoRef = useRef(eventoId)
-  const momentoRef = useRef(momento)
   eventoRef.current = eventoId
-  momentoRef.current = momento
 
   useEffect(() => {
     let vivo = true
@@ -91,7 +92,7 @@ export default function Escanear() {
 
     let r: ResultadoDaLeitura
     try {
-      r = await cliente.registrarPorQr(eventoRef.current, codigo, momentoRef.current)
+      r = await cliente.registrarPorQr(eventoRef.current, codigo)
     } catch (e) {
       r = { situacao: 'recusado', mensagem: mensagemDoErro(e) }
     }
@@ -116,14 +117,12 @@ export default function Escanear() {
           erro={erroDeCarga}
         />
 
-        <SeletorDeMomento valor={momento} aoTrocar={setMomento} />
-
         <Text style={e.avisoDoMeio}>
           A etapa do <Text style={e.avisoDoMeioForte}>meio</Text> é registrada
           pelo próprio colaborador, com foto, na credencial dele.
         </Text>
 
-        <Visor momento={momento} aoLer={processar} podeLer={!!eventoId && !resultado} />
+        <Visor aoLer={processar} podeLer={!!eventoId && !resultado} />
 
         {DEMONSTRACAO ? (
           <CrachasDeDemonstracao aoEscolher={processar} desabilitado={!eventoId} />
@@ -210,49 +209,6 @@ function SeletorDeEvento({
   )
 }
 
-// ─── Momento ────────────────────────────────────────────────────────────────
-
-/**
- * Entrada ou saída.
- *
- * É o controle mais perigoso da tela: ele decide o que TODA leitura seguinte
- * vai gravar. Por isso ele é grande, colorido e fica sempre visível — se o
- * operador esquecer de trocar na hora de liberar a equipe, a noite inteira sai
- * registrada como entrada.
- */
-function SeletorDeMomento({
-  valor, aoTrocar,
-}: { valor: MomentoDaLeitura; aoTrocar: (m: MomentoDaLeitura) => void }) {
-  const opcoes = [
-    { chave: 'entrada' as const, rotulo: 'Entrada', icone: 'LogIn', cor: cor.sucesso600 },
-    { chave: 'fim' as const, rotulo: 'Saída', icone: 'LogOut', cor: cor.acento500 },
-  ]
-
-  return (
-    <View style={e.momentos}>
-      {opcoes.map(o => {
-        const ativo = o.chave === valor
-        return (
-          <Pressable
-            key={o.chave}
-            onPress={() => aoTrocar(o.chave)}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: ativo }}
-            style={({ pressed }) => [
-              e.momento,
-              ativo && { backgroundColor: o.cor, borderColor: o.cor },
-              pressed && { transform: [{ scale: 0.98 }] },
-            ]}
-          >
-            <Icone nome={o.icone} tamanho={18} tom={ativo ? '#ffffff' : cor.neutro400} />
-            <Text style={[e.momentoRotulo, ativo && e.momentoRotuloAtivo]}>{o.rotulo}</Text>
-          </Pressable>
-        )
-      })}
-    </View>
-  )
-}
-
 // ─── A câmera ───────────────────────────────────────────────────────────────
 
 /**
@@ -263,14 +219,12 @@ function SeletorDeMomento({
  * e não diz nada faz o operador achar que o app quebrou bem na hora da fila.
  */
 function Visor({
-  momento, aoLer, podeLer,
+  aoLer, podeLer,
 }: {
-  momento: MomentoDaLeitura
   aoLer: (codigo: string) => void
   podeLer: boolean
 }) {
   const [permissao, pedirPermissao] = useCameraPermissions()
-  const corDaMira = momento === 'entrada' ? cor.sucesso600 : cor.acento500
 
   if (!permissao) {
     return <View style={e.visor}><Text style={e.visorTexto}>Abrindo a câmera…</Text></View>
@@ -305,7 +259,7 @@ function Visor({
         onBarcodeScanned={podeLer ? ({ data }) => aoLer(data) : undefined}
       />
       <View style={e.mira} pointerEvents="none">
-        <View style={[e.miraQuadro, { borderColor: corDaMira }]} />
+        <View style={[e.miraQuadro, { borderColor: cor.acento500 }]} />
       </View>
       <View style={e.dica} pointerEvents="none">
         <Icone nome="ScanLine" tamanho={14} tom="rgba(255,255,255,0.7)" />
@@ -326,6 +280,10 @@ function AvisoDaLeitura({
 }) {
   const registrado = resultado.situacao === 'registrado'
   const duplicado = resultado.situacao === 'duplicado'
+  // Saiu e voltou no mesmo dia: nem entrada normal, nem erro — o operador
+  // precisa ler "turno reaberto" e entender por que o crachá que parecia
+  // fechado voltou a valer.
+  const reaberto = resultado.situacao === 'reaberto'
   const entrou = (registrado || duplicado) && resultado.momento === 'entrada'
 
   /*
@@ -335,18 +293,20 @@ function AvisoDaLeitura({
    * no canto passaria batido; a tela inteira mudando de cor é vista pelo canto
    * do olho, e verde-ou-vermelho já responde antes de qualquer leitura.
    */
-  const fundo = !registrado && !duplicado
-    ? cor.erro600
-    : entrou ? cor.sucesso600 : cor.acento500
+  const fundo = reaberto
+    ? cor.info600
+    : !registrado && !duplicado
+      ? cor.erro600
+      : entrou ? cor.sucesso600 : cor.acento500
 
-  const simbolo = registrado || duplicado ? (entrou ? '✓' : '↩') : '✕'
+  const simbolo = reaberto ? '↺' : registrado || duplicado ? (entrou ? '✓' : '↩') : '✕'
 
   return (
     <View style={[e.avisoFora, { backgroundColor: fundo }]}>
       <Text style={e.avisoSimbolo}>{simbolo}</Text>
       <Text style={e.avisoMensagem}>{resultado.mensagem}</Text>
 
-      {registrado || duplicado ? (
+      {registrado || duplicado || reaberto ? (
         <>
           <Text style={e.avisoNome}>{resultado.pessoa.nome}</Text>
           {resultado.pessoa.funcao ? (
@@ -453,22 +413,6 @@ const e = StyleSheet.create({
   marcadorAtivo: { backgroundColor: cor.acento500, borderColor: cor.acento500 },
   nomeDoEvento: { ...texto.corpo, color: cor.neutro400, flex: 1 },
   nomeDoEventoAtivo: { color: '#ffffff', fontFamily: tipo.semi },
-
-  momentos: { flexDirection: 'row', gap: espaco.s },
-  momento: {
-    flex: 1,
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: espaco.s,
-    borderRadius: raio.campo,
-    borderWidth: 1,
-    borderColor: '#30363d',
-    backgroundColor: '#161b22',
-  },
-  momentoRotulo: { ...texto.base, fontFamily: tipo.semi, color: cor.neutro400 },
-  momentoRotuloAtivo: { color: '#ffffff' },
 
   avisoDoMeio: { ...texto.xs, fontFamily: tipo.regular, color: cor.neutro500, textAlign: 'center' },
   avisoDoMeioForte: { fontFamily: tipo.semi, color: cor.neutro400 },

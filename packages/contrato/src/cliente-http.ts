@@ -32,7 +32,7 @@ import type {
   ArquivoDePlanilha, ConfiguracaoDoEvento, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada,
-  FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
+  FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
   NovoAcesso, Painel, PainelDaEquipe, Portaria,
   BaseDeFuncionarios, BuscaRegional, CentralDeAvisos, DadosDeNovaOrganizacao, FichaDaPessoaNaBase,
   ListaDeOrganizacoes, Organizacao, PainelDoWhatsApp, ResultadoDeAtribuicao,
@@ -358,10 +358,8 @@ export class ClienteHttp implements ClienteApi {
     throw new AindaNaoNaApi('eventosParaEscanear')
   }
 
-  async registrarPorQr(
-    _eventoId: string, _codigoLido: string, _momento: MomentoDaLeitura,
-  ): Promise<ResultadoDaLeitura> {
-    void _eventoId; void _codigoLido; void _momento
+  async registrarPorQr(_eventoId: string, _codigoLido: string): Promise<ResultadoDaLeitura> {
+    void _eventoId; void _codigoLido
     throw new AindaNaoNaApi('registrarPorQr')
   }
 

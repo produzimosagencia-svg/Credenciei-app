@@ -9,7 +9,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   ClienteFalso, CONTAS_DE_DEMONSTRACAO, credenciaisDeDemonstracao,
-  SENHA_DE_DEMONSTRACAO,
+  SENHA_DE_DEMONSTRACAO, type ComportamentoFalso,
 } from './cliente-falso.js'
 
 const CODIGO_DO_EVENTO = 'HJK-2026-K7M2'
@@ -445,10 +445,35 @@ test('cada conta de demonstração tem um papel diferente', () => {
 // ─── Escanear QR ────────────────────────────────────────────────────────────
 
 /** Um operador de portaria pronto, que é o ponto de partida do scanner. */
-async function noPortao() {
-  const c = new ClienteFalso()
+async function noPortao(op: ComportamentoFalso = {}) {
+  const c = new ClienteFalso(op)
   await entrarComo(c, 'admin')
   return c
+}
+
+/** Dentro da janela do evento de mentira (05/09 18:30 → 06/09 08:00). */
+const INICIO_DO_TURNO = Date.parse('2026-09-05T18:00:00-03:00')
+
+/**
+ * Um relógio que avança sozinho a cada leitura.
+ *
+ * `inferirMomentoDoScanner` tem carência de 5 min entre leituras da mesma
+ * pessoa — sem isso, duas chamadas em teste (que acontecem em milissegundos
+ * de diferença) cairiam sempre na carência, e nenhum teste conseguiria
+ * exercitar o que vem DEPOIS dela.
+ *
+ * `crachaQueServe`/`credenciaisDeDemonstracao` embutem a FASE no QR a partir
+ * do relógio de verdade quando chamados sem argumento — por isso os testes
+ * que usam este relógio também precisam gerar o crachá com `INICIO_DO_TURNO`,
+ * senão o QR e o servidor discordam sobre "hoje" e tudo vira etapa_errada.
+ */
+function relogioQueAvanca(inicio = INICIO_DO_TURNO, passoMin = 10) {
+  let agora = inicio
+  return () => {
+    const t = agora
+    agora += passoMin * 60_000
+    return t
+  }
 }
 
 /** O crachá de alguém, do jeito que sai da credencial. */
@@ -465,7 +490,7 @@ test('o supervisor não escaneia — e quem recusa é o servidor', async () => {
   await entrarComo(c, 'supervisor')
   await assert.rejects(() => c.eventosParaEscanear(), /permissão/i)
   await assert.rejects(
-    () => c.registrarPorQr('ev-1', crachaQueServe().codigo, 'entrada'),
+    () => c.registrarPorQr('ev-1', crachaQueServe().codigo),
     /permissão/i,
   )
 })
@@ -473,7 +498,7 @@ test('o supervisor não escaneia — e quem recusa é o servidor', async () => {
 test('o crachá certo registra a entrada e devolve o nome', async () => {
   const c = await noPortao()
   const cracha = crachaQueServe()
-  const r = await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+  const r = await c.registrarPorQr('ev-1', cracha.codigo)
 
   assert.equal(r.situacao, 'registrado')
   if (r.situacao !== 'registrado') return
@@ -481,15 +506,34 @@ test('o crachá certo registra a entrada e devolve o nome', async () => {
   assert.equal(r.momento, 'entrada')
 })
 
-test('o mesmo crachá lido duas vezes não gera duas entradas', async () => {
-  // A fila anda e o operador passa o leitor de novo sem querer. Duplicar aqui
-  // viraria duas entradas no relatório de quem entrou uma vez.
+test('o mesmo crachá lido duas vezes seguidas é recusado, não vira saída', async () => {
+  /*
+   * A fila anda e o operador passa o leitor de novo sem querer. Sem a
+   * carência, a segunda leitura — segundos depois da primeira — seria lida
+   * como "a entrada está aberta, então isto é a saída": a pessoa nem
+   * trabalhou e já sairia registrada.
+   */
   const c = await noPortao()
   const cracha = crachaQueServe()
-  await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
-  const segunda = await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+  await c.registrarPorQr('ev-1', cracha.codigo)
+  const segunda = await c.registrarPorQr('ev-1', cracha.codigo)
 
-  assert.equal(segunda.situacao, 'duplicado')
+  assert.equal(segunda.situacao, 'recusado')
+  if (segunda.situacao !== 'recusado') return
+  assert.match(segunda.mensagem, /acabou de registrar a ENTRADA/)
+})
+
+test('depois da carência, a leitura seguinte já é a saída — sem escolher nada', async () => {
+  // O site tirou o botão Entrada/Saída do operador: quem decide é o sistema,
+  // pelo que já foi registrado.
+  const c = await noPortao({ agora: relogioQueAvanca() })
+  const cracha = credenciaisDeDemonstracao(INICIO_DO_TURNO).find(x => x.serveHoje)!
+  await c.registrarPorQr('ev-1', cracha.codigo)
+  const r = await c.registrarPorQr('ev-1', cracha.codigo)
+
+  assert.equal(r.situacao, 'recusado') // sem o meio, ver teste abaixo
+  if (r.situacao !== 'recusado') return
+  assert.match(r.mensagem, /meio/i)
 })
 
 test('crachá de outra etapa não é "inválido": é etapa errada, com as duas', async () => {
@@ -500,7 +544,7 @@ test('crachá de outra etapa não é "inválido": é etapa errada, com as duas',
    */
   const c = await noPortao()
   const errado = credenciaisDeDemonstracao().find(x => !x.serveHoje)!
-  const r = await c.registrarPorQr('ev-1', errado.codigo, 'entrada')
+  const r = await c.registrarPorQr('ev-1', errado.codigo)
 
   assert.equal(r.situacao, 'etapa_errada')
   if (r.situacao !== 'etapa_errada') return
@@ -511,21 +555,54 @@ test('crachá de outra etapa não é "inválido": é etapa errada, com as duas',
 
 test('código que não saiu deste sistema é recusado', async () => {
   const c = await noPortao()
-  const r = await c.registrarPorQr('ev-1', 'c3.qr-ana.M.assinaturaInventada', 'entrada')
+  const r = await c.registrarPorQr('ev-1', 'c3.qr-ana.M.assinaturaInventada')
   assert.equal(r.situacao, 'recusado')
 })
 
 test('a saída exige o meio', async () => {
   // O meio é o que prova que a pessoa ficou no evento. Liberar a saída sem ele
   // apagaria essa prova — e o meio é registrado pela própria pessoa, com foto.
-  const c = await noPortao()
-  const cracha = crachaQueServe()
-  await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
-  const saida = await c.registrarPorQr('ev-1', cracha.codigo, 'fim')
+  // Relógio avançando: sem isso, a segunda leitura cairia na carência, e
+  // nunca chegaria a testar a exigência do meio.
+  const c = await noPortao({ agora: relogioQueAvanca() })
+  const cracha = credenciaisDeDemonstracao(INICIO_DO_TURNO).find(x => x.serveHoje)!
+  await c.registrarPorQr('ev-1', cracha.codigo)
+  const saida = await c.registrarPorQr('ev-1', cracha.codigo)
 
   assert.equal(saida.situacao, 'recusado')
   if (saida.situacao !== 'recusado') return
   assert.match(saida.mensagem, /meio/i)
+})
+
+test('sair e voltar no mesmo dia reabre o turno, não recusa', async () => {
+  /*
+   * O ciclo inteiro: entra, registra o meio (pelo caminho assistido, só para
+   * destravar a saída), sai, e volta — fora da carência em cada passo. A
+   * volta tem que reabrir, não recusar "já registrou entrada e saída hoje".
+   */
+  const c = await noPortao({ agora: relogioQueAvanca() })
+  const cracha = credenciaisDeDemonstracao(INICIO_DO_TURNO)
+    .find(x => x.serveHoje && x.nome === 'Ana Cláudia Ferreira')!
+
+  const entrada = await c.registrarPorQr('ev-1', cracha.codigo)
+  assert.equal(entrada.situacao, 'registrado')
+
+  const { ficha } = await c.localizarPessoa('037.482.615-09')
+  await c.registrarPresencaAssistida(ficha!.participacaoId, { fotoBase64: 'foto' })
+
+  const saida = await c.registrarPorQr('ev-1', cracha.codigo)
+  assert.equal(saida.situacao, 'registrado')
+  if (saida.situacao === 'registrado') assert.equal(saida.momento, 'fim')
+
+  const volta = await c.registrarPorQr('ev-1', cracha.codigo)
+  assert.equal(volta.situacao, 'reaberto')
+  if (volta.situacao !== 'reaberto') return
+  assert.match(volta.mensagem, /turno reaberto/i)
+
+  // A próxima leitura é a saída final — não "já está tudo registrado".
+  const saidaFinal = await c.registrarPorQr('ev-1', cracha.codigo)
+  assert.equal(saidaFinal.situacao, 'registrado')
+  if (saidaFinal.situacao === 'registrado') assert.equal(saidaFinal.momento, 'fim')
 })
 
 test('quem não foi ativada no evento não passa', async () => {
@@ -684,7 +761,7 @@ test('o que acabou de ser escaneado aparece no log', async () => {
   const antes = await c.atividades('ev-1')
 
   const cracha = crachaQueServe()
-  await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+  await c.registrarPorQr('ev-1', cracha.codigo)
 
   const depois = await c.atividades('ev-1')
   assert.equal(depois.linhas.length, antes.linhas.length + 1)
@@ -732,7 +809,7 @@ test('quem bate entrada sai de "não chegaram" e entra em "ainda no evento"', as
   const antes = await c.atividades('ev-1')
   assert.ok(antes.naoChegaram.some(p => p.nome === cracha.nome))
 
-  await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+  await c.registrarPorQr('ev-1', cracha.codigo)
 
   const depois = await c.atividades('ev-1')
   assert.equal(depois.naoChegaram.some(p => p.nome === cracha.nome), false)
@@ -897,14 +974,15 @@ test('a configuração traz os quatro números e os setores', async () => {
 
 test('o progresso conta PESSOAS, não batidas', async () => {
   /*
-   * Quem bateu entrada duas vezes continua sendo uma pessoa que entrou. A
-   * pergunta da tela é "quantos dos 109 já passaram por cada etapa", e ela só
-   * faz sentido contando gente.
+   * Quem lê o crachá duas vezes seguidas continua sendo uma pessoa que
+   * entrou — a segunda leitura é recusada pela carência, nunca vira uma
+   * segunda entrada. A pergunta da tela é "quantos dos 109 já passaram por
+   * cada etapa", e ela só faz sentido contando gente.
    */
   const c = await noPortao()
   const cracha = crachaQueServe()
-  await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
-  await c.registrarPorQr('ev-1', cracha.codigo, 'entrada')
+  await c.registrarPorQr('ev-1', cracha.codigo)
+  await c.registrarPorQr('ev-1', cracha.codigo)
 
   const e = await c.evento('ev-1')
   assert.equal(e.progresso.find(p => p.etapa === 'entrada')!.feitos, 1)

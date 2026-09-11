@@ -23,10 +23,11 @@
 // falso e real não passa despercebida.
 
 import {
-  avaliarEntradaSaida, conferirHorariosDoEvento, diaBRT, ehMaster, faseConfere,
-  faseDoDia, formatarBR, formatCpf, gerarCodigoQR, janelaMeio, lerCodigoDeEvento,
-  lerCodigoQR, podeAcompanhar, podeEscanear, podeGerenciarEventos,
-  podeGerenciarOrganizacoes, podeGerenciarUsuarios,
+  avaliarEntradaSaida, conferirHorariosDoEvento, diaBRT, ehMaster, faseAtualDoQR,
+  faseConfere, faseDoDia, formatarBR, formatCpf, gerarCodigoQR, inferirMomentoDoScanner,
+  janelaMeio, lerCodigoDeEvento, lerCodigoQR, podeAcompanhar, podeEscanear,
+  podeGerenciarEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
+  type RegistroParaInferencia,
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
 import type {
@@ -36,7 +37,7 @@ import type {
   EquipeDoSetor, Eu, EventoComSetores, EventoDetalhado, EventoEscaneavel,
   FichaDaPessoa, FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao,
   LinhaDaAtividade,
-  ListaDeAcessos, MomentoDaLeitura, Notificacao, NovoAcesso, Painel, PainelDaEquipe,
+  ListaDeAcessos, Notificacao, NovoAcesso, Painel, PainelDaEquipe,
   PessoaDaLista, PessoaDoSetor, Portaria, ResultadoDaImportacao,
   BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, EventoParaAtribuir,
   FichaDaPessoaNaBase, ListaDeOrganizacoes,
@@ -750,7 +751,8 @@ export type CredencialDeDemonstracao = {
  */
 export function credenciaisDeDemonstracao(agora: number = Date.now()): CredencialDeDemonstracao[] {
   const hoje = diaBRT(new Date(agora))
-  const faseDeHoje = faseDoDia(hoje, diaBRT(EVENTO.dataInicio))
+  // `faseAtualDoQR`, não `faseDoDia`: mesmo evento atravessa a meia-noite.
+  const faseDeHoje = faseAtualDoQR(new Date(agora), EVENTO.dataInicio, EVENTO.dataFim)
   const outraFase: FaseDoDia = faseDeHoje === 'evento' ? 'montagem' : 'evento'
 
   return EQUIPE_DE_MENTIRA.map((p, i) => {
@@ -798,6 +800,13 @@ export class ClienteFalso implements ClienteApi {
    * operador vê e grava sobre OUTRAS pessoas.
    */
   private batidasDaEquipe = new Map<string, Set<TipoBatida>>()
+  /**
+   * O log de entrada/saída de cada pessoa da equipe, com horário — é o que
+   * alimenta `inferirMomentoDoScanner`. `batidasDaEquipe` guarda só "já fez",
+   * sem quando; esta guarda quando, porque a decisão de reabrir o turno
+   * depende do horário da última saída.
+   */
+  private logDeRegistros = new Map<string, RegistroParaInferencia[]>()
   /** O que a ficha de cada pessoa mudou nesta sessão. */
   private pagamentos = new Map<string, string>()
   private valores = new Map<string, number>()
@@ -1016,7 +1025,8 @@ export class ClienteFalso implements ClienteApi {
   async meuQr(participacaoId: string) {
     await this.rede()
     this.exigirParticipacao(participacaoId)
-    const etapa = faseDoDia(diaBRT(new Date(this.agora())), diaBRT(EVENTO.dataInicio))
+    // `faseAtualDoQR`, não `faseDoDia` — mesmo motivo do `meuQr` da API real.
+    const etapa = faseAtualDoQR(new Date(this.agora()), EVENTO.dataInicio, EVENTO.dataFim)
     const { codigo } = gerarCodigoQR(SEGREDO_DE_MENTIRA, 'token-do-qr', etapa)
     return { codigo, etapa }
   }
@@ -1166,18 +1176,26 @@ export class ClienteFalso implements ClienteApi {
     return EVENTOS_DO_PAINEL.map(e => ({ eventoId: e.eventoId, nome: e.nome }))
   }
 
-  async registrarPorQr(
-    eventoId: string,
-    codigoLido: string,
-    momento: MomentoDaLeitura,
-  ): Promise<ResultadoDaLeitura> {
+  /**
+   * Lê o crachá e decide sozinho se é entrada ou saída.
+   *
+   * O operador não escolhe mais a etapa (era um botão Entrada/Saída — o
+   * sistema web tirou em 03/09/2026: esquecer de trocar na hora de liberar a
+   * equipe fazia a noite inteira sair gravada errada). Quem decide é
+   * `inferirMomentoDoScanner`, com o histórico de quando essa pessoa entrou
+   * e saiu — a mesma regra do site, ver `packages/dominio/src/janelas.ts`.
+   */
+  async registrarPorQr(eventoId: string, codigoLido: string): Promise<ResultadoDaLeitura> {
     await this.rede()
     this.exigirSessao()
     this.exigirPoder(podeEscanear, 'escanear crachá')
     void eventoId
 
-    const hoje = diaBRT(new Date(this.agora()))
-    const faseDeHoje = faseDoDia(hoje, diaBRT(EVENTO.dataInicio))
+    const agora = new Date(this.agora())
+    const hoje = diaBRT(agora)
+    // `faseAtualDoQR`, não `faseDoDia`: este evento também atravessa a
+    // meia-noite (18:30 → 08:00) — ver o mesmo comentário em `meuQr`.
+    const faseDeHoje = faseAtualDoQR(agora, EVENTO.dataInicio, EVENTO.dataFim)
 
     // A leitura é a do domínio: confere a ASSINATURA do código. É a mesma
     // função que o sistema web usa, então um crachá que passa lá passa aqui.
@@ -1217,28 +1235,51 @@ export class ClienteFalso implements ClienteApi {
       }
     }
 
-    const feitas = this.etapasDe(pessoa.id)
     const resumo = { nome: pessoa.nome, funcao: pessoa.funcao }
+    const decisao = inferirMomentoDoScanner(this.registrosDe(pessoa.id), hoje, agora)
 
-    if (feitas.has(momento)) {
+    // Carência: leitura em sequência da mesma pessoa, logo após entrada ou
+    // saída — recusa em vez de gravar o contrário do que acabou de acontecer.
+    if ('erro' in decisao) {
+      return { situacao: 'recusado', mensagem: decisao.erro }
+    }
+
+    if ('reabrir' in decisao) {
+      /*
+       * Sai no almoço, volta à tarde. Apaga a saída anterior (o turno fica
+       * aberto de novo, com a entrada original preservada) e devolve um
+       * aviso PRÓPRIO — "reaberto" não é a mesma coisa que "entrada
+       * registrada", e o operador precisa entender por que o crachá que
+       * parecia fechado voltou a valer.
+       */
+      const lista = this.registrosDe(pessoa.id)
+      const i = lista.findIndex(r => r.id === decisao.reabrir.registroId)
+      if (i >= 0) lista.splice(i, 1)
+      this.etapasDe(pessoa.id).delete('fim')
       return {
-        situacao: 'duplicado',
-        momento,
+        situacao: 'reaberto',
         pessoa: resumo,
-        mensagem: `${ROTULO_DA_ETAPA[momento]} já registrada`,
+        mensagem: `Bem-vindo de volta! Turno reaberto — a saída das ${formatarBR(decisao.reabrir.em, 'hora')} foi desfeita.`,
       }
     }
 
+    const momento = decisao.momento
+
     // A saída exige o meio, como no domínio: o meio é o que prova que a pessoa
     // ficou no evento, e liberar a saída sem ele apagaria essa prova.
-    if (momento === 'fim' && !feitas.has('meio')) {
+    if (momento === 'fim' && !this.etapasDe(pessoa.id).has('meio')) {
       return {
         situacao: 'recusado',
         mensagem: `${pessoa.nome} ainda não registrou o meio. Peça para ela abrir a credencial e tirar a selfie do meio.`,
       }
     }
 
-    feitas.add(momento)
+    this.registrosDe(pessoa.id).push({
+      id: `reg-${pessoa.id}-${this.registrosDe(pessoa.id).length + 1}`,
+      tipo: momento, em: agora.toISOString(), dataRef: hoje,
+    })
+    this.etapasDe(pessoa.id).add(momento)
+
     return {
       situacao: 'registrado',
       momento,
@@ -1357,6 +1398,16 @@ export class ClienteFalso implements ClienteApi {
       this.batidasDaEquipe.set(id, feitas)
     }
     return feitas
+  }
+
+  /** O log de entrada/saída daquela pessoa, para `inferirMomentoDoScanner`. */
+  private registrosDe(id: string): RegistroParaInferencia[] {
+    let lista = this.logDeRegistros.get(id)
+    if (!lista) {
+      lista = []
+      this.logDeRegistros.set(id, lista)
+    }
+    return lista
   }
 
   /** A próxima etapa na ordem do dia. Quem decide é aqui, nunca a tela. */
@@ -2574,7 +2625,8 @@ export class ClienteFalso implements ClienteApi {
       eventoNome: EVENTO.nome,
       equipeNome: 'Produção',
       data: hoje,
-      etapa: faseDoDia(hoje, diaBRT(EVENTO.dataInicio)),
+      // `faseAtualDoQR`, não `faseDoDia` — mesmo motivo do `painelDaEquipe` da API real.
+      etapa: faseAtualDoQR(new Date(this.agora()), EVENTO.dataInicio, EVENTO.dataFim),
       total: 1,
       presentes: entrada ? 1 : 0,
       pessoas: [{

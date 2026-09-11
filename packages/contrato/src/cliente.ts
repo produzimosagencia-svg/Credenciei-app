@@ -15,7 +15,7 @@ import type {
   ArquivoDePlanilha, ConfiguracaoDoEvento, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
-  MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe, Portaria,
+  NovoAcesso, Painel, PainelDaEquipe, Portaria,
   BaseDeFuncionarios, BuscaRegional, CentralDeAvisos, DadosDeNovaOrganizacao, FichaDaPessoaNaBase,
   ListaDeOrganizacoes, Organizacao, PainelDoWhatsApp, ResultadoDeAtribuicao,
   ResultadoDaImportacao, ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida,
@@ -84,12 +84,15 @@ export interface ClienteApi {
    */
   eventosParaEscanear(): Promise<EventoEscaneavel[]>
 
-  /** Lê o crachá e grava a presença. A validação é toda do servidor. */
-  registrarPorQr(
-    eventoId: string,
-    codigoLido: string,
-    momento: MomentoDaLeitura,
-  ): Promise<ResultadoDaLeitura>
+  /**
+   * Lê o crachá e grava a presença.
+   *
+   * O servidor decide sozinho se é entrada ou saída — não é mais o operador
+   * quem escolhe. Primeira leitura do turno é entrada; a próxima é saída;
+   * sair e voltar no mesmo dia reabre o turno. A validação é toda do
+   * servidor.
+   */
+  registrarPorQr(eventoId: string, codigoLido: string): Promise<ResultadoDaLeitura>
 
   /** A saída quando o crachá não passa e a pessoa está na frente. */
   conferirPorCpf(eventoId: string, cpf: string): Promise<ConferenciaPorCpf>
