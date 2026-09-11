@@ -19,7 +19,7 @@ import type {
   BaseDeFuncionarios, BuscaRegional, CentralDeAvisos, DadosDeNovaOrganizacao, FichaDaPessoaNaBase,
   ListaDeOrganizacoes, Organizacao, PainelDoWhatsApp, ResultadoDeAtribuicao,
   ResultadoDaImportacao, ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida,
-  ResumoParticipacao, SetorDetalhado, Sessao, TipoDeAviso,
+  ResumoParticipacao, SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
 } from './tipos.js'
 
 export interface ClienteApi {
@@ -134,8 +134,17 @@ export interface ClienteApi {
    */
   eventosParaAcompanhar(): Promise<EventoEscaneavel[]>
 
-  /** O log da operação: cada batida, na ordem em que aconteceu. */
-  atividades(eventoId: string): Promise<AtividadesDoEvento>
+  /**
+   * As sete visões de um dia — quem cumpriu, ou está devendo, cada etapa.
+   *
+   * Mesma pergunta de `/admin/eventos/[id]/presenca` no site, entrando pelo
+   * menu em vez de por dentro do evento. `visao` e `dia` default para
+   * "entrada" e o dia mais recente ≤ hoje — a mesma régua de fallback do site.
+   */
+  atividades(
+    eventoId: string,
+    opcoes?: { visao?: VisaoDeAtividade; dia?: string },
+  ): Promise<AtividadesDoEvento>
 
   /**
    * Cria um evento novo. O master escolhe a organização dona; o admin cria

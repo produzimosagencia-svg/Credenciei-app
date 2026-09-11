@@ -724,96 +724,114 @@ test('o colaborador não localiza ninguém', async () => {
 
 
 // ─── Atividades do evento ───────────────────────────────────────────────────
+//
+// As sete visões trazidas do site em 11/09/2026 — a mesma pergunta que
+// `/admin/atividades` responde por lá, com o seletor de dia sempre visível.
 
-test('o log vem do mais recente para o mais antigo', async () => {
-  // Quem abre esta tela no meio do evento quer o que acabou de acontecer. Uma
-  // lista em ordem cronológica exigiria rolar até o fim para ver o agora.
+test('os dias de operação vêm sempre, mesmo antes de escolher nenhum', async () => {
   const c = await noPortao()
   const a = await c.atividades('ev-1')
-
-  const horarios = a.linhas.map(l => Date.parse(l.em))
-  const ordenado = [...horarios].sort((x, y) => y - x)
-  assert.deepEqual(horarios, ordenado)
+  assert.deepEqual(a.dias, ['2026-08-29', '2026-08-30'])
+  assert.ok(a.dias.includes(a.diaEscolhido), 'o dia escolhido precisa ser um dia de operação')
 })
 
-test('o log distingue QR, foto e registro assistido', async () => {
-  /*
-   * É a primeira coisa que se olha quando um registro é contestado: uma
-   * leitura no portão e uma batida que outra pessoa fez pelo colaborador têm
-   * pesos diferentes na hora de decidir quem tem razão.
-   */
+test('sem pedir dia, cai no último que já passou — nunca um dia futuro', async () => {
   const c = await noPortao()
   const a = await c.atividades('ev-1')
-
-  const formas = new Set(a.linhas.map(l => l.como))
-  assert.ok(formas.has('qr'))
-  assert.ok(formas.has('foto'))
-  assert.ok(formas.has('assistido'))
-
-  const assistida = a.linhas.find(l => l.como === 'assistido')!
-  assert.ok(assistida.registradoPor, 'batida assistida precisa dizer quem registrou')
+  // O relógio real está muito depois dos dias de mentira (08-29/08-30): o
+  // fallback pega o mais recente dos dois, não o primeiro.
+  assert.equal(a.diaEscolhido, '2026-08-30')
 })
 
-test('o que acabou de ser escaneado aparece no log', async () => {
+test('pedir um dia que não é de operação é ignorado, sem quebrar', async () => {
+  const c = await noPortao()
+  const a = await c.atividades('ev-1', { dia: '2026-01-01' })
+  assert.equal(a.diaEscolhido, '2026-08-30')
+})
+
+test('a visão "entrada" mostra quem bateu, com o horário', async () => {
+  const c = await noPortao()
+  const a = await c.atividades('ev-1', { visao: 'entrada', dia: '2026-08-30' })
+
+  assert.ok(a.linhas.some(l => l.nome === 'Ana Cláudia Ferreira'))
+  assert.ok(a.linhas.some(l => l.nome === 'Juan Muzy'))
+  for (const l of a.linhas) assert.ok(l.em, 'a visão de "feito" sempre tem o horário')
+})
+
+test('registro assistido vem marcado como manual', async () => {
+  // É a primeira coisa que se olha quando um registro é contestado: uma
+  // leitura de QR e uma batida que outra pessoa fez pesam diferente.
+  const c = await noPortao()
+  const a = await c.atividades('ev-1', { visao: 'entrada', dia: '2026-08-30' })
+
+  const assistida = a.linhas.find(l => l.nome === 'Rodrigo Menezes Lima')!
+  assert.ok(assistida, 'faltou o registro assistido de mentira')
+  assert.equal(assistida.manual, true)
+
+  const porQr = a.linhas.find(l => l.nome === 'Ana Cláudia Ferreira')!
+  assert.equal(porQr.manual, false)
+})
+
+test('a visão "presentes" é quem entrou e ainda não saiu', async () => {
+  const c = await noPortao()
+  const a = await c.atividades('ev-1', { visao: 'presentes', dia: '2026-08-29' })
+
+  // Patrícia entrou e saiu no dia 29 — não está mais presente.
+  assert.equal(a.linhas.some(l => l.nome === 'Patrícia Nogueira Silva'), false)
+})
+
+/*
+ * As duas próximas fixam o relógio dentro do dia 30/08 — que É um dia de
+ * operação do ev-1 de mentira. Sem isso, "hoje" seria o dia real (bem depois
+ * dos dias de mentira) e nunca bateria com um dia de operação: a batida de
+ * agora existiria, mas em nenhum dia que o seletor oferece — o mesmo que
+ * aconteceria no site com um evento de 2026 visto depois do ano acabar.
+ */
+const DENTRO_DO_DIA_30 = () => Date.parse('2026-08-30T20:00:00-03:00')
+
+test('a visão "faltam" é quem está ativo e não bateu a entrada — some assim que bate', async () => {
+  const c = await noPortao({ agora: DENTRO_DO_DIA_30 })
+  const antes = await c.atividades('ev-1', { visao: 'faltam' })
+  assert.equal(antes.diaEscolhido, '2026-08-30')
+  assert.ok(antes.linhas.some(l => l.nome === 'Wesley dos Santos Silva'))
+
+  const cracha = credenciaisDeDemonstracao(DENTRO_DO_DIA_30())
+    .find(x => x.serveHoje && x.nome === 'Wesley dos Santos Silva')!
+  await c.registrarPorQr('ev-1', cracha.codigo)
+
+  const depois = await c.atividades('ev-1', { visao: 'faltam' })
+  assert.equal(depois.linhas.some(l => l.nome === cracha.nome), false)
+})
+
+test('o que acabou de ser escaneado aparece na visão de entrada, no dia de hoje', async () => {
   // Sem isso, quem bate uma entrada e vai conferir não a encontra — e conclui
   // que ela não gravou.
-  const c = await noPortao()
-  const antes = await c.atividades('ev-1')
+  const c = await noPortao({ agora: DENTRO_DO_DIA_30 })
 
-  const cracha = crachaQueServe()
+  const cracha = credenciaisDeDemonstracao(DENTRO_DO_DIA_30()).find(x => x.serveHoje)!
   await c.registrarPorQr('ev-1', cracha.codigo)
 
-  const depois = await c.atividades('ev-1')
-  assert.equal(depois.linhas.length, antes.linhas.length + 1)
-  assert.ok(depois.linhas.some(l => l.nome === cracha.nome && l.etapa === 'entrada'))
+  const a = await c.atividades('ev-1', { visao: 'entrada' })
+  assert.equal(a.diaEscolhido, a.hoje)
+  assert.ok(a.linhas.some(l => l.nome === cracha.nome))
 })
 
-test('o contador de cada etapa bate com o log', async () => {
-  // As abas mostram esses números. Se viessem de contas diferentes, a aba diria
-  // 4 e a lista mostraria 3.
+test('os números batem com as linhas de cada visão', async () => {
+  // Os cartões do topo levam para a visão que eles contam. Se viessem de
+  // contas diferentes, o cartão diria 4 e a lista mostraria 3.
   const c = await noPortao()
-  const a = await c.atividades('ev-1')
+  const dia = '2026-08-30'
 
-  for (const etapa of ['entrada', 'meio', 'fim'] as const) {
-    assert.equal(
-      a.porEtapa[etapa],
-      a.linhas.filter(l => l.etapa === etapa).length,
-      etapa,
-    )
-  }
-})
+  const [numeros, entrada, fim, presentes] = await Promise.all([
+    c.atividades('ev-1', { dia }).then(a => a.numeros),
+    c.atividades('ev-1', { visao: 'entrada', dia }).then(a => a.linhas.length),
+    c.atividades('ev-1', { visao: 'fim', dia }).then(a => a.linhas.length),
+    c.atividades('ev-1', { visao: 'presentes', dia }).then(a => a.linhas.length),
+  ])
 
-test('quem não chegou aparece com nome e telefone', async () => {
-  /*
-   * O telefone está na lista de propósito: é dali que sai a ligação. Ter que
-   * abrir outra tela para achar o número, no meio do evento, é o que faz
-   * ninguém ligar.
-   */
-  const c = await noPortao()
-  const a = await c.atividades('ev-1')
-
-  assert.ok(a.naoChegaram.length > 0)
-  for (const p of a.naoChegaram) {
-    assert.ok(p.nome)
-    assert.ok(p.telefone, 'sem telefone a lista não serve para nada')
-  }
-})
-
-test('quem bate entrada sai de "não chegaram" e entra em "ainda no evento"', async () => {
-  const c = await noPortao()
-  // Alguém que ainda NÃO tem batida nenhuma no log — os outros já entraram, e o
-  // teste passaria sem provar nada.
-  const cracha = credenciaisDeDemonstracao()
-    .find(x => x.serveHoje && x.nome === 'Wesley dos Santos Silva')!
-
-  const antes = await c.atividades('ev-1')
-  assert.ok(antes.naoChegaram.some(p => p.nome === cracha.nome))
-
-  await c.registrarPorQr('ev-1', cracha.codigo)
-
-  const depois = await c.atividades('ev-1')
-  assert.equal(depois.naoChegaram.some(p => p.nome === cracha.nome), false)
-  assert.ok(depois.aindaNoEvento.some(p => p.nome === cracha.nome))
+  assert.equal(numeros.entradas, entrada)
+  assert.equal(numeros.saidas, fim)
+  assert.equal(numeros.presentes, presentes)
 })
 
 test('o colaborador não acompanha o evento', async () => {
@@ -826,6 +844,16 @@ test('o supervisor acompanha, e só o evento do setor dele', async () => {
   await entrarComo(c, 'supervisor')
   const eventos = await c.eventosParaAcompanhar()
   assert.equal(eventos.length, 1)
+})
+
+test('o supervisor só vê a própria equipe nas visões, não o evento inteiro', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const a = await c.atividades('ev-2', { visao: 'faltam' })
+
+  // Carlos Silva supervisiona Ana, Rodrigo e Juan — não Patrícia, Wesley ou
+  // Simone, que são da equipe da Marina Alves.
+  assert.ok(a.linhas.every(l => ['Ana Cláudia Ferreira', 'Rodrigo Menezes Lima', 'Juan Muzy'].includes(l.nome)))
 })
 
 // ─── Acessos ────────────────────────────────────────────────────────────────

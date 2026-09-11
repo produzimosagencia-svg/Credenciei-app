@@ -36,16 +36,17 @@ import type {
   ConviteDoEvento, DadosDeNovoEvento, DiaDaParticipacao, EdicaoDoEvento, EnvioDeBatida,
   EquipeDoSetor, Eu, EventoComSetores, EventoDetalhado, EventoEscaneavel,
   FichaDaPessoa, FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao,
-  LinhaDaAtividade,
+  LinhaPresenca,
   ListaDeAcessos, Notificacao, NovoAcesso, Painel, PainelDaEquipe,
-  PessoaDaLista, PessoaDoSetor, Portaria, ResultadoDaImportacao,
+  PessoaDoSetor, Portaria, ResultadoDaImportacao,
   BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, EventoParaAtribuir,
   FichaDaPessoaNaBase, ListaDeOrganizacoes,
   Organizacao, PainelDoWhatsApp, PessoaDaBase, PessoaRegional,
   ResultadoDeAtribuicao, SetorParaAtribuir, TrabalhoDaPessoa,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
-  SetorDetalhado, StatusDaEtapa, Sessao, TipoDeAviso,
+  SetorDetalhado, StatusDaEtapa, Sessao, TipoDeAviso, VisaoDeAtividade,
 } from './tipos.js'
+import { VISOES_DE_ATIVIDADE } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
 
@@ -228,15 +229,6 @@ const EQUIPE_DE_MENTIRA = [
   { id: 'f-6', nome: 'Simone Vasconcelos', cpf: '87204953167', funcao: 'Encarregada de limpeza', setor: 'Limpeza', supervisor: 'Marina Alves', ativo: false, token: 'qr-simone' },
 ]
 
-/**
- * Teto do log de atividades.
- *
- * Acima disso a tela fica pesada e ninguém rola até o fim. Quando corta, a tela
- * DIZ que está mostrando só as mais recentes — senão quem procura uma batida
- * antiga conclui que ela não existe.
- */
-const TETO_DO_LOG = 200
-
 /** A ordem em que as etapas do dia acontecem. É ela que define a pendência. */
 const ORDEM_DAS_ETAPAS: TipoBatida[] = ['entrada', 'meio', 'fim']
 
@@ -306,48 +298,35 @@ const SETORES_DE_MENTIRA: Record<string, {
 }
 
 /**
- * O log de atividades, já com casos que a tela precisa saber desenhar.
+ * Os registros do dia 30/08, para as sete visões terem o que mostrar.
  *
- * Tem batida por QR, batida com foto do próprio colaborador e batida assistida
- * — que é a que outra pessoa registrou. Se todas fossem iguais, a distinção
- * mais importante da tela (como a batida entrou) nunca seria exercitada.
+ * `manual: true` é registro assistido — outra pessoa bateu pelo colaborador.
+ * Sem um caso desses a coluna "manual" da tabela nunca seria exercitada.
  */
-const ATIVIDADES_DE_MENTIRA: LinhaDaAtividade[] = [
-  {
-    id: 'r-1', nome: 'Juan Muzy', cpf: '76431520891', setor: 'Produção',
-    etapa: 'meio', em: '2026-08-30T18:04:00-03:00', como: 'foto',
-    local: 'Av. Fernando Ferrari, Goiabeiras', registradoPor: null, justificativa: null,
-  },
-  {
-    id: 'r-2', nome: 'Ana Cláudia Ferreira', cpf: '03748261509', setor: 'Produção',
-    etapa: 'entrada', em: '2026-08-30T14:12:00-03:00', como: 'qr',
-    local: null, registradoPor: null, justificativa: null,
-  },
+const REGISTROS_DE_MENTIRA: {
+  id: string; nome: string; cpf: string; setor: string
+  etapa: TipoBatida; em: string; manual: boolean
+}[] = [
+  { id: 'r-1', nome: 'Juan Muzy', cpf: '76431520891', setor: 'Produção', etapa: 'meio', em: '2026-08-30T18:04:00-03:00', manual: false },
+  { id: 'r-2', nome: 'Ana Cláudia Ferreira', cpf: '03748261509', setor: 'Produção', etapa: 'entrada', em: '2026-08-30T14:12:00-03:00', manual: false },
   {
     id: 'r-3', nome: 'Rodrigo Menezes Lima', cpf: '21890647355', setor: 'Portaria',
-    etapa: 'entrada', em: '2026-08-30T13:58:00-03:00', como: 'assistido',
-    local: 'Estádio Kleber Andrade, Cariacica', registradoPor: 'Marina Alves',
-    justificativa: 'Chegou sem celular',
+    etapa: 'entrada', em: '2026-08-30T13:58:00-03:00', manual: true,
   },
-  {
-    id: 'r-4', nome: 'Juan Muzy', cpf: '76431520891', setor: 'Produção',
-    etapa: 'entrada', em: '2026-08-30T13:47:00-03:00', como: 'qr',
-    local: null, registradoPor: null, justificativa: null,
-  },
-  {
-    id: 'r-5', nome: 'Patrícia Nogueira Silva', cpf: '49012783644', setor: 'Camarim',
-    etapa: 'fim', em: '2026-08-29T23:40:00-03:00', como: 'qr',
-    local: null, registradoPor: null, justificativa: null,
-  },
-  // A entrada dela, de ontem: sem ela, o log teria uma saída sem entrada — que
-  // é justamente o tipo de incoerência que esta tela existe para revelar, e não
-  // para produzir sozinha.
-  {
-    id: 'r-6', nome: 'Patrícia Nogueira Silva', cpf: '49012783644', setor: 'Camarim',
-    etapa: 'entrada', em: '2026-08-29T15:10:00-03:00', como: 'qr',
-    local: null, registradoPor: null, justificativa: null,
-  },
+  { id: 'r-4', nome: 'Juan Muzy', cpf: '76431520891', setor: 'Produção', etapa: 'entrada', em: '2026-08-30T13:47:00-03:00', manual: false },
+  { id: 'r-5', nome: 'Patrícia Nogueira Silva', cpf: '49012783644', setor: 'Camarim', etapa: 'fim', em: '2026-08-29T23:40:00-03:00', manual: false },
+  // A entrada dela, do dia anterior: sem ela, o dia 29 teria uma saída sem
+  // entrada — a incoerência que a visão "Presentes" existe pra revelar, não
+  // pra produzir sozinha.
+  { id: 'r-6', nome: 'Patrícia Nogueira Silva', cpf: '49012783644', setor: 'Camarim', etapa: 'entrada', em: '2026-08-29T15:10:00-03:00', manual: false },
 ]
+
+/** Os dias de operação de cada evento — o que o seletor de dia mostra. */
+const DIAS_DE_ATIVIDADE_DE_MENTIRA: Record<string, string[]> = {
+  'ev-1': ['2026-08-29', '2026-08-30'],
+  'ev-2': ['2026-08-29'],
+  'ev-3': ['2026-08-22'],
+}
 
 /**
  * O estado da portaria de cada evento, e o quanto ela já rendeu.
@@ -1470,84 +1449,126 @@ export class ClienteFalso implements ClienteApi {
     return meus.map(e => ({ eventoId: e.eventoId, nome: e.nome }))
   }
 
-  async atividades(eventoId: string): Promise<AtividadesDoEvento> {
+  async atividades(
+    eventoId: string,
+    opcoes: { visao?: VisaoDeAtividade; dia?: string } = {},
+  ): Promise<AtividadesDoEvento> {
     await this.rede()
     this.exigirSessao()
     this.exigirPoder(podeAcompanhar, 'acompanhar o evento')
 
     const evento = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
       ?? EVENTOS_DO_PAINEL[0]!
+    const visao: VisaoDeAtividade =
+      opcoes.visao && opcoes.visao in VISOES_DE_ATIVIDADE ? opcoes.visao : 'entrada'
+
+    // ─── O dia ─────────────────────────────────────────────────────────────
+    // Mesma régua de fallback do site: o dia pedido se existir, senão hoje se
+    // for dia de operação, senão o último dia já passado, senão o primeiro.
+    const dias = DIAS_DE_ATIVIDADE_DE_MENTIRA[evento.eventoId] ?? [diaBRT(evento.dataInicio)]
+    const hoje = diaBRT(new Date(this.agora()))
+    const diaEscolhido =
+      (opcoes.dia && dias.includes(opcoes.dia) ? opcoes.dia : null)
+      ?? (dias.includes(hoje) ? hoje : null)
+      ?? [...dias].reverse().find(d => d <= hoje)
+      ?? dias[0]
+      ?? hoje
 
     /*
      * O log junta o que já estava gravado com o que foi registrado nesta
      * sessão — pelo scanner ou pela tela de registrar ponto. Sem isso, quem
      * acabou de bater uma entrada não a veria aparecer aqui, e concluiria que
-     * ela não gravou.
+     * ela não gravou. O que vem desta sessão é sempre de HOJE — é quando a
+     * batida de verdade aconteceu.
      */
-    const desteUso: LinhaDaAtividade[] = []
-    for (const [id, etapas] of this.batidasDaEquipe) {
-      const pessoa = EQUIPE_DE_MENTIRA.find(p => p.id === id)
-      if (!pessoa) continue
-      for (const etapa of etapas) {
-        desteUso.push({
-          id: `${id}-${etapa}`,
-          nome: pessoa.nome,
-          cpf: pessoa.cpf,
-          setor: pessoa.setor,
-          etapa,
-          em: new Date(this.agora()).toISOString(),
-          como: 'qr',
-          local: null,
-          registradoPor: null,
-          justificativa: null,
-        })
+    const desteUso: typeof REGISTROS_DE_MENTIRA = []
+    if (diaEscolhido === hoje) {
+      for (const [id, etapas] of this.batidasDaEquipe) {
+        const pessoa = EQUIPE_DE_MENTIRA.find(p => p.id === id)
+        if (!pessoa) continue
+        for (const etapa of etapas) {
+          desteUso.push({
+            id: `${id}-${etapa}`,
+            nome: pessoa.nome,
+            cpf: pessoa.cpf,
+            setor: pessoa.setor,
+            etapa,
+            em: new Date(this.agora()).toISOString(),
+            manual: false,
+          })
+        }
       }
     }
 
-    const linhas = [...desteUso, ...ATIVIDADES_DE_MENTIRA]
-      .sort((a, b) => Date.parse(b.em) - Date.parse(a.em))
-      .slice(0, TETO_DO_LOG)
+    const registrosDoDia = [...desteUso, ...REGISTROS_DE_MENTIRA]
+      .filter(r => diaBRT(r.em) === diaEscolhido)
 
-    const porEtapa: Record<TipoBatida, number> = { entrada: 0, meio: 0, fim: 0 }
-    for (const l of linhas) porEtapa[l.etapa] += 1
+    const porPessoa = new Map<string, Partial<Record<TipoBatida, { em: string; manual: boolean }>>>()
+    for (const r of registrosDoDia) {
+      const atual = porPessoa.get(r.cpf) ?? {}
+      atual[r.etapa] = { em: r.em, manual: r.manual }
+      porPessoa.set(r.cpf, atual)
+    }
 
-    // Quem entrou e ainda não saiu — o número que o produtor pergunta no rádio.
-    const entraram = new Set(linhas.filter(l => l.etapa === 'entrada').map(l => l.cpf))
-    const sairam = new Set(linhas.filter(l => l.etapa === 'fim').map(l => l.cpf))
+    // O supervisor só acompanha a própria equipe — mesma régua de `eventosParaAcompanhar`.
+    const equipe = this.sessao!.papel === 'supervisor'
+      ? EQUIPE_DE_MENTIRA.filter(p => p.ativo && p.supervisor === 'Carlos Silva')
+      : EQUIPE_DE_MENTIRA.filter(p => p.ativo)
 
-    const ativos = EQUIPE_DE_MENTIRA.filter(p => p.ativo)
-    const comoLista = (p: (typeof EQUIPE_DE_MENTIRA)[number]): PessoaDaLista => ({
-      id: p.id, nome: p.nome, setor: p.setor, telefone: '27999255959',
-    })
+    const linhasDe = (v: VisaoDeAtividade): LinhaPresenca[] => {
+      if (v === 'presentes') {
+        return equipe.flatMap(p => {
+          const feito = porPessoa.get(p.cpf) ?? {}
+          return feito.entrada && !feito.fim
+            ? [{ id: p.id, nome: p.nome, cpf: p.cpf, setor: p.setor, em: feito.entrada.em, manual: feito.entrada.manual }]
+            : []
+        })
+      }
+      if (v === 'entrada' || v === 'meio' || v === 'fim') {
+        return equipe.flatMap(p => {
+          const r = (porPessoa.get(p.cpf) ?? {})[v]
+          return r ? [{ id: p.id, nome: p.nome, cpf: p.cpf, setor: p.setor, em: r.em, manual: r.manual }] : []
+        })
+      }
+      /*
+       * As três pendências — "ainda não chegaram / não fizeram o meio / não
+       * fizeram a saída". O site só cobra depois que o horário esperado já
+       * passou (`pendenciasDoDia`, ligado à janela do evento); aqui, sem uma
+       * janela por dia para cada evento de demonstração, a régua fica mais
+       * simples: falta a etapa, e — pra meio/fim — a pessoa já entrou.
+       */
+      const etapa: TipoBatida = v === 'faltam' ? 'entrada' : v === 'sem_meio' ? 'meio' : 'fim'
+      return equipe.flatMap(p => {
+        const feito = porPessoa.get(p.cpf) ?? {}
+        if (etapa !== 'entrada' && !feito.entrada) return []
+        if (feito[etapa]) return []
+        return [{ id: p.id, nome: p.nome, cpf: p.cpf, setor: p.setor, em: null, manual: false }]
+      })
+    }
 
-    const naoChegaram = ativos.filter(p => !entraram.has(p.cpf)).map(comoLista)
-    const aindaNoEvento = ativos
-      .filter(p => entraram.has(p.cpf) && !sairam.has(p.cpf))
-      .map(comoLista)
+    const linhas = linhasDe(visao)
+      .sort((a, b) => (a.em && b.em ? a.em.localeCompare(b.em) : a.nome.localeCompare(b.nome, 'pt-BR')))
 
-    const hoje = diaBRT(new Date(this.agora()))
-    const batidasHoje = linhas.filter(l => diaBRT(l.em) === hoje).length
+    const numeros = {
+      presentes: linhasDe('presentes').length,
+      entradas: linhasDe('entrada').length,
+      saidas: linhasDe('fim').length,
+      pendencias: linhasDe('faltam').length + linhasDe('sem_meio').length + linhasDe('sem_saida').length,
+    }
+
+    const colunaHora = visao === 'presentes'
+      ? 'Entrou às'
+      : visao === 'faltam' ? '' : visao === 'sem_meio' || visao === 'sem_saida' ? 'Entrou às' : 'Registrou às'
 
     return {
       eventoId: evento.eventoId,
       eventoNome: evento.nome,
-      indicadores: [
-        { chave: 'batidas_hoje', rotulo: 'Batidas hoje', valor: batidasHoje, tom: 'acento' },
-        {
-          chave: 'presentes',
-          rotulo: 'Presentes agora',
-          valor: aindaNoEvento.length,
-          sub: `de ${ativos.length} na equipe`,
-          tom: 'sucesso',
-        },
-        { chave: 'nao_chegaram', rotulo: 'Ainda não chegaram', valor: naoChegaram.length, tom: 'aviso' },
-        { chave: 'sairam', rotulo: 'Já saíram', valor: sairam.size, tom: 'info' },
-      ],
+      dias,
+      diaEscolhido,
+      hoje,
+      numeros,
       linhas,
-      porEtapa,
-      naoChegaram,
-      aindaNoEvento,
-      noTeto: linhas.length >= TETO_DO_LOG,
+      colunaHora,
     }
   }
 

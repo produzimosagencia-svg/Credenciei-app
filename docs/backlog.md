@@ -1,8 +1,8 @@
 # Backlog
 
-**331 tasks · 210 no MVP · 158 concluídas (48%)**
+**331 tasks · 210 no MVP · 159 concluídas (48%)**
 
-**Só o MVP: 129 de 210 (61%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 130 de 210 (62%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -91,9 +91,9 @@ nada do resto importa ainda.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 5 | 15 | — | Isolamento e limite feitos; falta LGPD, retenção e a trilha de auditoria |
-| 15 | Testes | 9 | 14 | — | 406 testes rodando |
+| 15 | Testes | 9 | 14 | — | 414 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 34 | 52 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
+| 17 | Painel no app | 35 | 52 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
 | 18 | Configurar evento | 9 | 17 | ✓ | Falta a API, o auto-atendimento no dia principal e a configuração do meio por setor |
 | 19 | Gastos (produto do Produtor) | 0 | 6 | — | Produto novo e isolado do credenciamento — escopo a confirmar com o Juan |
 
@@ -354,7 +354,7 @@ countable, cada linha já dentro do total da tabela acima.
 | Registrar ponto: busca de CPF tolera até 2 dígitos errados | 17 | Falta |
 | Base de funcionários funde com Encontre colaborador (um toggle, não duas telas) | 17 | ✅ **Trazido** — `/encontrar` ganhou o toggle, `/base-funcionarios` virou redirect |
 | Criar setor pede o supervisor (nome, CPF, WhatsApp) no mesmo formulário | 17 | ✅ **Trazido** — mesmo CPF reaproveita supervisor já existente, sem login novo |
-| Atividades: reescrita com as 7 visões, seletor de dia sempre visível | 17 | Falta |
+| Atividades: reescrita com as 7 visões, seletor de dia sempre visível | 17 | ✅ **Trazido** — `cliente.atividades(eventoId, { visao, dia })`, uma régua só |
 | Acessos: Produtor, operador de portão e Suporte como opções, com abas de Funções granulares | 17 | Falta |
 | Veículos: cadastro por evento, consulta manual na portaria | 17 | Falta |
 | Bloquear CPF do evento inteiro, sem apagar histórico | 17 | Falta |

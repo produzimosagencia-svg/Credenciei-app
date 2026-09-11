@@ -13,4 +13,5 @@ export { CONTAS_DE_DEMONSTRACAO, SENHA_DE_DEMONSTRACAO } from './cliente-falso.j
 export { credenciaisDeDemonstracao } from './cliente-falso.js'
 export type { CredencialDeDemonstracao } from './cliente-falso.js'
 export type * from './tipos.js'
+export { VISOES_DE_ATIVIDADE } from './tipos.js'
 export type { TipoBatida } from './comum.js'

@@ -38,7 +38,7 @@ import type {
   ListaDeOrganizacoes, Organizacao, PainelDoWhatsApp, ResultadoDeAtribuicao,
   ResultadoDaImportacao,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
-  SetorDetalhado, Sessao, TipoDeAviso,
+  SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
 } from './tipos.js'
 
 export type OpcoesDoClienteHttp = {
@@ -397,8 +397,11 @@ export class ClienteHttp implements ClienteApi {
     throw new AindaNaoNaApi('eventosParaAcompanhar')
   }
 
-  async atividades(_eventoId: string): Promise<AtividadesDoEvento> {
-    void _eventoId
+  async atividades(
+    _eventoId: string,
+    _opcoes?: { visao?: VisaoDeAtividade; dia?: string },
+  ): Promise<AtividadesDoEvento> {
+    void _eventoId; void _opcoes
     throw new AindaNaoNaApi('atividades')
   }
 

@@ -356,67 +356,54 @@ export type BatidaAssistida = {
 
 // ─── Atividades do evento ───────────────────────────────────────────────────
 //
-// Não é o Painel. O Painel responde "como está"; esta tela responde "o que
-// aconteceu, na ordem, e por quem". É a tela que se abre quando alguém contesta
-// uma batida — e a que mostra NOME POR NOME quem ainda não chegou, em vez de só
-// o número.
+// Não é o Painel. O Painel responde "como está"; esta tela responde "quem, num
+// dia, cumpriu (ou não) cada etapa" — a mesma pergunta que `/admin/atividades`
+// responde no site, trazida em 11/09/2026 com as sete visões e o mesmo
+// seletor de dia, no lugar da linha do tempo que a tela tinha antes.
+//
+// As sete visões e as linhas vêm de `lib/presenca-visoes.ts` no site,
+// compartilhado com a tela de Presença de dentro do evento — uma régua só,
+// para "Atividades" e "Presença" nunca dizerem coisas diferentes sobre a
+// mesma pessoa no mesmo dia.
 
-/**
- * Como a batida entrou no sistema.
- *
- * É a primeira coisa que se olha quando um registro é contestado: uma leitura
- * de QR no portão e uma batida que outra pessoa fez pelo colaborador têm pesos
- * diferentes na hora de decidir quem tem razão.
- */
-export type ComoFoiRegistrada = 'qr' | 'foto' | 'assistido'
+export type VisaoDeAtividade =
+  | 'entrada' | 'meio' | 'fim' | 'presentes' | 'faltam' | 'sem_meio' | 'sem_saida'
 
-export type LinhaDaAtividade = {
+export const VISOES_DE_ATIVIDADE: Record<VisaoDeAtividade, { titulo: string; icone: string }> = {
+  entrada: { titulo: 'Registraram a entrada', icone: 'LogIn' },
+  meio: { titulo: 'Registraram o meio', icone: 'Camera' },
+  fim: { titulo: 'Registraram a saída', icone: 'LogOut' },
+  presentes: { titulo: 'Presentes agora', icone: 'Clock' },
+  faltam: { titulo: 'Ainda não chegaram', icone: 'UserX' },
+  sem_meio: { titulo: 'Não fizeram o meio', icone: 'CameraOff' },
+  sem_saida: { titulo: 'Não fizeram a saída', icone: 'LogOut' },
+}
+
+/** Uma linha da visão escolhida — quem fez, ou quem está devendo, a etapa. */
+export type LinhaPresenca = {
   id: string
   nome: string
   cpf: string
   setor: string
-  etapa: TipoBatida
-  em: string
-  como: ComoFoiRegistrada
-  /** Endereço aproximado, quando o aparelho deu a localização. */
-  local: string | null
-  /** Quem registrou, quando não foi a própria pessoa. */
-  registradoPor: string | null
-  justificativa: string | null
-}
-
-/** Uma pessoa nas listas de "não chegou" e "ainda no evento". */
-export type PessoaDaLista = {
-  id: string
-  nome: string
-  setor: string
-  /**
-   * O telefone aparece na lista de quem não chegou de propósito: é dali que
-   * sai a ligação. Ter que abrir outra tela para achar o número, no meio do
-   * evento, é o que faz ninguém ligar.
-   */
-  telefone: string | null
+  /** `null` numa pendência: é justamente o horário que está faltando. */
+  em: string | null
+  /** Lançado à mão (registro assistido / ponto manual), e não pelo próprio QR. */
+  manual: boolean
 }
 
 export type AtividadesDoEvento = {
   eventoId: string
   eventoNome: string
-  /** Batidas hoje · Presentes agora · Ainda não chegaram · Já saíram. */
-  indicadores: IndicadorDoPainel[]
-  /** Da mais recente para a mais antiga. */
-  linhas: LinhaDaAtividade[]
-  /** Quantas em cada etapa — é o contador que vai nas abas do filtro. */
-  porEtapa: Record<TipoBatida, number>
-  naoChegaram: PessoaDaLista[]
-  aindaNoEvento: PessoaDaLista[]
-  /**
-   * O log bateu no teto?
-   *
-   * Acima de umas duzentas linhas a tela fica pesada e ninguém rola até o fim.
-   * Quando corta, a tela precisa DIZER que está mostrando só as mais recentes —
-   * senão quem procura uma batida antiga conclui que ela não existe.
-   */
-  noTeto: boolean
+  /** Os dias de operação do evento — sempre visível, mesmo com um só. */
+  dias: string[]
+  diaEscolhido: string
+  /** Hoje em Brasília — para o seletor marcar "(hoje)". */
+  hoje: string
+  /** Presentes agora · Entradas no dia · Saídas no dia · Pendências. */
+  numeros: { presentes: number; entradas: number; saidas: number; pendencias: number }
+  linhas: LinhaPresenca[]
+  /** Rótulo da coluna de horário — muda com a visão ("Entrou às", "Registrou às"). */
+  colunaHora: string
 }
 
 // ─── Acessos ────────────────────────────────────────────────────────────────

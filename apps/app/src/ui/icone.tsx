@@ -21,6 +21,7 @@ import type { LucideIcon } from 'lucide-react-native'
 import Activity from 'lucide-react-native/icons/activity'
 import Building2 from 'lucide-react-native/icons/building-2'
 import Camera from 'lucide-react-native/icons/camera'
+import CameraOff from 'lucide-react-native/icons/camera-off'
 import CircleAlert from 'lucide-react-native/icons/circle-alert'
 import CircleCheckBig from 'lucide-react-native/icons/circle-check-big'
 import CalendarDays from 'lucide-react-native/icons/calendar-days'
@@ -56,6 +57,7 @@ import User from 'lucide-react-native/icons/user'
 import ScanLine from 'lucide-react-native/icons/scan-line'
 import UserCheck from 'lucide-react-native/icons/user-check'
 import UserSearch from 'lucide-react-native/icons/user-search'
+import UserX from 'lucide-react-native/icons/user-x'
 import Users from 'lucide-react-native/icons/users'
 import Wallet from 'lucide-react-native/icons/wallet'
 import X from 'lucide-react-native/icons/x'
@@ -74,6 +76,7 @@ const ICONES: Record<string, LucideIcon> = {
   Building2,
   CalendarDays,
   Camera,
+  CameraOff,
   Check,
   CheckCircle: CircleCheckBig,
   ChevronLeft,
@@ -106,6 +109,7 @@ const ICONES: Record<string, LucideIcon> = {
   User,
   UserCheck,
   UserSearch,
+  UserX,
   Users,
   Wallet,
   X,
