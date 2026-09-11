@@ -162,7 +162,7 @@ o erro volta.
 ## Como acompanhar
 
 O Juan pede status assim: *"como estamos?"*. Responda com **percentual real do
-backlog** (307 tasks, 193 no MVP) — e o do MVP é o que responde "quando dá para usar"; `npm run backlog` calcula os dois — nunca invente número. Login de painel (`entrarComSenha`) já é real na API, ligado pelo `ClienteHttp`; o resto das rotas ainda usa o servidor falso. O que está feito por
+backlog** (331 tasks, 210 no MVP) — e o do MVP é o que responde "quando dá para usar"; `npm run backlog` calcula os dois — nunca invente número. Login de painel (`entrarComSenha`) já é real na API, ligado pelo `ClienteHttp`; o resto das rotas ainda usa o servidor falso. O que está feito por
 epic está em `docs/backlog.md`.
 
 Ao terminar um dia de trabalho, ele espera um resumo: feito, alterado, testado,

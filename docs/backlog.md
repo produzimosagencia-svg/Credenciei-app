@@ -1,8 +1,8 @@
 # Backlog
 
-**307 tasks · 193 no MVP · 156 concluídas (51%)**
+**331 tasks · 210 no MVP · 156 concluídas (47%)**
 
-**Só o MVP: 127 de 193 (66%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 127 de 210 (60%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -39,9 +39,11 @@ Atualizado em 11/09/2026.
 > quando alguém sai e volta no mesmo dia. Levantamento completo em
 > `docs/credenciei-web-estado-atual.md`. Os dois bugs de regra estão
 > corrigidos de ponta a ponta, inclusive a tela do scanner (que perdeu o
-> seletor manual Entrada/Saída, igual ao site). O resto do achado (papéis
-> novos, módulos novos, telas que mudaram de estrutura) ainda não está recontado no total
-> abaixo — é o próximo passo de contagem, não é estimativa escondida.
+> seletor manual Entrada/Saída, igual ao site). O resto do achado — papéis
+> novos, telas que mudaram de estrutura, o produto Gastos — já está
+> recontado no total abaixo (+24 tasks, de 307 para 331; o percentual caiu
+> de 51% para 47% mesmo sem perder trabalho feito, porque o denominador
+> cresceu). Detalhe em "Mapeado em 11/09" mais abaixo.
 
 ---
 
@@ -76,10 +78,10 @@ nada do resto importa ainda.
 | # | Epic | Feito | Total | MVP | Situação |
 |---|---|---|---|---|---|
 | 1 | Modelo de dados | 3 | 16 | ✓ | SQL escrito, nada executado |
-| 2 | Fundação | 7 | 12 | ✓ | Domínio sincronizado; conferência de horários em uso |
+| 2 | Fundação | 7 | 13 | ✓ | Domínio sincronizado; faltam os papéis produtor, operador de portão e suporte |
 | 3 | API v1 | 27 | 32 | ✓ | Login de painel real; faltam painel, escanear, ponto, atividades, acessos, evento e Plataforma |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
-| 5 | App base | 14 | 14 | ✓ | Navegação com voltar, tema, campos e data/hora |
+| 5 | App base | 14 | 15 | ✓ | Navegação com voltar, campos e data/hora; falta o redesign "Arena" (laranja/escuro) |
 | 6 | QR | 9 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
 | 7 | Offline | 13 | 19 | ✓ | Fila ligada ao app; falta o envio da foto ao storage |
 | 8 | Ponto no app | 4 | 13 | ✓ | O meio com selfie; falta o resto do ciclo |
@@ -88,11 +90,12 @@ nada do resto importa ainda.
 | 11 | Push | 0 | 12 | — | Depende da conta Apple |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
-| 14 | Segurança | 5 | 14 | — | Isolamento e limite feitos; falta LGPD e retenção |
-| 15 | Testes | 9 | 14 | — | 347 testes rodando |
+| 14 | Segurança | 5 | 15 | — | Isolamento e limite feitos; falta LGPD, retenção e a trilha de auditoria |
+| 15 | Testes | 9 | 14 | — | 406 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 32 | 39 | ✓ | Falta o que o site tem e nunca foi portado — ver mapeamento |
-| 18 | Configurar evento | 9 | 15 | ✓ | Criação, edição, dias e planilhas; falta a API |
+| 17 | Painel no app | 32 | 52 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
+| 18 | Configurar evento | 9 | 17 | ✓ | Falta a API, o auto-atendimento no dia principal e a configuração do meio por setor |
+| 19 | Gastos (produto do Produtor) | 0 | 6 | — | Produto novo e isolado do credenciamento — escopo a confirmar com o Juan |
 
 ---
 
@@ -333,6 +336,43 @@ o mesmo "Registrar ponto" que já foi trazido, só com nome diferente.
 `funcionarios/[id]/historico` só existe como link direto vindo das Conversas
 de WhatsApp (que ainda não existem); o mesmo conteúdo já mora na ficha da
 pessoa, dentro da tela do setor.
+
+---
+
+## Mapeado em 11/09: o achado da auditoria completa, contado
+
+Detalhe inteiro em `docs/credenciei-web-estado-atual.md`. Aqui só a lista
+countable, cada linha já dentro do total da tabela acima.
+
+| O que | Epic | Situação |
+|---|---|---|
+| QR de evento que vira a noite (`faseAtualDoQR`) | 6 | ✅ **Trazido e corrigido** — `meuQr`, `painelDaEquipe` e o servidor falso todo |
+| Sair e volta no mesmo dia reabre o turno (`inferirMomentoDoScanner`) | 6 | ✅ **Trazido e corrigido** — inclusive a tela Escanear, que perdeu o seletor manual |
+| Papéis `produtor`, `operador_portao` e `suporte` no domínio | 2 | Falta |
+| Identidade visual "Arena" (laranja `#FF4A0F`, tema escuro) | 5 | Falta — troca `tema.ts` inteiro, toda tela é afetada |
+| Registrar ponto: operador escolhe a etapa (pré-marcada, livre pra trocar) | 17 | Falta — hoje o app decide sozinho, do jeito que o site fazia antes de 03/09 |
+| Registrar ponto: busca de CPF tolera até 2 dígitos errados | 17 | Falta |
+| Base de funcionários funde com Encontre colaborador (um toggle, não duas telas) | 17 | Falta |
+| Criar setor pede o supervisor (nome, CPF, WhatsApp) no mesmo formulário | 17 | Falta |
+| Atividades: reescrita com as 7 visões, seletor de dia sempre visível | 17 | Falta |
+| Acessos: Produtor, operador de portão e Suporte como opções, com abas de Funções granulares | 17 | Falta |
+| Veículos: cadastro por evento, consulta manual na portaria | 17 | Falta |
+| Bloquear CPF do evento inteiro, sem apagar histórico | 17 | Falta |
+| Conferência de equipe (D-1): supervisor confirma a lista antes do evento | 17 | Falta |
+| Suporte: tela de gerenciar o acesso externo, com escopo e expiração | 17 | Falta |
+| Relatórios: exportar presença/ponto da equipe em planilha | 17 | Falta |
+| Lançar ponto manual: regulariza quem já foi embora, com motivo | 17 | Falta |
+| Editar colaborador: atalho que busca em todos os setores do evento | 17 | Falta |
+| Auto-atendimento no dia principal (`checkin_autonomo`) | 18 | Falta |
+| Configuração do meio por setor + dia (não mais por horário) | 18 | Falta |
+| Trilha de auditoria — visualização simples de quem alterou o quê | 14 | Falta |
+| Gastos — produto do Produtor (voz, manual, lista, painel, exportação) | 19 | Falta — **escopo ainda não confirmado com o Juan**, ver abaixo |
+
+**Deliberadamente fora da contagem**, porque ainda não foi decidido SE vira
+tela do app (não é "esquecido", é "não decidido"): Financeiro completo
+(dashboard do master), Auditoria completa (a linha acima é só uma versão
+enxuta), e o Backlog Operacional (ferramenta interna da agência, não dos
+clientes da plataforma).
 
 ---
 
