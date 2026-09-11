@@ -1087,3 +1087,55 @@ export type PainelDoWhatsApp = {
   custoEstimado: number
   templates: TemplateDoWhatsApp[]
 }
+
+// ─── Veículos ───────────────────────────────────────────────────────────────
+//
+// Quem entra de caminhão ou van, e com qual placa — trazido do site em
+// 11/09/2026. SÓ CADASTRO E CONSULTA, por decisão de lá: o veículo não bate
+// ponto, não tem QR e não passa pelo scanner. A portaria consulta a placa
+// aqui e confere; o condutor precisa estar credenciado no evento, porque é
+// ele que responde pelo veículo.
+
+/** Achado ao buscar o condutor por CPF — é o que preenche o resto sozinho. */
+export type CondutorEncontrado = {
+  participacaoId: string
+  nome: string
+  cpf: string
+  funcao: string | null
+  setorNome: string
+  empresa: string | null
+}
+
+export type Veiculo = {
+  id: string
+  placa: string
+  modelo: string
+  cor: string | null
+  tipo: string | null
+  empresa: string | null
+  observacoes: string | null
+  condutorNome: string | null
+  condutorCpf: string | null
+  /** Dias em que o veículo pode entrar. Vazio = todos os dias do evento. */
+  dias: string[]
+  temFoto: boolean
+}
+
+export type VeiculosDoEvento = {
+  /** Os dias de operação do evento — o que o seletor de dias oferece. */
+  dias: { data: string; tipo: string }[]
+  veiculos: Veiculo[]
+}
+
+export type DadosDeVeiculo = {
+  cpf: string
+  placa: string
+  modelo: string
+  tipo?: string | null
+  cor?: string | null
+  empresa?: string | null
+  observacoes?: string | null
+  /** Vazio = autorizado todos os dias — é o caso comum. */
+  dias?: string[]
+  fotoBase64?: string | null
+}

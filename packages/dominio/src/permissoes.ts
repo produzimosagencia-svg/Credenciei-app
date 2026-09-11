@@ -122,3 +122,14 @@ export const podeEscanear = (papel?: string) =>
  */
 export const podeAcompanhar = (papel?: string) =>
   podeEscanear(papel) || papel === 'supervisor' || papel === 'suporte'
+
+/**
+ * Pode cadastrar/excluir VEÍCULOS autorizados a entrar no evento.
+ *
+ * Mais estreito que `podeGerenciarEventos` de propósito: fica de fora
+ * `gerente` e `cliente`, que gerenciam evento mas não respondem pelo
+ * portão. Entra `suporte`, que é justamente quem conserta a operação no
+ * dia. Trazido do site em 11/09/2026.
+ */
+export const podeGerenciarVeiculos = (papel?: string) =>
+  papel === 'master' || papel === 'admin' || papel === 'suporte'

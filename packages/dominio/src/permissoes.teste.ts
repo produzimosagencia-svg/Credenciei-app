@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import {
   ehDePainel, ehMaster, ehSuporte, NOME_DO_PAPEL, podeAcompanhar, podeEscanear,
   podeExcluir, podeGerenciarEventos, podeGerenciarOrganizacoes,
-  podeGerenciarUsuarios, veTodosEventos, type Papel,
+  podeGerenciarUsuarios, podeGerenciarVeiculos, veTodosEventos, type Papel,
 } from './permissoes.js'
 
 const TODOS: Papel[] = [
@@ -20,7 +20,7 @@ const TODOS: Papel[] = [
 
 const PODERES = [
   ehMaster, veTodosEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
-  podeGerenciarEventos, podeExcluir, podeEscanear, podeAcompanhar,
+  podeGerenciarEventos, podeExcluir, podeEscanear, podeAcompanhar, podeGerenciarVeiculos,
 ]
 
 test('o colaborador não pode NADA do painel', () => {
@@ -110,6 +110,15 @@ test('o suporte acompanha, mas não escaneia nem administra', () => {
   assert.equal(podeGerenciarEventos('suporte'), false)
   assert.equal(podeGerenciarUsuarios('suporte'), false)
   assert.equal(ehDePainel('suporte'), true)
+})
+
+test('veículos: master, admin e suporte gerenciam — o resto não', () => {
+  // Mais estreito que podeGerenciarEventos de propósito: gerente e cliente
+  // gerenciam evento mas não respondem pelo portão.
+  for (const papel of TODOS) {
+    const esperado = papel === 'master' || papel === 'admin' || papel === 'suporte'
+    assert.equal(podeGerenciarVeiculos(papel), esperado, `podeGerenciarVeiculos(${papel})`)
+  }
 })
 
 test('todo papel tem um nome para mostrar na tela', () => {

@@ -27,7 +27,7 @@ import {
   faseAtualDoQR, faseConfere, faseDoDia, formatarBR, formatCpf, gerarCodigoQR,
   inferirMomentoDoScanner, janelaMeio, lerCodigoDeEvento, lerCodigoQR, podeAcompanhar,
   podeEscanear, podeGerenciarEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
-  TOLERANCIA_DE_CPF,
+  podeGerenciarVeiculos, TOLERANCIA_DE_CPF,
   type RegistroParaInferencia,
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
@@ -46,6 +46,7 @@ import type {
   ResultadoDeAtribuicao, SetorParaAtribuir, TrabalhoDaPessoa,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, StatusDaEtapa, Sessao, TipoDeAviso, VisaoDeAtividade,
+  CondutorEncontrado, DadosDeVeiculo, Veiculo, VeiculosDoEvento,
 } from './tipos.js'
 import { VISOES_DE_ATIVIDADE } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
@@ -357,6 +358,31 @@ const ENDERECO_DA_PORTARIA = 'https://credenciei.vercel.app/portaria'
 
 /** Onde a equipe se cadastra sozinha, um por setor. */
 const ENDERECO_DO_FORMULARIO = 'https://credenciei.vercel.app/form'
+
+/**
+ * Os veículos autorizados de cada evento.
+ *
+ * Um com dia restrito e um livre em todos os dias — pra tela mostrar as duas
+ * situações ("dias autorizados" vs. "Todos") sem precisar cadastrar nada.
+ */
+const VEICULOS_DE_MENTIRA: Record<string, Veiculo[]> = {
+  'ev-1': [
+    {
+      id: 'vec-1', placa: 'RFM3G11', modelo: 'Mercedes Sprinter', cor: 'Branco', tipo: 'Van',
+      empresa: 'Produzimos', observacoes: null,
+      condutorNome: 'Ana Cláudia Ferreira', condutorCpf: '03748261509',
+      dias: [], temFoto: false,
+    },
+    {
+      id: 'vec-2', placa: 'ABC1D23', modelo: 'Volkswagen Delivery', cor: 'Azul', tipo: 'Caminhão',
+      empresa: 'Estrutura Palco Ltda', observacoes: 'Carga pesada — entra só pela doca',
+      condutorNome: 'Rodrigo Menezes Lima', condutorCpf: '21890647355',
+      dias: ['2026-09-03', '2026-09-04'], temFoto: true,
+    },
+  ],
+  'ev-2': [],
+  'ev-3': [],
+}
 
 /**
  * O poço de nomes da equipe de mentira.
@@ -2756,6 +2782,132 @@ export class ClienteFalso implements ClienteApi {
         pendencia: !entrada ? 'entrada' : !pega('meio') ? 'meio' : !pega('fim') ? 'saida' : null,
       }],
     }
+  }
+
+  // ── Veículos ─────────────────────────────────────────────────────────────
+  //
+  // Só cadastro e consulta: o veículo não bate ponto, não tem QR e não passa
+  // pelo scanner. Trazido do site em 11/09/2026.
+
+  async eventosParaVeiculos(): Promise<EventoEscaneavel[]> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarVeiculos, 'cadastrar veículos')
+
+    const meus = ehMaster(this.sessao!.papel)
+      ? EVENTOS_DO_PAINEL
+      : EVENTOS_DO_PAINEL.filter(e => e.organizacaoId === ORGANIZACAO_DO_ADMIN_DE_MENTIRA)
+    return meus.map(e => ({ eventoId: e.eventoId, nome: e.nome }))
+  }
+
+  async veiculosDoEvento(eventoId: string): Promise<VeiculosDoEvento> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarVeiculos, 'ver os veículos do evento')
+
+    // Cópia, não a referência: quem chama não pode enxergar um cadastro feito
+    // DEPOIS desta consulta só porque guardou a lista antes e o array mutou
+    // por baixo.
+    return {
+      dias: eventoId === 'ev-1' ? DIAS : [],
+      veiculos: [...(VEICULOS_DE_MENTIRA[eventoId] ?? [])],
+    }
+  }
+
+  async buscarCondutorPorCpf(
+    eventoId: string, cpfDigitado: string,
+  ): Promise<{ condutor?: CondutorEncontrado; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarVeiculos, 'cadastrar veículos')
+    void eventoId
+
+    const cpf = (cpfDigitado ?? '').replace(/\D/g, '')
+    if (cpf.length !== 11) return { erro: 'O CPF precisa ter 11 dígitos.' }
+
+    // Restrito ao evento, como no site: o veículo é autorizado a entrar
+    // NESTE evento, então o condutor precisa estar credenciado nele.
+    const pessoa = EQUIPE_DE_MENTIRA.find(p => p.cpf === cpf)
+    if (!pessoa) {
+      return {
+        erro: 'Este CPF não está credenciado neste evento. Cadastre a pessoa na equipe antes de vincular o veículo a ela.',
+      }
+    }
+
+    return {
+      condutor: {
+        participacaoId: pessoa.id,
+        nome: pessoa.nome,
+        cpf: pessoa.cpf,
+        funcao: pessoa.funcao,
+        setorNome: pessoa.setor,
+        empresa: null,
+      },
+    }
+  }
+
+  async cadastrarVeiculo(
+    eventoId: string, dados: DadosDeVeiculo,
+  ): Promise<{ placa?: string; condutor?: string; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarVeiculos, 'cadastrar veículos')
+
+    const placa = (dados.placa ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+    const modelo = (dados.modelo ?? '').trim()
+
+    /*
+     * Placa brasileira: 7 caracteres nos dois formatos que convivem — o
+     * antigo (ABC1234) e o Mercosul (ABC1D23). Valida o formato, não a
+     * existência: conferir se a placa existe de verdade exigiria consulta ao
+     * Detran, que o sistema não tem.
+     */
+    if (!/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(placa)) {
+      return { erro: 'Placa inválida. Use o formato ABC1D23 (Mercosul) ou ABC1234.' }
+    }
+    if (modelo.length < 2) return { erro: 'Informe o modelo do veículo.' }
+
+    const achado = await this.buscarCondutorPorCpf(eventoId, dados.cpf)
+    if (!achado.condutor) return { erro: achado.erro }
+    const condutor = achado.condutor
+
+    const lista = VEICULOS_DE_MENTIRA[eventoId]
+    if (!lista) return { erro: 'Não encontramos este evento.' }
+
+    // Índice único (evento, placa) — a mesma placa duas vezes no mesmo
+    // evento seria dois cadastros para um veículo só.
+    if (lista.some(v => v.placa === placa)) {
+      return { erro: `A placa ${placa} já está cadastrada neste evento.` }
+    }
+
+    lista.push({
+      id: `vec-${Math.random().toString(16).slice(2, 8)}`,
+      placa,
+      modelo,
+      cor: dados.cor?.trim() || null,
+      tipo: dados.tipo?.trim() || null,
+      empresa: dados.empresa?.trim() || null,
+      observacoes: dados.observacoes?.trim() || null,
+      condutorNome: condutor.nome,
+      condutorCpf: condutor.cpf,
+      dias: dados.dias ?? [],
+      temFoto: !!dados.fotoBase64,
+    })
+
+    return { placa, condutor: condutor.nome }
+  }
+
+  async excluirVeiculo(veiculoId: string, eventoId: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarVeiculos, 'excluir veículos')
+
+    const lista = VEICULOS_DE_MENTIRA[eventoId]
+    const i = lista?.findIndex(v => v.id === veiculoId) ?? -1
+    if (!lista || i < 0) return { erro: 'Não encontramos este veículo.' }
+
+    lista.splice(i, 1)
+    return {}
   }
 
   // ── Guardas ───────────────────────────────────────────────────────────────

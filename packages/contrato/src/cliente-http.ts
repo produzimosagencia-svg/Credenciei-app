@@ -39,6 +39,7 @@ import type {
   ResultadoDaImportacao,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
+  CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento,
 } from './tipos.js'
 
 export type OpcoesDoClienteHttp = {
@@ -609,5 +610,35 @@ export class ClienteHttp implements ClienteApi {
     const r = await this.pedir('/v1/equipe')
     if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar o painel.'))
     return r.corpo as unknown as PainelDaEquipe
+  }
+
+  // ─── Veículos ───────────────────────────────────────────────────────────
+
+  async eventosParaVeiculos(): Promise<EventoEscaneavel[]> {
+    throw new AindaNaoNaApi('eventosParaVeiculos')
+  }
+
+  async veiculosDoEvento(_eventoId: string): Promise<VeiculosDoEvento> {
+    void _eventoId
+    throw new AindaNaoNaApi('veiculosDoEvento')
+  }
+
+  async buscarCondutorPorCpf(
+    _eventoId: string, _cpf: string,
+  ): Promise<{ condutor?: CondutorEncontrado; erro?: string }> {
+    void _eventoId; void _cpf
+    throw new AindaNaoNaApi('buscarCondutorPorCpf')
+  }
+
+  async cadastrarVeiculo(
+    _eventoId: string, _dados: DadosDeVeiculo,
+  ): Promise<{ placa?: string; condutor?: string; erro?: string }> {
+    void _eventoId; void _dados
+    throw new AindaNaoNaApi('cadastrarVeiculo')
+  }
+
+  async excluirVeiculo(_veiculoId: string, _eventoId: string): Promise<{ erro?: string }> {
+    void _veiculoId; void _eventoId
+    throw new AindaNaoNaApi('excluirVeiculo')
   }
 }

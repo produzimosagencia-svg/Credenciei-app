@@ -1,8 +1,8 @@
 # Backlog
 
-**332 tasks · 211 no MVP · 163 concluídas (49%)**
+**332 tasks · 211 no MVP · 164 concluídas (49%)**
 
-**Só o MVP: 134 de 211 (64%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 135 de 211 (64%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -91,9 +91,9 @@ nada do resto importa ainda.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 5 | 15 | — | Isolamento e limite feitos; falta LGPD, retenção e a trilha de auditoria |
-| 15 | Testes | 9 | 14 | — | 429 testes rodando |
+| 15 | Testes | 9 | 14 | — | 439 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 38 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
+| 17 | Painel no app | 39 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
 | 18 | Configurar evento | 9 | 17 | ✓ | Falta a API, o auto-atendimento no dia principal e a configuração do meio por setor |
 | 19 | Gastos (produto do Produtor) | 0 | 6 | — | Produto novo e isolado do credenciamento — escopo a confirmar com o Juan |
 
@@ -357,7 +357,7 @@ countable, cada linha já dentro do total da tabela acima.
 | Atividades: reescrita com as 7 visões, seletor de dia sempre visível | 17 | ✅ **Trazido** — `cliente.atividades(eventoId, { visao, dia })`, uma régua só |
 | Acessos: operador de portão e Suporte como opções na criação | 17 | ✅ **Trazido** — Produtor fica de fora (módulo Gastos) |
 | Acessos: aba "Funções ligadas" — catálogo de capacidades por acesso, 3 camadas (usuário → organização → padrão do código) | 17 | Falta — precisa do catálogo `CAPACIDADES` no domínio e de uma tela de Configurações que o app ainda não tem |
-| Veículos: cadastro por evento, consulta manual na portaria | 17 | Falta |
+| Veículos: cadastro por evento, consulta manual na portaria | 17 | ✅ **Trazido** — `podeGerenciarVeiculos` novo no domínio (master/admin/suporte); condutor primeiro, o resto só depois |
 | Bloquear CPF do evento inteiro, sem apagar histórico | 17 | Falta |
 | Conferência de equipe (D-1): supervisor confirma a lista antes do evento | 17 | Falta |
 | Suporte: tela de gerenciar o acesso externo, com escopo e expiração | 17 | Falta |

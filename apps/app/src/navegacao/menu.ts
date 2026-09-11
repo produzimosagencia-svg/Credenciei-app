@@ -17,7 +17,7 @@
 // Painel, e o item levaria para a mesma tela em que a pessoa já está.
 
 import {
-  ehMaster, podeAcompanhar, podeEscanear, podeGerenciarUsuarios,
+  ehMaster, podeAcompanhar, podeEscanear, podeGerenciarUsuarios, podeGerenciarVeiculos,
 } from '@credenciei/dominio'
 
 export type ItemDoMenu = {
@@ -71,6 +71,12 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
 
   if (podeGerenciarUsuarios(papel)) {
     principal.push({ rota: '/acessos', rotulo: 'Acessos', icone: 'Users', pronta: true })
+  }
+
+  // Suporte entra aqui mesmo sem gerenciar acessos: é justamente quem
+  // conserta a operação no dia, e veículo é uma das coisas que ele corrige.
+  if (podeGerenciarVeiculos(papel)) {
+    principal.push({ rota: '/veiculos', rotulo: 'Veículos', icone: 'Truck', pronta: true })
   }
 
   grupos.push({ itens: principal })

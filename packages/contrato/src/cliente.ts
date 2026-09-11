@@ -20,6 +20,7 @@ import type {
   ListaDeOrganizacoes, Organizacao, PainelDoWhatsApp, ResultadoDeAtribuicao,
   ResultadoDaImportacao, ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida,
   ResumoParticipacao, SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
+  CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento,
 } from './tipos.js'
 
 export interface ClienteApi {
@@ -356,4 +357,33 @@ export interface ClienteApi {
 
   // ── Supervisor ──────────────────────────────────────────────────────────
   painelDaEquipe(eventoId: string): Promise<PainelDaEquipe>
+
+  // ── Veículos ─────────────────────────────────────────────────────────────
+  //
+  // Só cadastro e consulta: o veículo não bate ponto, não tem QR e não passa
+  // pelo scanner. Trazido do site em 11/09/2026.
+
+  /** Os eventos que ESTA pessoa pode cadastrar veículo — mesmo alcance de `podeGerenciarVeiculos`. */
+  eventosParaVeiculos(): Promise<EventoEscaneavel[]>
+
+  /** Os veículos já cadastrados de um evento, e os dias em que ele opera. */
+  veiculosDoEvento(eventoId: string): Promise<VeiculosDoEvento>
+
+  /**
+   * Acha o condutor pelo CPF, DENTRO do evento — é o que preenche o resto do
+   * formulário sozinho. Um CPF que existe na base mas não neste evento
+   * devolve um erro que diz exatamente isso.
+   */
+  buscarCondutorPorCpf(
+    eventoId: string,
+    cpf: string,
+  ): Promise<{ condutor?: CondutorEncontrado; erro?: string }>
+
+  /** Cadastra um veículo, sempre vinculado ao CPF de alguém já credenciado no evento. */
+  cadastrarVeiculo(
+    eventoId: string,
+    dados: DadosDeVeiculo,
+  ): Promise<{ placa?: string; condutor?: string; erro?: string }>
+
+  excluirVeiculo(veiculoId: string, eventoId: string): Promise<{ erro?: string }>
 }

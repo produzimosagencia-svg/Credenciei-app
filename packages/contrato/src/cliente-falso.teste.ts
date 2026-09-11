@@ -1896,3 +1896,132 @@ test('o contador de templates aprovados bate com a lista', async () => {
   )
   assert.ok(p.templates.some(t => t.situacao !== 'aprovado'), 'faltou um em análise ou rejeitado')
 })
+
+// ─── Veículos ───────────────────────────────────────────────────────────────
+//
+// Só cadastro e consulta — o veículo não bate ponto, não tem QR e não passa
+// pelo scanner. Trazido do site em 11/09.
+
+test('master, admin e suporte veem os eventos para cadastrar veículo — o resto não', async () => {
+  const master = await comoMaster()
+  assert.ok((await master.eventosParaVeiculos()).length > 0)
+
+  const admin = await noPortao()
+  assert.ok((await admin.eventosParaVeiculos()).length > 0)
+
+  // Ainda não existe conta de demonstração pra suporte — a sessão entra
+  // direto, do mesmo jeito que `sessaoInicial` já é usado noutros testes.
+  const suporte = new ClienteFalso({
+    sessaoInicial: {
+      token: 'tok-suporte', expiraEm: new Date(Date.now() + 999_999).toISOString(),
+      renovacao: 'ren-suporte', papel: 'suporte',
+    },
+  })
+  assert.ok((await suporte.eventosParaVeiculos()).length > 0)
+
+  const supervisor = new ClienteFalso()
+  await entrarComo(supervisor, 'supervisor')
+  await assert.rejects(() => supervisor.eventosParaVeiculos(), /permissão/i)
+})
+
+test('os veículos já cadastrados vêm com os dias de operação do evento', async () => {
+  const c = await noPortao()
+  const r = await c.veiculosDoEvento('ev-1')
+
+  assert.ok(r.veiculos.length > 0)
+  assert.ok(r.dias.length > 0)
+  // Um veículo restrito a dois dias, outro livre em todos — a tela precisa
+  // saber desenhar as duas situações.
+  assert.ok(r.veiculos.some(v => v.dias.length > 0))
+  assert.ok(r.veiculos.some(v => v.dias.length === 0))
+})
+
+test('buscar o condutor por CPF preenche nome, setor e função sozinho', async () => {
+  const c = await noPortao()
+  const r = await c.buscarCondutorPorCpf('ev-1', '037.482.615-09')
+
+  assert.ok(r.condutor, r.erro)
+  assert.equal(r.condutor.nome, 'Ana Cláudia Ferreira')
+  assert.equal(r.condutor.setorNome, 'Produção')
+})
+
+test('CPF que não está credenciado no evento é recusado, dizendo por quê', async () => {
+  const c = await noPortao()
+  const r = await c.buscarCondutorPorCpf('ev-1', '000.000.000-00')
+
+  assert.equal(r.condutor, undefined)
+  assert.match(r.erro ?? '', /não está credenciado/i)
+})
+
+test('cadastrar veículo exige placa válida e o condutor credenciado', async () => {
+  const c = await noPortao()
+
+  const semCondutor = await c.cadastrarVeiculo('ev-1', {
+    cpf: '000.000.000-00', placa: 'ABC1D23', modelo: 'Fiorino',
+  })
+  assert.ok(semCondutor.erro)
+
+  const placaInvalida = await c.cadastrarVeiculo('ev-1', {
+    cpf: '037.482.615-09', placa: '123', modelo: 'Fiorino',
+  })
+  assert.match(placaInvalida.erro ?? '', /placa/i)
+
+  const semModelo = await c.cadastrarVeiculo('ev-1', {
+    cpf: '037.482.615-09', placa: 'XYZ9K88', modelo: '',
+  })
+  assert.match(semModelo.erro ?? '', /modelo/i)
+})
+
+test('veículo cadastrado aparece na lista, vinculado ao condutor', async () => {
+  const c = await noPortao()
+  const antes = await c.veiculosDoEvento('ev-1')
+
+  const r = await c.cadastrarVeiculo('ev-1', {
+    cpf: '037.482.615-09', placa: 'XYZ9K88', modelo: 'Fiat Fiorino', cor: 'Prata',
+  })
+  assert.ok(!r.erro, r.erro)
+  assert.equal(r.placa, 'XYZ9K88')
+  assert.equal(r.condutor, 'Ana Cláudia Ferreira')
+
+  const depois = await c.veiculosDoEvento('ev-1')
+  assert.equal(depois.veiculos.length, antes.veiculos.length + 1)
+  const novo = depois.veiculos.find(v => v.placa === 'XYZ9K88')!
+  assert.equal(novo.condutorCpf, '03748261509')
+  assert.equal(novo.dias.length, 0, 'sem dia marcado, o veículo vale todos os dias')
+})
+
+test('a mesma placa duas vezes no mesmo evento é recusada', async () => {
+  const c = await noPortao()
+  await c.cadastrarVeiculo('ev-1', { cpf: '037.482.615-09', placa: 'JJJ1J11', modelo: 'Fiorino' })
+  const r = await c.cadastrarVeiculo('ev-1', { cpf: '037.482.615-09', placa: 'jjj-1j11', modelo: 'Outro' })
+
+  assert.ok(r.erro)
+  assert.match(r.erro, /já está cadastrada/i)
+})
+
+test('excluir remove da lista, e id que não existe responde com erro', async () => {
+  const c = await noPortao()
+  const r = await c.cadastrarVeiculo('ev-1', { cpf: '037.482.615-09', placa: 'KKK1K11', modelo: 'Fiorino' })
+  const antes = await c.veiculosDoEvento('ev-1')
+  const veiculo = antes.veiculos.find(v => v.placa === 'KKK1K11')!
+
+  const excluiu = await c.excluirVeiculo(veiculo.id, 'ev-1')
+  assert.equal(excluiu.erro, undefined)
+
+  const depois = await c.veiculosDoEvento('ev-1')
+  assert.equal(depois.veiculos.some(v => v.id === veiculo.id), false)
+
+  const denovo = await c.excluirVeiculo(veiculo.id, 'ev-1')
+  assert.ok(denovo.erro)
+  void r
+})
+
+test('o supervisor não cadastra nem exclui veículo', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  await assert.rejects(() => c.veiculosDoEvento('ev-1'), /permissão/i)
+  await assert.rejects(
+    () => c.cadastrarVeiculo('ev-1', { cpf: '037.482.615-09', placa: 'ABC1D23', modelo: 'Fiorino' }),
+    /permissão/i,
+  )
+})
