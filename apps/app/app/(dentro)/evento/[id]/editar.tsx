@@ -96,6 +96,7 @@ function Formulario({
   const [dataInicio, setDataInicio] = useState(inicial.dataInicio)
   const [dataFim, setDataFim] = useState(inicial.dataFim)
   const [batidaLivre, setBatidaLivre] = useState(inicial.batidaLivre)
+  const [checkinAutonomo, setCheckinAutonomo] = useState(inicial.checkinAutonomo)
   const [entradaInicio, setEntradaInicio] = useState(inicial.janelaEntradaInicio)
   const [entradaFim, setEntradaFim] = useState(inicial.janelaEntradaFim)
   const [saidaInicio, setSaidaInicio] = useState(inicial.janelaFimInicio)
@@ -147,6 +148,7 @@ function Formulario({
         dataInicio,
         dataFim,
         batidaLivre,
+        checkinAutonomo,
         janelaEntradaInicio: entradaInicio,
         janelaEntradaFim: entradaFim,
         janelaFimInicio: saidaInicio,
@@ -224,6 +226,40 @@ function Formulario({
                 são eles que a equipe recebe na mensagem do dia, e é por eles
                 que o sistema calcula quem está atrasado. O que sai é só a
                 recusa no portão.
+              </Legenda>
+            </View>
+          </View>
+        </Cartao>
+      </Pressable>
+
+      {/*
+        Auto-atendimento no dia principal — os dois fluxos coexistem.
+
+        Desligado (padrão): o dia principal continua só no fluxo do crachá
+        lido por um operador. Ligado: o QR fixo da portaria também libera
+        entrada, sem tirar o operador de cena. Independe de batida livre: o
+        horário continua sendo o de baixo, só muda quem pode fazer o registro.
+      */}
+      <Pressable onPress={() => setCheckinAutonomo(v => !v)} accessibilityRole="checkbox"
+        accessibilityState={{ checked: checkinAutonomo }}>
+        <Cartao>
+          <View style={e.linhaDaChave}>
+            <View style={[e.caixa, checkinAutonomo && e.caixaMarcada]}>
+              {checkinAutonomo ? <Icone nome="Check" tamanho={12} tom="#ffffff" espessura={3} /> : null}
+            </View>
+            <View style={e.textoDaChave}>
+              <Corpo forte>Auto-atendimento no dia principal</Corpo>
+              <Respiro altura={espaco.xs} />
+              <Corpo>
+                Além do crachá lido por um operador, a equipe também pode
+                registrar a própria entrada pelo celular, com localização — o
+                mesmo caminho que já funciona sempre na montagem e
+                desmontagem.
+              </Corpo>
+              <Respiro altura={espaco.xs} />
+              <Legenda>
+                Use pra aliviar a fila num show grande: quem preferir continua
+                indo pelo crachá, normalmente.
               </Legenda>
             </View>
           </View>

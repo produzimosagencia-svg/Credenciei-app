@@ -5,19 +5,25 @@
 //
 // ─── QUEM REGISTRA O QUÊ ────────────────────────────────────────────────────
 //
-//   entrada e saída   pelo QR, no portão. Quem credencia lê o código e vê NOME,
-//                     setor e função na tela — é essa conferência humana que
-//                     impede o crachá emprestado.
+//   entrada           pelo QR, no portão — sempre. Fora do dia principal, OU
+//                     no dia principal com o auto-atendimento ligado, a
+//                     própria pessoa também pode registrar pelo celular, sem
+//                     operador. Os dois caminhos coexistem.
+//
+//   saída             só pelo QR, no portão. Nunca sem operador — decisão do
+//                     Juan, não esquecimento: ver `registrarEntradaLivre` no
+//                     contrato.
 //
 //   o meio            a própria pessoa, com selfie, aqui. É a etapa que prova
 //                     que ela continuou no evento, e não faria sentido outra
 //                     pessoa registrar por ela no portão.
 //
-// ─── O MEIO PASSA PELA FILA, E NÃO DIRETO PELA REDE ─────────────────────────
+// ─── O MEIO PASSA PELA FILA, E O AUTO-ATENDIMENTO NÃO ───────────────────────
 //
-// Porque ele acontece no meio do evento, com mil pessoas no mesmo sinal. A
-// batida é gravada no aparelho na hora, com o horário do aparelho, e sobe
-// quando der. O que a pessoa vê é "registrado" imediatamente — porque foi.
+// O meio acontece com mil pessoas no mesmo sinal, então é gravado no aparelho
+// na hora e sobe quando der. Já o auto-atendimento é uma chamada direta à
+// rede: a pessoa está parada esperando a confirmação, igual ao site — sem
+// fila, sem reenvio tardio para proteger.
 
 import { useEffect, useState } from 'react'
 import { AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
@@ -44,6 +50,7 @@ export default function Credencial() {
   const fila = useFila()
   const [camera, setCamera] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [registrandoLivre, setRegistrandoLivre] = useState(false)
 
   const { pedido, recarregar } = usePedido(async () => {
     const participacoes = await cliente.minhasParticipacoes()
@@ -63,6 +70,14 @@ export default function Credencial() {
   const hoje = diaBRT(new Date())
   const diaDeHoje = dados?.dias.find(d => d.data === hoje) ?? null
 
+  /**
+   * Sempre disponível fora do dia principal — mesma regra da montagem e da
+   * desmontagem. No dia principal, só quando o evento tem o auto-atendimento
+   * ligado (ver "Editar evento"); mesmo ligado, o QR acima continua valendo.
+   */
+  const podeAutoRegistrar = !!diaDeHoje
+    && (diaDeHoje.etapa !== 'evento' || !!dados?.participacao.checkinAutonomo)
+
   /** O que a fila tem para esta participação e ainda não subiu. */
   const naFila = dados
     ? fila.itens.filter(
@@ -80,6 +95,28 @@ export default function Credencial() {
       foto,
       ...(onde ? { lat: onde.lat, lng: onde.lng } : {}),
     })
+  }
+
+  /**
+   * Entrada sem operador. Fora da fila de propósito: a pessoa está na tela
+   * esperando a confirmação, igual no site — se a rede falhar, ela sabe na
+   * hora e tenta de novo, em vez de confiar numa batida guardada que ainda
+   * não foi aceita.
+   */
+  async function registrarEntradaLivre() {
+    if (registrandoLivre || !dados) return
+    setErro(null)
+    setRegistrandoLivre(true)
+    try {
+      const onde = await ondeEstamos()
+      const r = await cliente.registrarEntradaLivre(dados.participacao.participacaoId, onde ?? {})
+      if (r.situacao === 'recusado') setErro(r.motivo)
+      else await recarregar()
+    } catch {
+      setErro('Não foi possível registrar agora. Verifique a internet e tente de novo.')
+    } finally {
+      setRegistrandoLivre(false)
+    }
   }
 
   return (
@@ -133,6 +170,9 @@ export default function Credencial() {
                 feitoEm={diaDeHoje.entrada}
                 naFila={naFila.find(i => i.tipo === 'entrada')}
                 instrucao="Mostre o QR acima no credenciamento."
+                podeAutoRegistrar={podeAutoRegistrar}
+                registrandoLivre={registrandoLivre}
+                aoRegistrarLivre={registrarEntradaLivre}
               />
 
               <EtapaDoMeio
@@ -226,15 +266,24 @@ function CartaoDoQr({ codigo, etapa }: { codigo: string; etapa: string }) {
 
 // ─── As etapas ──────────────────────────────────────────────────────────────
 
-/** Entrada e saída: quem registra é o portão. Aqui é só o estado. */
+/**
+ * Entrada e saída: quem registra é o portão — exceto a entrada quando
+ * `podeAutoRegistrar`, que também pode ser feita sozinha, sem tirar o QR
+ * de cena. A saída nunca ganha este botão: ver o cabeçalho do arquivo.
+ */
 function EtapaDoDia({
-  tipo, feitoEm, naFila, instrucao,
+  tipo, feitoEm, naFila, instrucao, podeAutoRegistrar, registrandoLivre, aoRegistrarLivre,
 }: {
   tipo: TipoBatida
   feitoEm: string | null
   naFila?: BatidaPendente
   instrucao: string
+  podeAutoRegistrar?: boolean
+  registrandoLivre?: boolean
+  aoRegistrarLivre?: () => void
 }) {
+  const ehLivre = tipo === 'entrada' && podeAutoRegistrar && !feitoEm && !naFila
+
   return (
     <Cartao>
       <Cabecalho tipo={tipo} feitoEm={feitoEm} naFila={naFila} />
@@ -242,6 +291,19 @@ function EtapaDoDia({
         <>
           <Respiro altura={espaco.s} />
           <Legenda>{instrucao}</Legenda>
+        </>
+      ) : null}
+      {ehLivre ? (
+        <>
+          <Respiro altura={espaco.s} />
+          <Botao
+            titulo="Registrar entrada"
+            onPress={() => aoRegistrarLivre?.()}
+            ocupado={registrandoLivre}
+            tipo="secundario"
+          />
+          <Respiro altura={espaco.xs} />
+          <Legenda>Ou mostre o QR acima no credenciamento, do jeito de sempre.</Legenda>
         </>
       ) : null}
       {naFila ? <EstadoNaFila batida={naFila} /> : null}

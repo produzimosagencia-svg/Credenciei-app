@@ -114,13 +114,15 @@ export async function entrarNoEvento(
     qrToken: novoToken(),
   })
 
-  return { participacao: paraResumo(criada, c.convite, agora) }
+  const evento = await repo.eventoPorId(c.convite.eventoId)
+  return { participacao: paraResumo(criada, c.convite, agora, evento?.checkin_autonomo === true) }
 }
 
 function paraResumo(
   p: Participacao,
   convite: Pick<ConviteDoEvento, 'eventoNome' | 'local' | 'dataInicio'>,
   agora: number,
+  checkinAutonomo: boolean,
 ): ResumoParticipacao {
   return {
     participacaoId: p.id,
@@ -134,6 +136,7 @@ function paraResumo(
     situacao: p.descredenciadoEm ? 'descredenciado' : p.ativo ? 'credenciado' : 'aguardando_aprovacao',
     emAndamento: !p.descredenciadoEm && !!convite.dataInicio
       && diaBRT(new Date(agora)) <= diaBRT(convite.dataInicio),
+    checkinAutonomo,
   }
 }
 
@@ -152,7 +155,7 @@ export async function minhasParticipacoes(
     if (!e) continue
     resumos.push(paraResumo(p, {
       eventoNome: e.nome, local: e.local, dataInicio: e.dataInicio ?? '',
-    }, agora))
+    }, agora, e.checkin_autonomo === true))
   }
 
   // O evento em andamento primeiro, depois do mais recente para o mais antigo:

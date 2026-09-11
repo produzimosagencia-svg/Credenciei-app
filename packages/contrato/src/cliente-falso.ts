@@ -70,6 +70,14 @@ export type ComportamentoFalso = {
    * novo — e o app seria escrito acreditando que isso é normal.
    */
   sessaoInicial?: Sessao
+  /**
+   * Sobrepõe `EVENTO.checkinAutonomo` para o colaborador de demonstração.
+   *
+   * Só existe para o teste poder exercitar o interruptor desligado: o evento
+   * de demonstração nasce com ele ligado (é o caso que aparece na tela), e
+   * não há como um teste "desligar" uma constante do módulo por fora.
+   */
+  checkinAutonomoDoEvento?: boolean
 }
 
 const EVENTO = {
@@ -84,6 +92,10 @@ const EVENTO = {
   janela_fim_inicio: '2026-09-06T01:30:00-03:00',
   janela_fim_fim: '2026-09-06T08:00:00-03:00',
   codigo: 'HJK-2026-K7M2',
+  // Ligado aqui para o auto-atendimento aparecer na demonstração — em
+  // CONFIGURACAO_DE_MENTIRA['ev-1'] (o lado do painel) o valor é o mesmo,
+  // são dois modelos separados que representam o mesmo evento.
+  checkinAutonomo: true,
 }
 
 /** Os dias de trabalho — montagem, o dia, e desmontagem. */
@@ -514,6 +526,7 @@ const ENDERECO_DE_ARQUIVOS = 'https://credenciei.vercel.app'
 const CONFIGURACAO_DE_MENTIRA: Record<string, {
   descricao: string | null
   batidaLivre: boolean
+  checkinAutonomo: boolean
   janelaEntradaInicio: string | null
   janelaEntradaFim: string | null
   janelaFimInicio: string | null
@@ -526,6 +539,7 @@ const CONFIGURACAO_DE_MENTIRA: Record<string, {
   'ev-1': {
     descricao: null,
     batidaLivre: true,
+    checkinAutonomo: true,
     janelaEntradaInicio: '2026-09-05T07:00:00-03:00',
     janelaEntradaFim: '2026-09-05T23:55:00-03:00',
     janelaFimInicio: '2026-09-06T01:30:00-03:00',
@@ -542,6 +556,7 @@ const CONFIGURACAO_DE_MENTIRA: Record<string, {
   'ev-2': {
     descricao: null,
     batidaLivre: false,
+    checkinAutonomo: false,
     janelaEntradaInicio: '2026-08-29T16:00:00-03:00',
     janelaEntradaFim: '2026-08-29T22:00:00-03:00',
     janelaFimInicio: '2026-08-30T01:00:00-03:00',
@@ -552,6 +567,7 @@ const CONFIGURACAO_DE_MENTIRA: Record<string, {
   'ev-3': {
     descricao: null,
     batidaLivre: false,
+    checkinAutonomo: false,
     janelaEntradaInicio: null,
     janelaEntradaFim: null,
     janelaFimInicio: null,
@@ -841,6 +857,7 @@ export class ClienteFalso implements ClienteApi {
   private atrasoMs: number
   private falhaDeRede: number
   private agora: () => number
+  private checkinAutonomo: boolean
 
   private sessao: Sessao | null = null
   private participacao: ResumoParticipacao | null = null
@@ -904,6 +921,7 @@ export class ClienteFalso implements ClienteApi {
     this.atrasoMs = c.atrasoMs ?? 0
     this.falhaDeRede = c.falhaDeRede ?? 0
     this.agora = c.agora ?? (() => Date.now())
+    this.checkinAutonomo = c.checkinAutonomoDoEvento ?? EVENTO.checkinAutonomo
     if (c.sessaoInicial) {
       this.sessao = c.sessaoInicial
       this.renovacaoValida = c.sessaoInicial.renovacao
@@ -1055,6 +1073,7 @@ export class ClienteFalso implements ClienteApi {
       supervisor: 'Carlos Silva',
       situacao: 'credenciado',
       emAndamento: true,
+      checkinAutonomo: this.checkinAutonomo,
     }
     return { participacao: this.participacao }
   }
@@ -1166,6 +1185,60 @@ export class ClienteFalso implements ClienteApi {
     this.idsRecebidos.add(envio.id)
     this.batidas.push({ id: envio.id, tipo: envio.tipo, em: envio.registradoEm, data })
     return { situacao: 'registrado', em: envio.registradoEm }
+  }
+
+  /**
+   * Entrada sem operador — o auto-atendimento.
+   *
+   * Só entrada: por isso o método nem recebe a etapa como parâmetro. A saída
+   * segue sempre pelo QR mostrado no credenciamento — decisão do Juan, ver o
+   * comentário em `cliente.ts`.
+   *
+   * O horário é o do RELÓGIO DO SERVIDOR, não o do aparelho: ao contrário da
+   * batida assistida, esta chamada não passa pela fila offline — a pessoa
+   * espera a confirmação na hora, e sem fila não há reenvio tardio para
+   * proteger.
+   */
+  async registrarEntradaLivre(
+    participacaoId: string,
+    dados: { lat?: number; lng?: number },
+  ): Promise<RespostaDeBatida> {
+    await this.rede()
+    this.exigirParticipacao(participacaoId)
+    void dados // o falso não confere geolocalização — só a repassaria adiante
+
+    const agora = new Date(this.agora())
+    const data = diaBRT(agora.toISOString())
+    const dia = DIAS.find(d => d.data === data) ?? null
+
+    // O interruptor só entra na conta no dia principal. Fora dele, a entrada
+    // sem operador já é sempre permitida — mesma regra da montagem/desmontagem.
+    if (dia?.tipo === 'principal' && !this.checkinAutonomo) {
+      return { situacao: 'recusado', motivo: 'No dia do evento, a entrada é pelo QR Code no credenciamento.' }
+    }
+
+    // A mesma função que avalia a entrada assistida: dia não marcado recusa,
+    // preparação é livre, e o dia principal respeita a batida livre/janela.
+    const v = avaliarEntradaSaida(
+      EVENTO,
+      dia ? { tipo: dia.tipo, cancelado: false } : null,
+      'entrada',
+      data,
+      agora,
+    )
+    if (!v.ok) return { situacao: 'recusado', motivo: v.erro }
+
+    const doDia = this.batidas.filter(b => b.data === data)
+    if (doDia.some(b => b.tipo === 'entrada')) {
+      const ja = doDia.find(b => b.tipo === 'entrada')!
+      return { situacao: 'duplicado', em: ja.em }
+    }
+
+    const registradoEm = agora.toISOString()
+    const id = `livre-${participacaoId}-${data}`
+    this.idsRecebidos.add(id)
+    this.batidas.push({ id, tipo: 'entrada', em: registradoEm, data })
+    return { situacao: 'registrado', em: registradoEm }
   }
 
   /** Monta a sessão inteira e reinicia o giro do token longo. */
@@ -1789,6 +1862,8 @@ export class ClienteFalso implements ClienteApi {
       // coisa para o produtor ligar deliberadamente depois, na Edição — não
       // um padrão silencioso que ninguém escolheu.
       batidaLivre: false,
+      // Mesmo raciocínio: auto-atendimento é opt-in, na Edição.
+      checkinAutonomo: false,
       janelaEntradaInicio: dados.janelaEntradaInicio ?? null,
       janelaEntradaFim: dados.janelaEntradaFim ?? null,
       janelaFimInicio: dados.janelaFimInicio ?? null,
@@ -1995,6 +2070,7 @@ export class ClienteFalso implements ClienteApi {
       dataInicio: base.dataInicio,
       dataFim: eventoId === 'ev-1' ? '2026-09-06T08:00:00-03:00' : null,
       batidaLivre: cfg.batidaLivre,
+      checkinAutonomo: cfg.checkinAutonomo,
       janelaEntradaInicio: cfg.janelaEntradaInicio,
       janelaEntradaFim: cfg.janelaEntradaFim,
       janelaFimInicio: cfg.janelaFimInicio,
@@ -2041,6 +2117,7 @@ export class ClienteFalso implements ClienteApi {
     base.dataInicio = dados.dataInicio
     cfg.descricao = dados.descricao
     cfg.batidaLivre = dados.batidaLivre
+    cfg.checkinAutonomo = dados.checkinAutonomo
     cfg.janelaEntradaInicio = dados.janelaEntradaInicio
     cfg.janelaEntradaFim = dados.janelaEntradaFim
     cfg.janelaFimInicio = dados.janelaFimInicio

@@ -353,6 +353,13 @@ export class ClienteHttp implements ClienteApi {
     return { situacao: 'recusado', motivo: this.erroDe(r, 'O servidor não aceitou este registro.') }
   }
 
+  async registrarEntradaLivre(
+    _participacaoId: string,
+    _dados: { lat?: number; lng?: number },
+  ): Promise<RespostaDeBatida> {
+    throw new AindaNaoNaApi('registrarEntradaLivre')
+  }
+
   // ─── Painel ───────────────────────────────────────────────────────────────
 
   async painel(): Promise<Painel> { throw new AindaNaoNaApi('painel') }

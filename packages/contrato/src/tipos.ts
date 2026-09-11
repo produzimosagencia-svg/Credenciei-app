@@ -80,6 +80,12 @@ export type ResumoParticipacao = {
   situacao: 'aguardando_aprovacao' | 'credenciado' | 'descredenciado'
   /** Quando existe, é o próximo evento da pessoa — o que a tela abre primeiro. */
   emAndamento: boolean
+  /**
+   * O evento liga o auto-atendimento no dia principal? Fora dele, entrada
+   * livre já é sempre possível — este campo só muda o comportamento do dia
+   * do evento em si. Ver `ConfiguracaoDoEvento.checkinAutonomo`.
+   */
+  checkinAutonomo: boolean
 }
 
 export type DiaDaParticipacao = {
@@ -720,6 +726,13 @@ export type ConfiguracaoDoEvento = {
    * quem está atrasado. O que sai é só a recusa no portão.
    */
   batidaLivre: boolean
+  /**
+   * O QR fixo da portaria (identificação por CPF) também libera entrada no
+   * dia principal, sem tirar o operador de cena — os dois caminhos coexistem.
+   * Independe de `batidaLivre`: o horário continua sendo o de cima, só muda
+   * quem pode fazer o registro. Fora do dia principal já é sempre assim.
+   */
+  checkinAutonomo: boolean
   janelaEntradaInicio: string | null
   janelaEntradaFim: string | null
   janelaFimInicio: string | null
@@ -737,6 +750,7 @@ export type EdicaoDoEvento = {
   dataInicio: string | null
   dataFim: string | null
   batidaLivre: boolean
+  checkinAutonomo: boolean
   janelaEntradaInicio: string | null
   janelaEntradaFim: string | null
   janelaFimInicio: string | null

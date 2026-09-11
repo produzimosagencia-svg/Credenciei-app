@@ -67,6 +67,12 @@ export type Evento = {
    * meio, e é justamente a tradução que faz duas regras divergirem.
    */
   batida_livre: boolean | null
+  /**
+   * O QR fixo da portaria também libera entrada no dia principal, sem tirar
+   * o operador de cena. Independe de `batida_livre` — ver o mesmo campo em
+   * `ConfiguracaoDoEvento`, no contrato.
+   */
+  checkin_autonomo: boolean | null
   codigoConvite: string | null
   exigeAprovacao: boolean
 }

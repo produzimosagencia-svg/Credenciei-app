@@ -25,15 +25,15 @@ async function entrarComo(c: ClienteFalso, papel: string) {
 }
 
 /** Sessão pronta, que é o ponto de partida de quase todo teste. */
-async function logado() {
-  const c = new ClienteFalso()
+async function logado(op: ComportamentoFalso = {}) {
+  const c = new ClienteFalso(op)
   await c.pedirCodigo('27999255959')
   await c.entrar('27999255959', '123456')
   return c
 }
 
-async function comParticipacao() {
-  const c = await logado()
+async function comParticipacao(op: ComportamentoFalso = {}) {
+  const c = await logado(op)
   await c.entrarNoEvento(CODIGO_DO_EVENTO, { funcao: 'Auxiliar', uniforme: 'M' })
   return c
 }
@@ -197,6 +197,61 @@ test('falha de rede é exceção, não resposta de erro', async () => {
   // de erro ela descarta. Trocar os dois perde batida ou insiste para sempre.
   const c = new ClienteFalso({ falhaDeRede: 1 })
   await assert.rejects(() => c.pedirCodigo('27999255959'), /Sem conexão/)
+})
+
+// ─── Auto-atendimento (entrada sem operador) ───────────────────────────────
+//
+// Trazido do site em 11/09/2026. Só entrada — por isso não existe um
+// `bater('fim', ...)` equivalente aqui: `registrarEntradaLivre` nem recebe a
+// etapa como parâmetro. A saída continua sempre pelo QR do credenciamento.
+
+test('fora do dia principal, a entrada livre já funciona mesmo com o auto-atendimento desligado', async () => {
+  const c = await comParticipacao({ checkinAutonomoDoEvento: false, agora: () => Date.parse('2026-09-03T08:00:00-03:00') })
+  const r = await c.registrarEntradaLivre('part-1', {})
+  assert.equal(r.situacao, 'registrado')
+})
+
+test('no dia principal, sem o auto-atendimento ligado, a entrada livre é recusada', async () => {
+  const c = await comParticipacao({ checkinAutonomoDoEvento: false, agora: () => Date.parse('2026-09-05T10:00:00-03:00') })
+  const r = await c.registrarEntradaLivre('part-1', {})
+  assert.equal(r.situacao, 'recusado')
+  assert.match(r.situacao === 'recusado' ? r.motivo : '', /pelo QR Code no credenciamento/)
+})
+
+test('no dia principal, com o auto-atendimento ligado, a entrada livre respeita a mesma janela da assistida', async () => {
+  const c = await comParticipacao({ checkinAutonomoDoEvento: true, agora: () => Date.parse('2026-09-05T05:00:00-03:00') })
+  const cedo = await c.registrarEntradaLivre('part-1', {})
+  assert.equal(cedo.situacao, 'recusado')
+})
+
+test('no dia principal, com o auto-atendimento ligado, a entrada livre dentro da janela registra', async () => {
+  const c = await comParticipacao({ checkinAutonomoDoEvento: true, agora: () => Date.parse('2026-09-05T10:00:00-03:00') })
+  const r = await c.registrarEntradaLivre('part-1', { lat: -20.3, lng: -40.3 })
+  assert.equal(r.situacao, 'registrado')
+
+  const dias = await c.meusDias('part-1')
+  const principal = dias.find(d => d.data === '2026-09-05')!
+  assert.ok(principal.entrada, 'a entrada ficou gravada')
+})
+
+test('dia que não é de trabalho recusa a entrada livre também', async () => {
+  const c = await comParticipacao({ agora: () => Date.parse('2026-08-20T08:00:00-03:00') })
+  const r = await c.registrarEntradaLivre('part-1', {})
+  assert.match(r.situacao === 'recusado' ? r.motivo : '', /não está marcado como dia de trabalho/)
+})
+
+test('a segunda entrada livre do mesmo dia vem duplicada, não gera batida nova', async () => {
+  const c = await comParticipacao({ agora: () => Date.parse('2026-09-03T08:00:00-03:00') })
+  const um = await c.registrarEntradaLivre('part-1', {})
+  const dois = await c.registrarEntradaLivre('part-1', {})
+
+  assert.equal(um.situacao, 'registrado')
+  assert.equal(dois.situacao, 'duplicado')
+})
+
+test('participação de outra pessoa não registra entrada livre', async () => {
+  const c = await comParticipacao()
+  await assert.rejects(() => c.registrarEntradaLivre('part-de-outra-pessoa', {}), /não tem acesso/)
 })
 
 // ─── Histórico ──────────────────────────────────────────────────────────────
@@ -1287,6 +1342,7 @@ test('horário impossível é recusado pelo SERVIDOR, não só pela tela', async
     dataInicio: '2026-09-05T18:30:00-03:00',
     dataFim: '2026-09-06T08:00:00-03:00',
     batidaLivre: false,
+    checkinAutonomo: false,
     // A saída marcada para ANTES do evento começar.
     janelaEntradaInicio: '2026-09-05T07:00:00-03:00',
     janelaEntradaFim: '2026-09-05T23:55:00-03:00',
@@ -1306,6 +1362,7 @@ test('evento sem nome é recusado', async () => {
     dataInicio: '2026-09-05T18:30:00-03:00',
     dataFim: null,
     batidaLivre: false,
+    checkinAutonomo: false,
     janelaEntradaInicio: null,
     janelaEntradaFim: null,
     janelaFimInicio: null,
@@ -1326,6 +1383,7 @@ test('a batida livre gravada volta na configuração', async () => {
     dataInicio: antes.dataInicio,
     dataFim: antes.dataFim,
     batidaLivre: true,
+    checkinAutonomo: antes.checkinAutonomo,
     janelaEntradaInicio: antes.janelaEntradaInicio,
     janelaEntradaFim: antes.janelaEntradaFim,
     janelaFimInicio: antes.janelaFimInicio,

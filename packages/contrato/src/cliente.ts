@@ -69,6 +69,28 @@ export interface ClienteApi {
   /** Lança exceção em falha de transporte; devolve `recusado` em decisão. */
   registrarBatida(envio: EnvioDeBatida): Promise<RespostaDeBatida>
 
+  /**
+   * Entrada sem operador — o auto-atendimento.
+   *
+   * Só ENTRADA: a saída continua exigindo sempre o QR mostrado no
+   * credenciamento — decisão do Juan, não esquecimento. "Ainda não tá
+   * desenvolvido totalmente isso, não tá mapeado, não tá estudado como a
+   * gente pode fazer na prática." Reversível depois, mas até lá o método nem
+   * aceita a etapa como parâmetro. Trazido do site em 11/09/2026.
+   *
+   * Fora do dia principal já funciona sempre, do mesmo jeito que a montagem e
+   * a desmontagem sempre foram livres. No dia principal, só quando o evento
+   * tem `checkinAutonomo` ligado — ver `ConfiguracaoDoEvento`.
+   *
+   * Sem foto de propósito: o que precisa ser rápido é o toque, e é uma
+   * chamada direta à rede (não passa pela fila offline) porque a pessoa
+   * espera a confirmação na hora, igual ao site.
+   */
+  registrarEntradaLivre(
+    participacaoId: string,
+    dados: { lat?: number; lng?: number },
+  ): Promise<RespostaDeBatida>
+
   // ── Painel ──────────────────────────────────────────────────────────────
   /**
    * A tela inicial de quem tem conta de painel.

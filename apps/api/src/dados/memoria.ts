@@ -146,6 +146,7 @@ export function cenarioHenriqueEJuliano() {
     // Desligada aqui de propósito: é com ela desligada que os testes exercitam
     // a recusa por janela. O caso ligado tem teste próprio, que a liga.
     batida_livre: false,
+    checkin_autonomo: false,
     codigoConvite: 'HJK-2026-K7M2',
     exigeAprovacao: false,
   }

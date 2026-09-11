@@ -388,7 +388,7 @@ export class RepositorioSupabase implements Repositorio {
 const CAMPOS_EVENTO =
   'id, nome, organizacao_id, local, data_inicio, data_fim, ' +
   'janela_entrada_inicio, janela_entrada_fim, janela_fim_inicio, janela_fim_fim, ' +
-  'batida_livre'
+  'batida_livre, checkin_autonomo'
 
 const CAMPOS_FUNCIONARIO =
   'id, nome, cpf, telefone, cargo, ativo, descredenciado_em, ' +
@@ -415,6 +415,8 @@ function paraEvento(l: Record<string, unknown>): Evento {
     // mas deixar nulo aqui esconderia a diferença entre "desligado" e "coluna
     // não veio" — e as duas precisam ser distinguíveis quando algo der errado.
     batida_livre: (l.batida_livre as boolean | null) ?? false,
+    // Mesmo raciocínio: ausente vira `false`, não `null`.
+    checkin_autonomo: (l.checkin_autonomo as boolean | null) ?? false,
     codigoConvite: (l.codigo_convite as string | null) ?? null,
     exigeAprovacao: false,
   }
