@@ -467,6 +467,13 @@ export type Acesso = {
   /** Só o suporte tem — opcional. Passada a data, o acesso para sozinho. */
   expiraEm: string | null
   /**
+   * O que este acesso liga/desliga em relação ao padrão do papel — a aba
+   * "Funções ligadas". Só as chaves que DIFEREM do padrão entram aqui; o
+   * resto o código completa sozinho pela função. Ver
+   * `@credenciei/dominio` → `capacidadesDoPapel`.
+   */
+  permissoesUsuario: Record<string, boolean>
+  /**
    * É a própria pessoa que está olhando?
    *
    * A linha de quem está logado nunca mostra as ações — ninguém remove o
@@ -522,6 +529,11 @@ export type NovoAcesso = {
    * Bloqueado é útil para deixar tudo pronto na véspera e liberar só no dia.
    */
   ativo: boolean
+  /**
+   * Só o que DIFERE do padrão do papel — a aba "Funções ligadas". Vazio ou
+   * ausente = nasce com o padrão inteiro, sem override nenhum.
+   */
+  permissoesUsuario?: Record<string, boolean>
 }
 
 

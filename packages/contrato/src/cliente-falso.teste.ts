@@ -1129,6 +1129,32 @@ test('operador de portão e suporte nascem sem setor, presos ao evento inteiro',
   assert.equal(suporte.acesso.expiraEm, '2026-12-01')
 })
 
+test('a "Funções ligadas" grava só o override, e ele volta na lista de acessos', async () => {
+  const c = await noPortao()
+  const r = await c.criarAcesso({
+    funcao: 'supervisor',
+    nome: 'Patricia Melo', cpf: '44455566677', telefone: '27999887766',
+    eventoId: 'ev-1', setorId: 's-2', ativo: true,
+    // Supervisor não escaneia por padrão — este liga o extra.
+    permissoesUsuario: { escanear: true },
+  })
+  assert.ok(r.acesso, r.erro)
+  assert.deepEqual(r.acesso.permissoesUsuario, { escanear: true })
+
+  const lista = await c.acessos({ busca: 'Patricia' })
+  assert.deepEqual(lista.itens[0]?.permissoesUsuario, { escanear: true })
+})
+
+test('sem override, a "Funções ligadas" nasce vazia — vale o padrão do papel', async () => {
+  const c = await noPortao()
+  const r = await c.criarAcesso({
+    funcao: 'operador_portao',
+    nome: 'Diego Farias', cpf: '55566677788', telefone: '27999887766',
+    eventoId: 'ev-1', ativo: true,
+  })
+  assert.deepEqual(r.acesso?.permissoesUsuario, {})
+})
+
 test('todo evento oferecido para criar acesso tem setor', async () => {
   // Supervisor sem setor não escaneia nem gerencia ninguém: seria um acesso
   // que não serve para nada.

@@ -290,20 +290,22 @@ const ACESSOS_DE_MENTIRA: {
   eventos: number
   criadoEm: string
   expiraEm: string | null
+  /** O override da aba "Funções ligadas" — ver `Acesso.permissoesUsuario`. */
+  permissoesUsuario: Record<string, boolean>
 }[] = [
-  { id: 'u-1', nome: 'Juan Muzy', identificador: 'juan@produzimos.com.br', papel: 'master', ativo: true, setorNome: null, eventos: 3, criadoEm: '2025-11-04T10:00:00-03:00', expiraEm: null },
-  { id: 'u-2', nome: 'Marina Alves', identificador: 'marina@produzimos.com.br', papel: 'admin', ativo: true, setorNome: null, eventos: 3, criadoEm: '2026-02-17T09:30:00-03:00', expiraEm: null },
-  { id: 'u-3', nome: 'Carlos Silva', identificador: 'carlos@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Produção', eventos: 1, criadoEm: '2026-06-02T14:12:00-03:00', expiraEm: null },
-  { id: 'u-4', nome: 'Débora Antunes', identificador: 'debora@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Camarim', eventos: 1, criadoEm: '2026-07-21T11:45:00-03:00', expiraEm: null },
-  { id: 'u-5', nome: 'Fábio Queiroz', identificador: 'fabio@produzimos.com.br', papel: 'supervisor', ativo: false, setorNome: 'Portaria', eventos: 2, criadoEm: '2025-12-09T16:20:00-03:00', expiraEm: null },
+  { id: 'u-1', nome: 'Juan Muzy', identificador: 'juan@produzimos.com.br', papel: 'master', ativo: true, setorNome: null, eventos: 3, criadoEm: '2025-11-04T10:00:00-03:00', expiraEm: null, permissoesUsuario: {} },
+  { id: 'u-2', nome: 'Marina Alves', identificador: 'marina@produzimos.com.br', papel: 'admin', ativo: true, setorNome: null, eventos: 3, criadoEm: '2026-02-17T09:30:00-03:00', expiraEm: null, permissoesUsuario: {} },
+  { id: 'u-3', nome: 'Carlos Silva', identificador: 'carlos@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Produção', eventos: 1, criadoEm: '2026-06-02T14:12:00-03:00', expiraEm: null, permissoesUsuario: {} },
+  { id: 'u-4', nome: 'Débora Antunes', identificador: 'debora@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Camarim', eventos: 1, criadoEm: '2026-07-21T11:45:00-03:00', expiraEm: null, permissoesUsuario: {} },
+  { id: 'u-5', nome: 'Fábio Queiroz', identificador: 'fabio@produzimos.com.br', papel: 'supervisor', ativo: false, setorNome: 'Portaria', eventos: 2, criadoEm: '2025-12-09T16:20:00-03:00', expiraEm: null, permissoesUsuario: {} },
   {
     id: 'u-6', nome: 'Rogério Batista', identificador: 'rogerio@produzimos.com.br', papel: 'operador_portao',
-    ativo: true, setorNome: null, eventos: 1, criadoEm: '2026-08-10T09:00:00-03:00', expiraEm: null,
+    ativo: true, setorNome: null, eventos: 1, criadoEm: '2026-08-10T09:00:00-03:00', expiraEm: null, permissoesUsuario: {},
   },
   // Com expiração de propósito: é o caso que a tela precisa saber mostrar.
   {
     id: 'u-7', nome: 'Renata Souza', identificador: 'renata@produzimos.com.br', papel: 'suporte',
-    ativo: true, setorNome: null, eventos: 1, criadoEm: '2026-09-01T10:00:00-03:00', expiraEm: '2026-09-30',
+    ativo: true, setorNome: null, eventos: 1, criadoEm: '2026-09-01T10:00:00-03:00', expiraEm: '2026-09-30', permissoesUsuario: {},
   },
 ]
 
@@ -2065,6 +2067,7 @@ export class ClienteFalso implements ClienteApi {
       criadoEm: new Date(this.agora()).toISOString(),
       expiraEm: null,
       souEu: false,
+      permissoesUsuario: {},
     }
     if (!existente) ACESSOS_DE_MENTIRA.push({ ...supervisor })
 
@@ -2618,6 +2621,7 @@ export class ClienteFalso implements ClienteApi {
       criadoEm: new Date(this.agora()).toISOString(),
       expiraEm: funcao === 'suporte' ? (dados.expiraEm ?? null) : null,
       souEu: false,
+      permissoesUsuario: dados.permissoesUsuario ?? {},
     }
 
     ACESSOS_DE_MENTIRA.push({ ...novo })

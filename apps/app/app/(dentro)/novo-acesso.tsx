@@ -18,15 +18,23 @@
 // plataforma, noutro lugar. Produtor também fica fora — é o módulo Gastos,
 // que o app ainda não tem (ver Epic 19 do backlog).
 //
-// A aba "Funções ligadas" (o catálogo de capacidades que o site liga e
-// desliga por acesso) ainda não está aqui — cada função nasce com o padrão
-// do código, sem override. Fica para uma tela de Configurações que o app
-// também não tem ainda.
+// ─── A ABA "FUNÇÕES LIGADAS" ────────────────────────────────────────────────
+//
+// Cada função nasce com o padrão do código (`capacidadesDoPapel`, em
+// `@credenciei/dominio`); aqui dá pra desligar o que a pessoa não deve ter,
+// ou ligar o extra que o papel pode ganhar (hoje só "Escanear QR" pro
+// supervisor). Só o que DIFERE do padrão vai no override — o resto o
+// servidor completa sozinho pela função, do mesmo jeito que o site faz.
+//
+// Trazido do site em 11/09/2026 — parcial: o override é gravado e volta na
+// lista de acessos, mas nenhuma tela do app ainda LÊ esse override na hora de
+// montar o menu ou travar uma rota (só o padrão do papel roda). Ligar isso
+// fica para uma tela de Configurações que o app também não tem ainda.
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { formatCpf, formatTelefone, titleCaseNome } from '@credenciei/dominio'
+import { capacidadesDoPapel, formatCpf, formatTelefone, titleCaseNome } from '@credenciei/dominio'
 import type { EventoComSetores, FuncaoDeAcesso } from '@credenciei/contrato'
 import { mascararData } from '../../src/campos'
 import { mensagemDoErro } from '../../src/dados/pedido'
@@ -79,6 +87,7 @@ export default function NovoAcesso() {
   const [telefone, setTelefone] = useState('')
   const [expiraEm, setExpiraEm] = useState('')
   const [ativo, setAtivo] = useState(true)
+  const [ligadas, setLigadas] = useState<Record<string, boolean>>({})
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [criado, setCriado] = useState<string | null>(null)
@@ -103,8 +112,16 @@ export default function NovoAcesso() {
   const setores = evento?.setores ?? []
   const cfg = FUNCOES.find(f => f.valor === funcao)!
 
+  // Um toggle por capacidade que este papel oferece, começando no valor que
+  // ele tem HOJE — o servidor completa o resto sozinho pelo padrão do código.
+  const capacidades = capacidadesDoPapel(funcao)
+  const ligada = (chave: string, padraoAtual: boolean): boolean =>
+    chave in ligadas ? (ligadas[chave] ?? padraoAtual) : padraoAtual
+
   function trocarFuncao(f: FuncaoDeAcesso) {
     setFuncao(f)
+    // Os toggles do papel anterior deixam de valer — outra função, outro catálogo.
+    setLigadas({})
     setErro(null)
   }
 
@@ -124,6 +141,14 @@ export default function NovoAcesso() {
     }
     setSalvando(true)
     try {
+      // Só o que DIFERE do padrão vai pro override — o resto o servidor
+      // completa sozinho pela função.
+      const permissoesUsuario: Record<string, boolean> = {}
+      for (const c of capacidades) {
+        const v = ligada(c.chave, c.padraoAtual)
+        if (v !== c.padraoAtual) permissoesUsuario[c.chave] = v
+      }
+
       const r = await cliente.criarAcesso({
         funcao,
         nome,
@@ -133,6 +158,7 @@ export default function NovoAcesso() {
         setorId: funcao === 'supervisor' ? setorId : undefined,
         expiraEm: funcao === 'suporte' ? paraISO(expiraEm) : undefined,
         ativo,
+        permissoesUsuario,
       })
       if (r.erro) return setErro(r.erro)
       setCriado(r.acesso?.nome ?? nome)
@@ -307,6 +333,40 @@ export default function NovoAcesso() {
         ) : null}
       </Cartao>
 
+      {capacidades.length > 0 ? (
+        <Cartao>
+          <TituloDeCartao>Funções ligadas</TituloDeCartao>
+          <Legenda>
+            Já vem com o padrão de {cfg.rotulo}. Desligue o que esta pessoa
+            não deve ter.
+          </Legenda>
+          <Respiro altura={espaco.m} />
+
+          {capacidades.map((c, i) => {
+            const on = ligada(c.chave, c.padraoAtual)
+            return (
+              <View key={c.chave}>
+                {i > 0 ? <View style={e.fioDaFuncao} /> : null}
+                <Pressable
+                  onPress={() => setLigadas(m => ({ ...m, [c.chave]: !on }))}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  style={e.funcaoLigada}
+                >
+                  <View style={[e.caixaDaFuncao, on && e.caixaDaFuncaoMarcada]}>
+                    {on ? <Icone nome="Check" tamanho={12} tom="#ffffff" espessura={3} /> : null}
+                  </View>
+                  <View style={e.textoDaFuncao}>
+                    <Corpo forte>{c.nome}</Corpo>
+                    <Legenda>{c.descricao}</Legenda>
+                  </View>
+                </Pressable>
+              </View>
+            )
+          })}
+        </Cartao>
+      ) : null}
+
       <Cartao>
         <TituloDeCartao>Situação</TituloDeCartao>
         <Respiro altura={espaco.xs} />
@@ -352,6 +412,21 @@ const e = StyleSheet.create({
   funcaoTitulo: { ...texto.corpoForte, color: uso.tintaMedia },
   funcaoTituloAtivo: { color: uso.tinta, fontFamily: tipo.semi },
   funcaoVinculo: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, marginTop: 4, marginLeft: 24 },
+
+  fioDaFuncao: { height: 1, backgroundColor: uso.borda, marginVertical: espaco.s },
+  funcaoLigada: { flexDirection: 'row', gap: espaco.m, alignItems: 'flex-start' },
+  textoDaFuncao: { flex: 1, minWidth: 0 },
+  caixaDaFuncao: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: cor.neutro300,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  caixaDaFuncaoMarcada: { backgroundColor: cor.acento500, borderColor: cor.acento600 },
 
   opcao: {
     flexDirection: 'row',

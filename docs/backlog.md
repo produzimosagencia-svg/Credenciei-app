@@ -91,7 +91,7 @@ nada do resto importa ainda.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 5 | 15 | — | Isolamento e limite feitos; falta LGPD, retenção e a trilha de auditoria |
-| 15 | Testes | 9 | 14 | — | 505 testes rodando |
+| 15 | Testes | 9 | 14 | — | 512 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 45 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
 | 18 | Configurar evento | 11 | 17 | ✓ | Falta a API |
@@ -356,7 +356,7 @@ countable, cada linha já dentro do total da tabela acima.
 | Criar setor pede o supervisor (nome, CPF, WhatsApp) no mesmo formulário | 17 | ✅ **Trazido** — mesmo CPF reaproveita supervisor já existente, sem login novo |
 | Atividades: reescrita com as 7 visões, seletor de dia sempre visível | 17 | ✅ **Trazido** — `cliente.atividades(eventoId, { visao, dia })`, uma régua só |
 | Acessos: operador de portão e Suporte como opções na criação | 17 | ✅ **Trazido** — Produtor fica de fora (módulo Gastos) |
-| Acessos: aba "Funções ligadas" — catálogo de capacidades por acesso, 3 camadas (usuário → organização → padrão do código) | 17 | Falta — precisa do catálogo `CAPACIDADES` no domínio e de uma tela de Configurações que o app ainda não tem |
+| Acessos: aba "Funções ligadas" — catálogo de capacidades por acesso, 3 camadas (usuário → organização → padrão do código) | 17 | ⚠️ **Parcial** — catálogo (`capacidadesDoPapel`) e a aba na criação de acesso prontos, override é gravado e volta na lista; falta ligar o override no menu/rotas (só a 1ª das 3 camadas roda) e a tela de Configurações que edita a 2ª (organização). Catálogo restrito a Escanear/Acompanhar/Veículos — só o que já é tela no app |
 | Veículos: cadastro por evento, consulta manual na portaria | 17 | ✅ **Trazido** — `podeGerenciarVeiculos` novo no domínio (master/admin/suporte); condutor primeiro, o resto só depois |
 | Bloquear CPF do evento inteiro, sem apagar histórico | 17 | ✅ **Trazido** — `podeBloquearCpf` novo no domínio; supervisor entra, operador de portão não |
 | Conferência de equipe (D-1): supervisor confirma a lista antes do evento | 17 | ✅ **Trazido** — abre 24h antes e não fecha mais; `packages/dominio` tem a janela |
