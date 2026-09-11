@@ -20,7 +20,7 @@
 import { useState } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { formatCpf, formatTelefone, formatarBR } from '@credenciei/dominio'
+import { formatCpf, formatTelefone, formatarBR, podeBloquearCpf } from '@credenciei/dominio'
 import type { PessoaDoSetor, TipoBatida } from '@credenciei/contrato'
 import { usePedido } from '../../../src/dados/pedido'
 import { useSessao } from '../../../src/sessao/contexto'
@@ -53,7 +53,7 @@ const ROTULO_DA_ETAPA: Record<TipoBatida, string> = {
 export default function EquipeDoSetor() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
-  const { cliente } = useSessao()
+  const { cliente, sessao } = useSessao()
 
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState<FiltroDaEquipe>('todos')
@@ -95,6 +95,21 @@ export default function EquipeDoSetor() {
               <Botao titulo="Escanear QR" onPress={() => router.push('/escanear')} tipo="acento" />
             </View>
           </View>
+          {/*
+            Mesma régua de quem PODE conferir (`podeBloquearCpf` — quem
+            gerencia evento, supervisor e suporte): o operador de portão lê o
+            QR, não decide quem fica na equipe, então nem vê o botão.
+          */}
+          {podeBloquearCpf(sessao?.papel) ? (
+            <>
+              <Respiro altura={espaco.s} />
+              <Botao
+                titulo="Conferência de equipe"
+                onPress={() => router.push(`/conferencia/${id}` as never)}
+                tipo="secundario"
+              />
+            </>
+          ) : null}
 
           <Respiro />
 

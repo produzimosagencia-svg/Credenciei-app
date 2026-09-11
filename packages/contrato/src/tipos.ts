@@ -1160,3 +1160,37 @@ export type CpfBloqueado = {
   criadoEm: string
   bloqueadoPor: string | null
 }
+
+// ─── Conferência de equipe ──────────────────────────────────────────────────
+//
+// A tela que o supervisor usa 1 dia antes do evento: vê a equipe, tira quem
+// não é dele, e confirma que aquela lista está certa. Trazido do site em
+// 11/09/2026.
+//
+// Abre 24h antes do início e não fecha mais — confirmar tarde ainda é melhor
+// que não confirmar. `packages/dominio` tem a régua da janela
+// (`conferenciaAberta`, `abreEm`), a mesma que o servidor aplica.
+
+export type MembroDaConferencia = {
+  id: string
+  nome: string
+  cpf: string
+  telefone: string | null
+  cargo: string | null
+}
+
+export type ConferenciaDoSetor = {
+  setorId: string
+  setorNome: string
+  eventoId: string
+  eventoNome: string
+  dataInicio: string
+  aberta: boolean
+  abreEm: string
+  status: 'pendente' | 'confirmada'
+  confirmadaEm: string | null
+  confirmadaPorNome: string | null
+  totalMantidos: number | null
+  totalRemovidos: number | null
+  equipe: MembroDaConferencia[]
+}

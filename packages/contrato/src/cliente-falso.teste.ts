@@ -2106,3 +2106,100 @@ test('liberar remove da lista, e um bloqueio de outro evento é recusado', async
   const depois = await c.bloqueiosDoEvento('ev-1')
   assert.equal(depois.some(b => b.id === bloqueio.id), false)
 })
+
+// ─── Conferência de equipe ──────────────────────────────────────────────────
+//
+// A tela que o supervisor usa 1 dia antes: vê a equipe, tira quem não é
+// dele, confirma. Trazido do site em 11/09.
+
+/** Bem antes da janela de 24h de qualquer um dos eventos de mentira. */
+const ANTES_DE_TUDO = () => Date.parse('2026-08-01T00:00:00-03:00')
+
+test('a conferência não abre antes de faltar 24h para o evento', async () => {
+  const c = await noPortao({ agora: ANTES_DE_TUDO })
+  const r = await c.conferenciaDoSetor('s-1')
+
+  assert.equal(r.aberta, false)
+  assert.ok(Date.parse(r.abreEm) > ANTES_DE_TUDO())
+})
+
+test('a conferência abre e fica aberta, mesmo bem depois do evento', async () => {
+  // O relógio real do teste já está bem depois de 05/09 — a data de mentira
+  // do ev-1.
+  const c = await noPortao()
+  const r = await c.conferenciaDoSetor('s-1')
+  assert.equal(r.aberta, true)
+})
+
+test('a conferência nasce pendente, com a equipe inteira e ninguém confirmado', async () => {
+  const c = await noPortao()
+  const r = await c.conferenciaDoSetor('s-1')
+
+  assert.equal(r.status, 'pendente')
+  assert.equal(r.confirmadaEm, null)
+  assert.ok(r.equipe.length > 0)
+})
+
+test('tirar alguém da conferência tira da lista — mas o histórico da pessoa não é apagado por isso', async () => {
+  const c = await noPortao()
+  const antes = await c.conferenciaDoSetor('s-1')
+  const alvo = antes.equipe[0]!
+
+  const r = await c.removerDaConferencia(alvo.id, 's-1')
+  assert.equal(r.erro, undefined)
+
+  const depois = await c.conferenciaDoSetor('s-1')
+  assert.equal(depois.equipe.length, antes.equipe.length - 1)
+  assert.equal(depois.equipe.some(m => m.id === alvo.id), false)
+})
+
+test('confirmar exige a janela aberta', async () => {
+  const c = await noPortao({ agora: ANTES_DE_TUDO })
+  const r = await c.confirmarConferencia('s-1')
+  assert.match(r.erro ?? '', /abre 1 dia antes/i)
+})
+
+test('confirmar carimba quem, quando, e os números — mantidos e removidos batem', async () => {
+  const c = await noPortao()
+  const antes = await c.conferenciaDoSetor('s-1')
+  const alvo = antes.equipe[0]!
+  await c.removerDaConferencia(alvo.id, 's-1')
+
+  const r = await c.confirmarConferencia('s-1')
+  assert.equal(r.erro, undefined)
+
+  const depois = await c.conferenciaDoSetor('s-1')
+  assert.equal(depois.status, 'confirmada')
+  assert.equal(depois.confirmadaPorNome, 'Marina Alves')
+  assert.ok(depois.confirmadaEm)
+  assert.equal(depois.totalRemovidos, 1)
+  assert.equal(depois.totalMantidos, antes.equipe.length - 1)
+})
+
+test('o supervisor confere a própria equipe (Carlos Silva cuida de s-1 e s-6)', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+
+  const r = await c.conferenciaDoSetor('s-1')
+  assert.ok(r.equipe.length > 0)
+
+  const outro = await c.conferenciaDoSetor('s-6')
+  assert.ok(Array.isArray(outro.equipe))
+})
+
+test('o supervisor não confere equipe de setor que não é dele', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  // s-2 é a Portaria do ev-1 — sem supervisor vinculado.
+  await assert.rejects(() => c.conferenciaDoSetor('s-2'), /acesso/i)
+})
+
+test('o operador de portão não confere equipe nenhuma', async () => {
+  const c = new ClienteFalso({
+    sessaoInicial: {
+      token: 'tok-op2', expiraEm: new Date(Date.now() + 999_999).toISOString(),
+      renovacao: 'ren-op2', papel: 'operador_portao',
+    },
+  })
+  await assert.rejects(() => c.conferenciaDoSetor('s-1'), /permissão/i)
+})

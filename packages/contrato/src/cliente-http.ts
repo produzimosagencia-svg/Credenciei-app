@@ -40,6 +40,7 @@ import type {
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
+  ConferenciaDoSetor,
 } from './tipos.js'
 
 export type OpcoesDoClienteHttp = {
@@ -663,5 +664,22 @@ export class ClienteHttp implements ClienteApi {
   async desbloquearCpf(_bloqueioId: string, _eventoId: string): Promise<{ erro?: string }> {
     void _bloqueioId; void _eventoId
     throw new AindaNaoNaApi('desbloquearCpf')
+  }
+
+  // ─── Conferência de equipe ────────────────────────────────────────────────
+
+  async conferenciaDoSetor(_setorId: string): Promise<ConferenciaDoSetor> {
+    void _setorId
+    throw new AindaNaoNaApi('conferenciaDoSetor')
+  }
+
+  async removerDaConferencia(_funcionarioId: string, _setorId: string): Promise<{ erro?: string }> {
+    void _funcionarioId; void _setorId
+    throw new AindaNaoNaApi('removerDaConferencia')
+  }
+
+  async confirmarConferencia(_setorId: string): Promise<{ erro?: string }> {
+    void _setorId
+    throw new AindaNaoNaApi('confirmarConferencia')
   }
 }

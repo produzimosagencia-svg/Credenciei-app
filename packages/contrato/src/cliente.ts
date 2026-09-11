@@ -21,6 +21,7 @@ import type {
   ResultadoDaImportacao, ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida,
   ResumoParticipacao, SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
+  ConferenciaDoSetor,
 } from './tipos.js'
 
 export interface ClienteApi {
@@ -406,4 +407,17 @@ export interface ClienteApi {
 
   /** Mesma régua de quem pode bloquear: quem bloqueia pode liberar. */
   desbloquearCpf(bloqueioId: string, eventoId: string): Promise<{ erro?: string }>
+
+  // ── Conferência de equipe ───────────────────────────────────────────────
+  //
+  // A tela que o supervisor usa 1 dia antes do evento: vê a equipe, tira
+  // quem não é dele, confirma. Trazido do site em 11/09/2026.
+
+  conferenciaDoSetor(setorId: string): Promise<ConferenciaDoSetor>
+
+  /** Tira alguém da equipe durante a conferência — o histórico dela fica. */
+  removerDaConferencia(funcionarioId: string, setorId: string): Promise<{ erro?: string }>
+
+  /** Fecha a conferência: carimba quem, quando, e os números. */
+  confirmarConferencia(setorId: string): Promise<{ erro?: string }>
 }

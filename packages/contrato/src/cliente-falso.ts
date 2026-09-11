@@ -27,7 +27,7 @@ import {
   faseAtualDoQR, faseConfere, faseDoDia, formatarBR, formatCpf, gerarCodigoQR,
   inferirMomentoDoScanner, janelaMeio, lerCodigoDeEvento, lerCodigoQR, podeAcompanhar,
   podeEscanear, podeGerenciarEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
-  podeGerenciarVeiculos, podeBloquearCpf, TOLERANCIA_DE_CPF,
+  podeGerenciarVeiculos, podeBloquearCpf, TOLERANCIA_DE_CPF, abreEm, conferenciaAberta,
   type RegistroParaInferencia,
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
@@ -47,6 +47,7 @@ import type {
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, StatusDaEtapa, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, Veiculo, VeiculosDoEvento, CpfBloqueado,
+  ConferenciaDoSetor,
 } from './tipos.js'
 import { VISOES_DE_ATIVIDADE } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
@@ -826,6 +827,15 @@ export class ClienteFalso implements ClienteApi {
   private renovacoesFeitas = 0
   /** Quem está logado. Muda `eu()` e o que o painel devolve. */
   private quemEntrou: { nome: string; papel: Papel } = { nome: 'João da Silva', papel: 'colaborador' }
+  /** Quem foi tirado da equipe durante a conferência, por setor. */
+  private removidosDaConferencia = new Map<string, Set<string>>()
+  /** O estado de cada conferência já confirmada, por setor. */
+  private conferenciasConfirmadas = new Map<string, {
+    confirmadaEm: string
+    confirmadaPorNome: string
+    totalMantidos: number
+    totalRemovidos: number
+  }>()
   /**
    * As etapas que cada pessoa da equipe já registrou hoje, com o horário.
    *
@@ -3000,6 +3010,106 @@ export class ClienteFalso implements ClienteApi {
     if (!lista || i < 0) return { erro: 'Bloqueio não encontrado.' }
 
     lista.splice(i, 1)
+    return {}
+  }
+
+  // ── Conferência de equipe ───────────────────────────────────────────────
+  //
+  // A tela que o supervisor usa 1 dia antes: vê a equipe, tira quem não é
+  // dele, confirma. Trazido do site em 11/09/2026.
+
+  /**
+   * Quem pode conferir/remover na equipe DESTE setor. Master e quem gerencia
+   * eventos entram sempre; supervisor e suporte só onde estão vinculados —
+   * o supervisor pelo próprio setor (mesmo `supervisores[]` do cartão do
+   * setor), o suporte pela régua geral de `podeBloquearCpf` (sem escopo por
+   * evento modelado no falso).
+   */
+  private exigirAcessoAoSetor(setorId: string): {
+    eventoId: string
+    setor: (typeof SETORES_DE_MENTIRA)[string][number]
+  } {
+    this.exigirSessao()
+
+    let achado: { eventoId: string; setor: (typeof SETORES_DE_MENTIRA)[string][number] } | null = null
+    for (const [eventoId, setores] of Object.entries(SETORES_DE_MENTIRA)) {
+      const setor = setores.find(x => x.setorId === setorId)
+      if (setor) { achado = { eventoId, setor }; break }
+    }
+    if (!achado) throw new Error('Não encontramos este setor.')
+
+    const papel = this.sessao!.papel
+    if (papel === 'supervisor') {
+      const meuAcesso = ACESSOS_DE_MENTIRA.find(a => a.nome === this.quemEntrou.nome)
+      const souSupervisorDeste = achado.setor.supervisores.some(s => s.id === meuAcesso?.id)
+      if (!souSupervisorDeste) throw new Error('Você não tem acesso a esta equipe.')
+      return achado
+    }
+    if (!podeBloquearCpf(papel)) throw new Error('Você não tem permissão para conferir esta equipe.')
+    return achado
+  }
+
+  async conferenciaDoSetor(setorId: string): Promise<ConferenciaDoSetor> {
+    await this.rede()
+    const { eventoId, setor } = this.exigirAcessoAoSetor(setorId)
+    const evento = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)!
+
+    const removidos = this.removidosDaConferencia.get(setorId)
+    const equipe = equipeDoSetorDeMentira(setorId, setor.pessoas)
+      .filter(p => !removidos?.has(p.participacaoId))
+      .map(p => ({ id: p.participacaoId, nome: p.nome, cpf: p.cpf, telefone: p.telefone, cargo: p.funcao }))
+
+    const conf = this.conferenciasConfirmadas.get(setorId)
+    const agora = new Date(this.agora())
+
+    return {
+      setorId,
+      setorNome: setor.nome,
+      eventoId,
+      eventoNome: evento.nome,
+      dataInicio: evento.dataInicio,
+      aberta: conferenciaAberta(evento.dataInicio, agora),
+      abreEm: abreEm(evento.dataInicio).toISOString(),
+      status: conf ? 'confirmada' : 'pendente',
+      confirmadaEm: conf?.confirmadaEm ?? null,
+      confirmadaPorNome: conf?.confirmadaPorNome ?? null,
+      totalMantidos: conf?.totalMantidos ?? null,
+      totalRemovidos: conf?.totalRemovidos ?? null,
+      equipe,
+    }
+  }
+
+  /** Tira alguém da equipe durante a conferência. O histórico dela fica. */
+  async removerDaConferencia(funcionarioId: string, setorId: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirAcessoAoSetor(setorId)
+
+    let removidos = this.removidosDaConferencia.get(setorId)
+    if (!removidos) {
+      removidos = new Set()
+      this.removidosDaConferencia.set(setorId, removidos)
+    }
+    removidos.add(funcionarioId)
+    return {}
+  }
+
+  /** Fecha a conferência: carimba quem, quando, e os números. */
+  async confirmarConferencia(setorId: string): Promise<{ erro?: string }> {
+    await this.rede()
+    const { eventoId, setor } = this.exigirAcessoAoSetor(setorId)
+    const evento = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)!
+
+    if (!conferenciaAberta(evento.dataInicio, new Date(this.agora()))) {
+      return { erro: 'A conferência abre 1 dia antes do evento.' }
+    }
+
+    const totalRemovidos = this.removidosDaConferencia.get(setorId)?.size ?? 0
+    this.conferenciasConfirmadas.set(setorId, {
+      confirmadaEm: new Date(this.agora()).toISOString(),
+      confirmadaPorNome: this.quemEntrou.nome,
+      totalMantidos: setor.pessoas - totalRemovidos,
+      totalRemovidos,
+    })
     return {}
   }
 
