@@ -10,7 +10,7 @@
 // pessoa. Com vinte mil contas, alguém vai testar.
 
 import {
-  diaBRT, faseDoDia, gerarCodigoQR, janelaMeio, lerCodigoDeEvento,
+  diaBRT, faseAtualDoQR, faseDoDia, gerarCodigoQR, janelaMeio, lerCodigoDeEvento,
 } from '@credenciei/dominio'
 import type {
   ConviteDoEvento, DiaDaParticipacao, FinanceiroDaParticipacao, ResumoParticipacao,
@@ -263,11 +263,15 @@ export async function meuQr(
   const evento = await repo.eventoPorId(p.eventoId)
   if (!evento) throw new Error('Evento não encontrado.')
 
-  const dias = await repo.diasDoEvento(p.eventoId)
-  const diaPrincipal = dias.find(d => d.tipo === 'principal')?.data
-    ?? (evento.dataInicio ? diaBRT(evento.dataInicio) : '')
-
-  const etapa = faseDoDia(diaBRT(agora), diaPrincipal)
+  /*
+   * `faseAtualDoQR`, não `faseDoDia`.
+   *
+   * O crachá tem que continuar válido depois da meia-noite se o evento ainda
+   * não terminou de verdade — `faseDoDia` sozinho jogaria a pessoa pra
+   * "desmontagem" no instante em que o relógio vira o dia, mesmo com o
+   * evento em andamento. Ver `packages/dominio/src/janelas.ts`.
+   */
+  const etapa = faseAtualDoQR(agora, evento.dataInicio, evento.dataFim)
   const { codigo } = gerarCodigoQR(segredo, p.qrToken, etapa)
   return { codigo, etapa }
 }

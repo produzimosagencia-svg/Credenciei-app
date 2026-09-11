@@ -56,6 +56,16 @@ test('o painel traz a equipe do supervisor', async () => {
   assert.equal(p.etapa, 'montagem')
 })
 
+test('a etapa do painel não vira desmontagem na virada da meia-noite', async () => {
+  // Mesmo evento que atravessa a noite (05/09 18:30 → 06/09 08:00). Às 02:00
+  // do dia 06 o evento ainda está rolando — o painel do supervisor não pode
+  // dizer "desmontagem" enquanto isso, senão ele lê a etapa errada no meio
+  // do próprio turno.
+  const { repo } = comEquipe()
+  const p = await painelDaEquipe(repo, 'pes-carlos', new Date('2026-09-06T02:00:00-03:00'))
+  assert.equal(p.etapa, 'evento')
+})
+
 // ─── O número ───────────────────────────────────────────────────────────────
 
 test('presentes conta quem bateu entrada hoje', async () => {

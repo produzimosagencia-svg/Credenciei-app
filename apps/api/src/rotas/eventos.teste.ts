@@ -234,6 +234,19 @@ test('o QR troca de etapa junto com o dia', async () => {
     'as três etapas têm crachás diferentes')
 })
 
+test('o crachá de evento que vira a noite não recusa na virada do dia', async () => {
+  // Henrique e Juliano começa 05/09 18:30 e termina 06/09 08:00 — atravessa
+  // a meia-noite. Às 02:00 do dia 06, o evento ainda está rolando: a etapa
+  // tem que continuar "evento", não pular pra "desmontagem" só porque o
+  // calendário virou. Era exatamente esse o bug: faseDoDia sozinho erraria
+  // aqui.
+  const { repo } = comDuasPessoas()
+  const depoisDaMeiaNoite = await meuQr(
+    repo, SEGREDO, 'pes-joao', 'part-joao', new Date('2026-09-06T02:00:00-03:00'),
+  )
+  assert.equal(depoisDaMeiaNoite.etapa, 'evento')
+})
+
 test('o mesmo QR vale em todos os dias da montagem', async () => {
   const { repo } = comDuasPessoas()
   const a = await meuQr(repo, SEGREDO, 'pes-joao', 'part-joao', new Date('2026-09-03T10:00:00-03:00'))

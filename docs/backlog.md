@@ -1,8 +1,8 @@
 # Backlog
 
-**307 tasks · 193 no MVP · 154 concluídas (50%)**
+**307 tasks · 193 no MVP · 155 concluídas (50%)**
 
-**Só o MVP: 125 de 193 (65%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 126 de 193 (65%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -29,7 +29,19 @@ o outro inclui push, publicação, web e escala, que vêm depois.
 
 O percentual reportado ao Juan sai daqui. Nunca estimar: contar.
 
-Atualizado em 31/08/2026.
+Atualizado em 11/09/2026.
+
+> **11/09/2026 — o site mudou muito mais do que um diff do dia a dia
+> conseguiria pegar.** 134 commits em 12 dias, com módulos inteiramente
+> novos (Gastos, Financeiro, Auditoria, Veículos, Avisos) e — mais sério —
+> duas regras de negócio que o app já tinha implementado e que ficaram
+> **erradas**: a fase do QR de evento que vira a noite, e o que acontece
+> quando alguém sai e volta no mesmo dia. Levantamento completo em
+> `docs/credenciei-web-estado-atual.md`. Os dois bugs de regra já foram
+> corrigidos no domínio (o segundo ainda precisa de uma mudança na tela do
+> scanner — ver "Próximas"). O resto do achado (papéis novos, módulos
+> novos, telas que mudaram de estrutura) ainda não está recontado no total
+> abaixo — é o próximo passo de contagem, não é estimativa escondida.
 
 ---
 
@@ -68,7 +80,7 @@ nada do resto importa ainda.
 | 3 | API v1 | 27 | 32 | ✓ | Login de painel real; faltam painel, escanear, ponto, atividades, acessos, evento e Plataforma |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
 | 5 | App base | 14 | 14 | ✓ | Navegação com voltar, tema, campos e data/hora |
-| 6 | QR | 7 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
+| 6 | QR | 8 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
 | 7 | Offline | 13 | 19 | ✓ | Fila ligada ao app; falta o envio da foto ao storage |
 | 8 | Ponto no app | 4 | 13 | ✓ | O meio com selfie; falta o resto do ciclo |
 | 9 | Histórico | 4 | 11 | — | Meus dias e Meu pagamento prontos |
@@ -147,6 +159,7 @@ nada do resto importa ainda.
 - O QR desenhado na credencial, dizendo de qual etapa é
 - Some quando o app sai do primeiro plano, e volta com um toque
 - Leitura pela câmera no scanner do portão
+- `faseAtualDoQR`: crachá de evento que vira a noite não recusa na virada do dia — trazido do site (11/09), com o bug que corrigia lá corrigido aqui também (`meuQr` e o painel do supervisor usavam `faseDoDia` sozinho)
 
 **Epic 7 — Offline**
 - Fila ligada ao app, acima das telas e viva em segundo plano
@@ -265,6 +278,13 @@ entra por baixo. Nenhuma tela muda na troca.
    dentro da batida; o caminho que aguenta pico é subir direto ao storage.
 4. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.
 5. **Rodar as migrações** (Epic 1). Precisa do banco de homologação.
+6. **Decisão pendente: a tela de Escanear QR** (Epic 6). O site tirou o
+   botão Entrada/Saída do operador em 03/09 — o scanner decide sozinho pela
+   entrada mais recente em aberto (com carência de 5 min pra não confundir
+   duas leituras seguidas da mesma pessoa). A regra (`inferirMomentoDoScanner`)
+   já está portada e testada em `packages/dominio`; falta decidir se a tela
+   do app muda pra acompanhar — hoje ela ainda tem o seletor manual, copiado
+   de uma versão anterior do site.
 
 
 ---

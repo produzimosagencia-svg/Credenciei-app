@@ -9,8 +9,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  diaBRT, janelaMeio, faseDoDia, avaliarEntradaSaida,
+  diaBRT, janelaMeio, faseDoDia, faseAtualDoQR, avaliarEntradaSaida,
   conferirHorariosDoEvento, ehDiaPrincipal, horariosEsperados, periodoDoEvento,
+  inferirMomentoDoScanner, type RegistroParaInferencia,
   HORAS_ATE_MEIO,
 } from './janelas.js'
 
@@ -55,6 +56,133 @@ test('a etapa é decidida pela data, sem ação do produtor', () => {
   assert.equal(faseDoDia('2026-08-26', principal), 'montagem')
   assert.equal(faseDoDia(principal, principal), 'evento')
   assert.equal(faseDoDia('2026-08-30', principal), 'desmontagem')
+})
+
+test('o QR de evento que vira a noite não recusa na virada do dia', () => {
+  // O evento começa dia 29, termina de madrugada no dia 30. `faseDoDia`
+  // sozinho jogaria o dia 30 inteiro pra "desmontagem" — errado, o crachá
+  // ainda precisa validar como "evento" enquanto o evento não terminou.
+  const inicio = '2026-08-29T20:00:00-03:00'
+  const fim = '2026-08-30T06:00:00-03:00'
+
+  assert.equal(
+    faseAtualDoQR(new Date('2026-08-29T22:00:00-03:00'), inicio, fim), 'evento',
+    'dentro do dia principal',
+  )
+  assert.equal(
+    faseAtualDoQR(new Date('2026-08-30T02:00:00-03:00'), inicio, fim), 'evento',
+    'depois da meia-noite, mas antes do fim — é aqui que faseDoDia sozinho erraria',
+  )
+  assert.equal(
+    faseAtualDoQR(new Date('2026-08-30T07:00:00-03:00'), inicio, fim), 'desmontagem',
+    'depois do horário real de término',
+  )
+})
+
+test('faseAtualDoQR sem data de fim cai de volta na regra do dia', () => {
+  const inicio = '2026-08-29T20:00:00-03:00'
+  assert.equal(faseAtualDoQR(new Date('2026-08-29T22:00:00-03:00'), inicio, null), 'evento')
+  assert.equal(faseAtualDoQR(new Date('2026-08-30T02:00:00-03:00'), inicio, null), 'desmontagem')
+})
+
+test('faseAtualDoQR antes do evento é sempre montagem', () => {
+  assert.equal(
+    faseAtualDoQR(new Date('2026-08-25T10:00:00-03:00'), '2026-08-29T20:00:00-03:00', null),
+    'montagem',
+  )
+  assert.equal(faseAtualDoQR(new Date(), null, null), 'montagem', 'sem data de início')
+})
+
+// ─── O que a leitura do crachá significa ────────────────────────────────────
+// Cada teste aqui é um caso real que já quebrou a portaria uma vez.
+
+/** Fora da carência de todo mundo, pra não precisar repetir em cada caso. */
+const FOLGA_MS = 10 * 60_000
+
+test('primeira leitura do dia é entrada', () => {
+  const r = inferirMomentoDoScanner([], '2026-09-05', new Date('2026-09-05T18:30:00-03:00'))
+  assert.deepEqual(r, { momento: 'entrada' })
+})
+
+test('entrada em aberto, fora da carência, vira saída', () => {
+  const registros: RegistroParaInferencia[] = [
+    { id: 'r1', tipo: 'entrada', em: '2026-09-05T18:30:00-03:00', dataRef: '2026-09-05' },
+  ]
+  const agora = new Date(new Date('2026-09-05T18:30:00-03:00').getTime() + FOLGA_MS)
+  assert.deepEqual(inferirMomentoDoScanner(registros, '2026-09-05', agora), { momento: 'fim' })
+})
+
+test('entrada recém-batida: segunda leitura na carência é recusada, não vira saída', () => {
+  // O QR fica na tela, o operador aponta a câmera de novo — sem a carência,
+  // isso viraria uma saída falsa um segundo depois da entrada.
+  const registros: RegistroParaInferencia[] = [
+    { id: 'r1', tipo: 'entrada', em: '2026-09-05T18:30:00-03:00', dataRef: '2026-09-05' },
+  ]
+  const agora = new Date('2026-09-05T18:31:00-03:00') // 1 min depois
+  const r = inferirMomentoDoScanner(registros, '2026-09-05', agora)
+  assert.ok('erro' in r)
+  assert.match(r.erro, /acabou de registrar a ENTRADA/)
+})
+
+test('o turno que vira a madrugada: saída pertence à entrada de ontem, não vira nova entrada', () => {
+  // Entrou 22:00 do dia 5, ainda não bateu saída. Já é madrugada do dia 6.
+  const registros: RegistroParaInferencia[] = [
+    { id: 'r1', tipo: 'entrada', em: '2026-09-05T22:00:00-03:00', dataRef: '2026-09-05' },
+  ]
+  const agora = new Date('2026-09-06T04:00:00-03:00')
+  assert.deepEqual(inferirMomentoDoScanner(registros, '2026-09-06', agora), { momento: 'fim' })
+})
+
+test('o BUG que a ordem corrige: turno fechado de ontem não bloqueia o dia de hoje', () => {
+  /*
+   * A primeira versão da regra (produção, 03/09/2026) perguntava só "o
+   * último turno já tem saída?" — turno de ontem à tarde (fechado) fazia
+   * hoje de manhã ser recusado com "já registrou entrada e saída hoje",
+   * mesmo sem nenhum registro de hoje.
+   */
+  const registros: RegistroParaInferencia[] = [
+    { id: 'r1', tipo: 'entrada', em: '2026-09-04T17:00:00-03:00', dataRef: '2026-09-04' },
+    { id: 'r2', tipo: 'fim', em: '2026-09-04T20:00:00-03:00', dataRef: '2026-09-04' },
+  ]
+  const agora = new Date('2026-09-05T08:00:00-03:00') // manhã seguinte, TETO_TURNO_H (18h) já passou
+  assert.deepEqual(inferirMomentoDoScanner(registros, '2026-09-05', agora), { momento: 'entrada' })
+})
+
+test('sai no almoço e volta à tarde: reabre o turno, não recusa', () => {
+  const registros: RegistroParaInferencia[] = [
+    { id: 'r1', tipo: 'entrada', em: '2026-09-05T08:00:00-03:00', dataRef: '2026-09-05' },
+    { id: 'r2', tipo: 'fim', em: '2026-09-05T12:00:00-03:00', dataRef: '2026-09-05' },
+  ]
+  const agora = new Date(new Date('2026-09-05T12:00:00-03:00').getTime() + FOLGA_MS)
+  const r = inferirMomentoDoScanner(registros, '2026-09-05', agora)
+  assert.ok('reabrir' in r)
+  assert.equal(r.reabrir.registroId, 'r2', 'aponta pra saída certa a apagar')
+  assert.equal(r.reabrir.em, '2026-09-05T12:00:00-03:00')
+})
+
+test('saída recém-batida: segunda leitura na carência é recusada, não reabre à toa', () => {
+  const registros: RegistroParaInferencia[] = [
+    { id: 'r1', tipo: 'entrada', em: '2026-09-05T08:00:00-03:00', dataRef: '2026-09-05' },
+    { id: 'r2', tipo: 'fim', em: '2026-09-05T20:00:00-03:00', dataRef: '2026-09-05' },
+  ]
+  const agora = new Date('2026-09-05T20:02:00-03:00') // 2 min depois
+  const r = inferirMomentoDoScanner(registros, '2026-09-05', agora)
+  assert.ok('erro' in r)
+  assert.match(r.erro, /acabou de registrar a SAÍDA/)
+})
+
+test('dobra o turno: sai de manhã e volta de noite no mesmo dia — a entrada da noite é a que conta', () => {
+  // Caso real (03/09/2026): sai 08:46 da manhã, volta 18:21 da noite. Se a
+  // regra perguntasse só "existe saída neste dia?", acharia a saída da
+  // MANHÃ e mandaria "entrada" de novo pra quem está de volta à noite —
+  // jogando fora o controle do turno da noite.
+  const registros: RegistroParaInferencia[] = [
+    { id: 'r1', tipo: 'entrada', em: '2026-09-05T00:30:00-03:00', dataRef: '2026-09-05' },
+    { id: 'r2', tipo: 'fim', em: '2026-09-05T08:46:00-03:00', dataRef: '2026-09-05' },
+    { id: 'r3', tipo: 'entrada', em: '2026-09-05T18:21:00-03:00', dataRef: '2026-09-05' },
+  ]
+  const agora = new Date(new Date('2026-09-05T18:21:00-03:00').getTime() + FOLGA_MS)
+  assert.deepEqual(inferirMomentoDoScanner(registros, '2026-09-05', agora), { momento: 'fim' })
 })
 
 test('dia principal é a data de início do evento', () => {

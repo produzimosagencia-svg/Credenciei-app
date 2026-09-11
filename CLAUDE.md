@@ -38,7 +38,7 @@ uma regra só.
 ## O que já está construído
 
 ```
-packages/dominio     a regra de negócio, pura — 48 testes
+packages/dominio     a regra de negócio, pura — 59 testes
 packages/offline     a fila de batidas sem internet — 22 testes
 packages/contrato    o que o app pode pedir + servidor falso — 132 testes
 apps/api             a API HTTP completa — 106 testes
@@ -46,7 +46,7 @@ apps/app             o aplicativo, em React Native + Expo — 85 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**393 testes.** `npm run verificar` roda tipos e testes de
+**404 testes.** `npm run verificar` roda tipos e testes de
 tudo, sem banco e sem rede. Só `npm run teste` NÃO confere tipos — o `tsx` não
 olha para eles.
 
@@ -203,7 +203,9 @@ o que está lá.
 ## Onde está o resto
 
 ```
-docs/contexto.md      a história completa: como chegamos aqui
-docs/decisoes/        uma decisão por arquivo, com o motivo
-db/migracoes/         SQL escrito, não executado — leia o cabeçalho antes
+docs/contexto.md                    a história completa: como chegamos aqui
+docs/decisoes/                      uma decisão por arquivo, com o motivo
+docs/credenciei-web-estado-atual.md o site em 11/09/2026 — leia antes de assumir
+                                     que uma tela ou regra antiga ainda vale
+db/migracoes/                       SQL escrito, não executado — leia o cabeçalho antes
 ```

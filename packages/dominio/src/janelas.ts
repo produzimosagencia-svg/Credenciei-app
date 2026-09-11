@@ -56,6 +56,17 @@ export const DURACAO_JANELA_MEIO_H = 2
  */
 export const TETO_TURNO_H = 18
 
+/**
+ * Carência depois de uma entrada ou saída antes de aceitar a leitura
+ * seguinte como o contrário.
+ *
+ * O QR fica na tela, o operador aponta a câmera de novo — sem carência, a
+ * segunda leitura em sequência vira "saída" de quem acabou de entrar, ou
+ * reabre o turno de quem acabou de sair. Ninguém trabalha, nem volta a
+ * trabalhar, em cinco minutos.
+ */
+export const CARENCIA_SAIDA_MIN = 5
+
 const H_MS = 60 * 60 * 1000
 const OFFSET_BRT_MS = 3 * H_MS
 
@@ -238,6 +249,104 @@ export function avaliarEntradaSaida(
   )
 }
 
+// ─── O que a leitura do crachá significa ──────────────────────────────────────
+//
+// Só entra em jogo quando NINGUÉM escolhe a etapa — o scanner do portão e o
+// registro assistido decidem sozinhos, porque pedir para o operador escolher
+// (Entrada/Meio/Saída) confundia com a fila andando. A pessoa que bate o
+// próprio ponto pelo celular manda o `tipo` explícito e não passa por aqui.
+
+export type RegistroParaInferencia = { id: string; tipo: 'entrada' | 'meio' | 'fim'; em: string; dataRef: string }
+
+export type DecisaoDoScanner =
+  | { momento: 'entrada' | 'fim' }
+  /** Sai no almoço, volta à tarde: apaga a saída de hoje e reabre o turno. */
+  | { reabrir: { registroId: string; em: string } }
+  | { erro: string }
+
+/**
+ * Decide sozinho se esta leitura de crachá é ENTRADA ou SAÍDA.
+ *
+ * Copiado de `lib/actions.ts` (`inferirMomentoQR`) do sistema web
+ * (11/09/2026), com o raciocínio original:
+ *
+ * `reabrir` existe porque o banco não aceita duas entradas no mesmo dia
+ * (índice único). Quem sai no almoço e volta à tarde não consegue uma
+ * entrada nova — então a volta APAGA a saída daquele dia e o turno fica
+ * aberto de novo, com a chegada original preservada. A próxima leitura vira
+ * a saída final.
+ *
+ * O que se perde com isso é o intervalo: o relatório mostra 08:00 → 20:00,
+ * não os dois blocos. Foi decisão consciente do Juan, 05/09/2026, com o
+ * evento em andamento — a versão completa (vários turnos por dia) precisa
+ * trocar aquele índice único. A saída apagada não some: vai para a
+ * auditoria, com o horário.
+ *
+ *   1. Turno em aberto (entrada sem saída, dentro de `TETO_TURNO_H`)?
+ *      → é a SAÍDA. É isto que fecha certo quem virou a madrugada.
+ *      Exceto se a entrada foi agorinha — ver `CARENCIA_SAIDA_MIN`.
+ *   2. Já tem entrada E saída com a data de HOJE? → reabre o turno.
+ *      Exceto se a saída foi agorinha — mesma carência.
+ *   3. Caso contrário → ENTRADA. Dia novo, turno novo.
+ *
+ * Recebe os registros já buscados (não busca sozinha): é o repositório, não
+ * o domínio, quem sabe consultar o banco — a mesma separação do resto deste
+ * arquivo.
+ */
+export function inferirMomentoDoScanner(
+  registros: RegistroParaInferencia[],
+  hoje: string,
+  agora: Date,
+): DecisaoDoScanner {
+  const desde = agora.getTime() - TETO_TURNO_H * H_MS
+  const carenciaMs = CARENCIA_SAIDA_MIN * 60_000
+
+  /*
+   * A entrada mais recente dentro do teto — não a de hoje, a mais recente
+   * ainda "em aberto". É o que fecha certo quem entrou 22h do dia 5 e sai
+   * 04h do dia 6: a saída pertence à entrada de ONTEM, não a uma entrada de
+   * hoje que não existe.
+   */
+  const entradaAberta = registros
+    .filter(r => r.tipo === 'entrada' && new Date(r.em).getTime() >= desde)
+    .sort((a, b) => b.em.localeCompare(a.em))[0] ?? null
+
+  if (entradaAberta) {
+    const fimDoTurno = registros.find(
+      r => r.tipo === 'fim' && r.dataRef === entradaAberta.dataRef && r.em > entradaAberta.em,
+    )
+    if (!fimDoTurno) {
+      const desdeEntradaMs = agora.getTime() - new Date(entradaAberta.em).getTime()
+      if (desdeEntradaMs < carenciaMs) {
+        const faltam = Math.max(1, Math.ceil((carenciaMs - desdeEntradaMs) / 60_000))
+        return {
+          erro: `Esta pessoa acabou de registrar a ENTRADA (às ${hhmm(entradaAberta.em)}). `
+            + `Se for saída mesmo, aguarde ${faltam} min e leia de novo.`,
+        }
+      }
+      return { momento: 'fim' }
+    }
+  }
+
+  // Nenhum turno aberto. Só reabre se o par entrada+saída for DE HOJE — turno
+  // fechado de ontem não bloqueia o dia de hoje.
+  const entradaHoje = registros.find(r => r.tipo === 'entrada' && r.dataRef === hoje)
+  const saidaHoje = registros.find(r => r.tipo === 'fim' && r.dataRef === hoje)
+  if (entradaHoje && saidaHoje) {
+    const desdeSaidaMs = agora.getTime() - new Date(saidaHoje.em).getTime()
+    if (desdeSaidaMs < carenciaMs) {
+      const faltam = Math.max(1, Math.ceil((carenciaMs - desdeSaidaMs) / 60_000))
+      return {
+        erro: `Esta pessoa acabou de registrar a SAÍDA (às ${hhmm(saidaHoje.em)}). `
+          + `Se ela está voltando a trabalhar, aguarde ${faltam} min e leia de novo.`,
+      }
+    }
+    return { reabrir: { registroId: saidaHoje.id, em: saidaHoje.em } }
+  }
+
+  return { momento: 'entrada' }
+}
+
 // ─── Horário ESPERADO de cada etapa ──────────────────────────────────────────
 //
 // Nada aqui trava registro nenhum: entrada e saída ficaram livres, e o meio é
@@ -371,6 +480,42 @@ export function faseDoDia(dia: string, diaPrincipal: string): FaseDoDia {
   if (!diaPrincipal) return 'montagem'
   if (dia === diaPrincipal) return 'evento'
   return dia < diaPrincipal ? 'montagem' : 'desmontagem'
+}
+
+/**
+ * Fase que deve assinar e validar o QR exibido ao vivo.
+ *
+ * A comunicação diária continua usando `faseDoDia`: no calendário, o dia
+ * seguinte é desmontagem. O QR tem uma necessidade diferente. Se o evento
+ * atravessa a meia-noite, a equipe ainda está no mesmo turno e o crachá do
+ * evento precisa continuar válido até o horário real de término.
+ *
+ * Copiado de `lib/janelas.ts` do sistema web (11/09/2026) — antes desta
+ * função não existir aqui, `meuQr` e o leitor do portão usavam `faseDoDia`
+ * sozinho, e um crachá de evento que vira a noite virava "desmontagem" à
+ * meia-noite, recusado no portão de um evento que ainda estava rolando.
+ */
+export function faseAtualDoQR(
+  agora: Date,
+  dataInicio: string | null | undefined,
+  dataFim: string | null | undefined,
+): FaseDoDia {
+  if (!dataInicio) return 'montagem'
+
+  const hoje = diaBRT(agora)
+  const diaPrincipal = diaBRT(dataInicio)
+
+  if (hoje < diaPrincipal) return 'montagem'
+  if (hoje === diaPrincipal) return 'evento'
+
+  if (dataFim) {
+    const fim = new Date(dataFim)
+    if (!Number.isNaN(fim.getTime()) && agora.getTime() <= fim.getTime()) {
+      return 'evento'
+    }
+  }
+
+  return 'desmontagem'
 }
 
 /** Hora em que o aviso do dia sai, nos dias de montagem e desmontagem. */

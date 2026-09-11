@@ -13,7 +13,7 @@
 // regra do sistema atual, e ela vale aqui pelo mesmo motivo: cada setor tem o
 // seu responsável, e ver a equipe alheia não ajuda a operação de ninguém.
 
-import { diaBRT, faseDoDia, janelaMeio } from '@credenciei/dominio'
+import { diaBRT, faseAtualDoQR, janelaMeio } from '@credenciei/dominio'
 import type { PainelDaEquipe, PessoaNaEquipe } from '@credenciei/contrato'
 import type { Repositorio } from '../dados/repositorio.js'
 
@@ -28,9 +28,6 @@ export async function painelDaEquipe(
   const evento = await repo.eventoPorId(equipe.eventoId)
   if (!evento) throw new Error('Evento não encontrado.')
 
-  const dias = await repo.diasDoEvento(equipe.eventoId)
-  const diaPrincipal = dias.find(d => d.tipo === 'principal')?.data
-    ?? (evento.dataInicio ? diaBRT(evento.dataInicio) : '')
   const hoje = diaBRT(agora)
 
   const membros = await repo.participacoesDaEquipe(equipe.id)
@@ -80,7 +77,9 @@ export async function painelDaEquipe(
     eventoNome: evento.nome,
     equipeNome: equipe.nome,
     data: hoje,
-    etapa: faseDoDia(hoje, diaPrincipal),
+    // `faseAtualDoQR`, não `faseDoDia`: o rótulo da etapa aqui precisa bater
+    // com o que o crachá da equipe está validando agora — ver `meuQr`.
+    etapa: faseAtualDoQR(agora, evento.dataInicio, evento.dataFim),
     total: pessoas.length,
     presentes: pessoas.filter(p => p.entrada).length,
     pessoas,
