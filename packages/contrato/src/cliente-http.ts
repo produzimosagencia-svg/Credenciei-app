@@ -447,7 +447,12 @@ export class ClienteHttp implements ClienteApi {
 
   async criarSetor(
     _eventoId: string,
-    _dados: { nome: string; estimado?: number | null; valorPorPessoa?: number | null },
+    _dados: {
+      nome: string
+      estimado?: number | null
+      valorPorPessoa?: number | null
+      supervisor: { nome: string; cpf: string; telefone: string }
+    },
   ): Promise<{ setor?: SetorDetalhado; erro?: string }> {
     void _eventoId; void _dados
     throw new AindaNaoNaApi('criarSetor')

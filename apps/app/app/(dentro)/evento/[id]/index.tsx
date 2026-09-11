@@ -16,7 +16,7 @@ import { useState } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
-import { formatarBR } from '@credenciei/dominio'
+import { formatCpf, formatTelefone, formatarBR } from '@credenciei/dominio'
 import type { SetorDetalhado, TipoBatida } from '@credenciei/contrato'
 import { usePedido } from '../../../../src/dados/pedido'
 import { mensagemDoErro } from '../../../../src/dados/pedido'
@@ -371,12 +371,20 @@ function FormularioDeSetor({
   ocupado, aoCriar, aoCancelar,
 }: {
   ocupado: boolean
-  aoCriar: (dados: { nome: string; estimado?: number | null; valorPorPessoa?: number | null }) => void
+  aoCriar: (dados: {
+    nome: string
+    estimado?: number | null
+    valorPorPessoa?: number | null
+    supervisor: { nome: string; cpf: string; telefone: string }
+  }) => void
   aoCancelar: () => void
 }) {
   const [nome, setNome] = useState('')
   const [estimado, setEstimado] = useState('')
   const [valor, setValor] = useState('')
+  const [supNome, setSupNome] = useState('')
+  const [supCpf, setSupCpf] = useState('')
+  const [supTelefone, setSupTelefone] = useState('')
 
   return (
     <Cartao>
@@ -408,13 +416,51 @@ function FormularioDeSetor({
         keyboardType="number-pad"
       />
 
+      {/*
+        O supervisor vem junto, não depois — do jeito que o site fez em
+        11/09: um setor só existe com alguém respondendo por ele, senão
+        nasce com o link de cadastro aberto e ninguém pra conferir quem
+        entra.
+      */}
+      <Separador />
+      <Etiqueta>Supervisor responsável</Etiqueta>
+      <Legenda>
+        Ele recebe o acesso por WhatsApp e passa a cuidar desta equipe. Se a
+        pessoa já for supervisora aqui, digite o mesmo CPF — este setor entra
+        nos dela, sem criar login novo.
+      </Legenda>
+      <Respiro altura={espaco.s} />
+      <Campo
+        rotulo="Nome"
+        value={supNome}
+        onChangeText={setSupNome}
+        placeholder="Nome da pessoa"
+        autoCapitalize="words"
+      />
+      <Campo
+        rotulo="CPF"
+        value={supCpf}
+        onChangeText={t => setSupCpf(formatCpf(t))}
+        placeholder="000.000.000-00"
+        keyboardType="number-pad"
+        ajuda="É com ele que o supervisor entra no sistema."
+      />
+      <Campo
+        rotulo="WhatsApp"
+        value={supTelefone}
+        onChangeText={t => setSupTelefone(formatTelefone(t))}
+        placeholder="(11) 99999-9999"
+        keyboardType="phone-pad"
+      />
+
       <Botao
-        titulo="Criar setor"
+        titulo="Cadastrar fornecedor/setor"
         ocupado={ocupado}
         onPress={() => aoCriar({
           nome,
           estimado: estimado ? Number(estimado) : null,
           valorPorPessoa: valor ? Number(valor) : null,
+          supervisor: { nome: supNome, cpf: supCpf, telefone: supTelefone },
         })}
       />
       <Respiro altura={espaco.s} />

@@ -1733,7 +1733,12 @@ export class ClienteFalso implements ClienteApi {
 
   async criarSetor(
     eventoId: string,
-    dados: { nome: string; estimado?: number | null; valorPorPessoa?: number | null },
+    dados: {
+      nome: string
+      estimado?: number | null
+      valorPorPessoa?: number | null
+      supervisor: { nome: string; cpf: string; telefone: string }
+    },
   ) {
     await this.rede()
     this.exigirSessao()
@@ -1751,6 +1756,35 @@ export class ClienteFalso implements ClienteApi {
       return { erro: `Já existe um setor chamado "${nome}" neste evento.` }
     }
 
+    const supNome = (dados.supervisor?.nome ?? '').trim()
+    const supCpf = (dados.supervisor?.cpf ?? '').replace(/\D/g, '')
+    const supTelefone = (dados.supervisor?.telefone ?? '').replace(/\D/g, '')
+    if (supNome.length < 3) return { erro: 'Digite o nome completo do supervisor.' }
+    if (supCpf.length !== 11) return { erro: 'O CPF do supervisor precisa ter 11 dígitos.' }
+    if (supTelefone.length < 10) return { erro: 'Digite o WhatsApp do supervisor, com DDD.' }
+
+    /*
+     * Se a pessoa já for supervisora aqui, este setor entra nos dela — sem
+     * criar login novo. É o mesmo CPF que decide, porque é ele que abre a
+     * sessão: dois acessos para a mesma pessoa a deixariam sem saber qual
+     * usar no WhatsApp.
+     */
+    const existente = ACESSOS_DE_MENTIRA.find(
+      a => a.papel === 'supervisor' && a.identificador.replace(/\D/g, '') === supCpf,
+    )
+    const supervisor = existente ?? {
+      id: `u-${ACESSOS_DE_MENTIRA.length + 1}`,
+      nome: supNome,
+      identificador: formatCpf(supCpf),
+      papel: 'supervisor' as const,
+      ativo: true,
+      setorNome: nome,
+      eventos: 1,
+      criadoEm: new Date(this.agora()).toISOString(),
+      souEu: false,
+    }
+    if (!existente) ACESSOS_DE_MENTIRA.push({ ...supervisor })
+
     const novo = {
       setorId: `s-${Math.random().toString(16).slice(2, 8)}`,
       nome,
@@ -1758,7 +1792,7 @@ export class ClienteFalso implements ClienteApi {
       estimado: dados.estimado ?? null,
       valorPorPessoa: dados.valorPorPessoa ?? null,
       token: `f-${Math.random().toString(16).slice(2, 8)}`,
-      supervisores: [],
+      supervisores: [{ id: supervisor.id, nome: supervisor.nome, ativo: supervisor.ativo }],
     }
     lista.push(novo)
     return { setor: this.paraSetor(novo) }

@@ -1051,14 +1051,37 @@ test('quantos entraram pela portaria é diferente de estar aberta', async () => 
 
 // ─── Criar setor ────────────────────────────────────────────────────────────
 
-test('setor novo nasce vazio e com link próprio', async () => {
+const SUPERVISOR_DE_TESTE = { nome: 'Marina Oliveira', cpf: '111.222.333-96', telefone: '(27) 99988-7766' }
+
+test('setor novo nasce vazio de equipe, mas já com o supervisor', async () => {
+  /*
+   * Trazido do site em 11/09: o setor não nasce mais com o link aberto e
+   * ninguém respondendo por ele — o supervisor entra no mesmo formulário.
+   */
   const c = await noPortao()
-  const r = await c.criarSetor('ev-1', { nome: 'Segurança', estimado: 30, valorPorPessoa: 200 })
+  const r = await c.criarSetor('ev-1', {
+    nome: 'Segurança', estimado: 30, valorPorPessoa: 200, supervisor: SUPERVISOR_DE_TESTE,
+  })
 
   assert.ok(r.setor, r.erro)
   assert.equal(r.setor.pessoas, 0)
   assert.ok(r.setor.linkDoFormulario)
-  assert.deepEqual(r.setor.supervisores, [])
+  assert.equal(r.setor.supervisores.length, 1)
+  assert.equal(r.setor.supervisores[0]?.nome, 'Marina Oliveira')
+})
+
+test('supervisor com o mesmo CPF de outro já existente não cria login novo — este setor entra nos dela', async () => {
+  const c = await noPortao()
+  const primeiro = await c.criarSetor('ev-1', {
+    nome: 'Ambulância', supervisor: SUPERVISOR_DE_TESTE,
+  })
+  const segundo = await c.criarSetor('ev-1', {
+    nome: 'Copa', supervisor: SUPERVISOR_DE_TESTE,
+  })
+
+  assert.ok(primeiro.setor, primeiro.erro)
+  assert.ok(segundo.setor, segundo.erro)
+  assert.equal(segundo.setor.supervisores[0]?.id, primeiro.setor.supervisores[0]?.id)
 })
 
 test('setor com nome repetido é recusado', async () => {
@@ -1067,14 +1090,25 @@ test('setor com nome repetido é recusado', async () => {
    * pessoa escolher no escuro, e metade da equipe cairia no setor errado.
    */
   const c = await noPortao()
-  const r = await c.criarSetor('ev-1', { nome: 'produção' })
+  const r = await c.criarSetor('ev-1', { nome: 'produção', supervisor: SUPERVISOR_DE_TESTE })
   assert.ok(r.erro)
   assert.match(r.erro, /já existe/i)
 })
 
 test('setor sem nome é recusado', async () => {
   const c = await noPortao()
-  assert.ok((await c.criarSetor('ev-1', { nome: ' ' })).erro)
+  assert.ok((await c.criarSetor('ev-1', { nome: ' ', supervisor: SUPERVISOR_DE_TESTE })).erro)
+})
+
+test('setor sem supervisor válido é recusado', async () => {
+  const c = await noPortao()
+  const semNome = await c.criarSetor('ev-1', { nome: 'Iluminação', supervisor: { nome: '', cpf: '11122233396', telefone: '27999887766' } })
+  const cpfCurto = await c.criarSetor('ev-1', { nome: 'Iluminação', supervisor: { nome: 'Marina Oliveira', cpf: '123', telefone: '27999887766' } })
+  const semTelefone = await c.criarSetor('ev-1', { nome: 'Iluminação', supervisor: { nome: 'Marina Oliveira', cpf: '11122233396', telefone: '123' } })
+
+  assert.match(semNome.erro ?? '', /nome/i)
+  assert.match(cpfCurto.erro ?? '', /cpf/i)
+  assert.match(semTelefone.erro ?? '', /whatsapp/i)
 })
 
 // ─── Editar o evento ────────────────────────────────────────────────────────

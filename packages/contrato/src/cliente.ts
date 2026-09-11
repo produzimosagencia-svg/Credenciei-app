@@ -191,10 +191,21 @@ export interface ClienteApi {
     dias: string[],
   ): Promise<{ resultado?: ResultadoDosDias; erro?: string }>
 
-  /** Cria um setor (fornecedor) do evento. */
+  /**
+   * Cria um setor (fornecedor) do evento.
+   *
+   * O supervisor vem junto, não depois — trazido do site em 11/09: um setor
+   * só existe com alguém respondendo por ele, senão nasce com o link de
+   * cadastro aberto e ninguém para conferir quem entra.
+   */
   criarSetor(
     eventoId: string,
-    dados: { nome: string; estimado?: number | null; valorPorPessoa?: number | null },
+    dados: {
+      nome: string
+      estimado?: number | null
+      valorPorPessoa?: number | null
+      supervisor: { nome: string; cpf: string; telefone: string }
+    },
   ): Promise<{ setor?: SetorDetalhado; erro?: string }>
 
   /** A equipe de um setor, com o estado de cada pessoa em cada etapa. */
