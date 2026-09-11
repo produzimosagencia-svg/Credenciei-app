@@ -115,9 +115,12 @@ export interface ClienteApi {
   abrirFicha(participacaoId: string): Promise<{ ficha?: FichaLocalizada; erro?: string }>
 
   /**
-   * Grava a batida pendente daquela pessoa, com a foto de quem a validou.
+   * Grava a batida escolhida daquela pessoa, com a foto de quem a validou.
    *
-   * Não recebe qual etapa gravar: quem decide é o servidor, pela pendência.
+   * A etapa vem em `dados.tipo` — quem escolhe é o operador (ver
+   * `FichaLocalizada.etapas`), não mais o servidor pela pendência. Escolher
+   * uma etapa que já tem registro sobrescreve o horário, de propósito: é
+   * uma correção, não uma duplicata. Trazido do site em 11/09/2026.
    */
   registrarPresencaAssistida(
     participacaoId: string,

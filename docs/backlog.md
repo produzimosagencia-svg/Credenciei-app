@@ -1,8 +1,8 @@
 # Backlog
 
-**332 tasks · 211 no MVP · 162 concluídas (49%)**
+**332 tasks · 211 no MVP · 163 concluídas (49%)**
 
-**Só o MVP: 133 de 211 (63%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 134 de 211 (64%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -91,9 +91,9 @@ nada do resto importa ainda.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 5 | 15 | — | Isolamento e limite feitos; falta LGPD, retenção e a trilha de auditoria |
-| 15 | Testes | 9 | 14 | — | 426 testes rodando |
+| 15 | Testes | 9 | 14 | — | 429 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 37 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
+| 17 | Painel no app | 38 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
 | 18 | Configurar evento | 9 | 17 | ✓ | Falta a API, o auto-atendimento no dia principal e a configuração do meio por setor |
 | 19 | Gastos (produto do Produtor) | 0 | 6 | — | Produto novo e isolado do credenciamento — escopo a confirmar com o Juan |
 
@@ -350,7 +350,7 @@ countable, cada linha já dentro do total da tabela acima.
 | Sair e volta no mesmo dia reabre o turno (`inferirMomentoDoScanner`) | 6 | ✅ **Trazido e corrigido** — inclusive a tela Escanear, que perdeu o seletor manual |
 | Papéis `produtor`, `operador_portao` e `suporte` no domínio | 2 | ⚠️ **Parcial** — `operador_portao` e `suporte` trazidos, com `podeEscanear`/`podeAcompanhar`; `produtor` fica de fora (é o módulo Gastos, que o app não tem) |
 | Identidade visual "Arena" (laranja `#FF4A0F`, tema escuro) | 5 | Falta — troca `tema.ts` inteiro, toda tela é afetada |
-| Registrar ponto: operador escolhe a etapa (pré-marcada, livre pra trocar) | 17 | Falta — hoje o app decide sozinho, do jeito que o site fazia antes de 03/09 |
+| Registrar ponto: operador escolhe a etapa (pré-marcada, livre pra trocar) | 17 | ✅ **Trazido** — sobrescrever uma etapa já feita é correção, não duplicata |
 | Registrar ponto: busca de CPF tolera até 2 dígitos errados | 17 | ✅ **Trazido** — `distanciaEntreCpfs` no domínio, candidatos marcados "CPF parecido" na tela |
 | Base de funcionários funde com Encontre colaborador (um toggle, não duas telas) | 17 | ✅ **Trazido** — `/encontrar` ganhou o toggle, `/base-funcionarios` virou redirect |
 | Criar setor pede o supervisor (nome, CPF, WhatsApp) no mesmo formulário | 17 | ✅ **Trazido** — mesmo CPF reaproveita supervisor já existente, sem login novo |

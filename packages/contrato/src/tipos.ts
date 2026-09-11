@@ -333,13 +333,24 @@ export type FichaLocalizada = {
   supervisorNome: string | null
   ultimaBatida: { rotulo: string; quandoISO: string } | null
   /**
-   * A batida que está faltando.
+   * A etapa que o sistema RECOMENDA (a primeira sem registro) — só uma
+   * sugestão pré-marcada na tela. Quem decide de verdade é o operador: ver
+   * `etapas`, abaixo, e `registrarPresencaAssistida`.
    *
-   * Quem opera NÃO escolhe qual etapa gravar: o servidor grava a pendente. Uma
-   * lista de opções abriria espaço para gravar a saída de alguém que ainda não
-   * entrou, e para "consertar" um horário depois do fato.
+   * Trazido do site em 11/09/2026: existia uma trava aqui ("o sistema decide
+   * sozinho"), pensada contra erro; na operação real virou o problema
+   * oposto — sem QR na hora, pode faltar entrada, meio OU saída, e às vezes
+   * o que o sistema calcula como "próxima" não é a que aconteceu de
+   * verdade. O operador não tinha como corrigir.
    */
   proximaPendente: { tipo: TipoBatida; rotulo: string } | null
+  /**
+   * As três etapas com o estado de cada uma — o que alimenta o seletor.
+   * `quandoISO: null` = ainda não registrada; presente = já tem registro, e
+   * escolhê-la de novo SOBRESCREVE o horário — é uma correção, não uma
+   * duplicata.
+   */
+  etapas: { tipo: TipoBatida; rotulo: string; quandoISO: string | null }[]
 }
 
 /**
@@ -352,12 +363,18 @@ export type FichaLocalizada = {
  * A localização é prova de auditoria, não requisito: se o aparelho negar o GPS,
  * o registro segue. Barrar por falta de GPS deixaria alguém sem ponto por causa
  * de uma permissão do celular.
+ *
+ * `tipo` é a etapa que O OPERADOR escolheu — não é mais recalculada pelo
+ * servidor a partir da pendência. Continua validada (precisa ser uma das
+ * três), e continua tudo auditado do mesmo jeito.
  */
 export type BatidaAssistida = {
+  tipo: TipoBatida
   fotoBase64: string
   lat?: number
   lng?: number
   dispositivo?: string
+  motivo?: string
 }
 
 

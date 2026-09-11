@@ -589,7 +589,7 @@ test('sair e voltar no mesmo dia reabre o turno, não recusa', async () => {
   assert.equal(entrada.situacao, 'registrado')
 
   const { ficha } = await c.localizarPessoa('037.482.615-09')
-  await c.registrarPresencaAssistida(ficha!.participacaoId, { fotoBase64: 'foto' })
+  await c.registrarPresencaAssistida(ficha!.participacaoId, { tipo: 'meio', fotoBase64: 'foto' })
 
   const saida = await c.registrarPorQr('ev-1', cracha.codigo)
   assert.equal(saida.situacao, 'registrado')
@@ -703,23 +703,73 @@ test('sem foto, não registra', async () => {
    */
   const c = await noPortao()
   const { ficha } = await c.localizarPessoa('037.482.615-09')
-  const r = await c.registrarPresencaAssistida(ficha!.participacaoId, { fotoBase64: '' })
+  const r = await c.registrarPresencaAssistida(ficha!.participacaoId, { tipo: 'entrada', fotoBase64: '' })
 
   assert.ok(r.erro)
   assert.match(r.erro, /foto/i)
 })
 
-test('quem registra não escolhe a etapa: o servidor grava a pendente', async () => {
+// ─── Quem escolhe a etapa é o operador ──────────────────────────────────────
+//
+// Trazido do site em 11/09: existia uma trava aqui ("grava só a pendente"),
+// pensada contra erro; na operação real virou o problema oposto — sem QR na
+// hora, o que falta pode não ser a "próxima" que o sistema calcula.
+
+test('a ficha traz as três etapas, com a recomendação pré-marcada', async () => {
   const c = await noPortao()
   const { ficha } = await c.localizarPessoa('037.482.615-09')
+
   assert.equal(ficha!.proximaPendente?.tipo, 'entrada')
+  assert.equal(ficha!.etapas.length, 3)
+  assert.deepEqual(ficha!.etapas.map(e => e.tipo), ['entrada', 'meio', 'fim'])
+  assert.ok(ficha!.etapas.every(e => e.quandoISO === null), 'ninguém registrado ainda')
+})
 
-  const primeira = await c.registrarPresencaAssistida(ficha!.participacaoId, { fotoBase64: 'foto' })
-  assert.equal(primeira.etapa, 'Entrada')
+test('o operador escolhe a etapa — não precisa ser a pendente', async () => {
+  const c = await noPortao()
+  const { ficha } = await c.localizarPessoa('037.482.615-09')
 
-  // A seguinte é o meio, sem ninguém escolher.
+  // Pendente seria "entrada", mas o operador escolhe "meio" — e o servidor
+  // grava a que foi escolhida, não recalcula sozinho.
+  const r = await c.registrarPresencaAssistida(ficha!.participacaoId, { tipo: 'meio', fotoBase64: 'foto' })
+  assert.equal(r.erro, undefined)
+  assert.equal(r.etapa, 'Meio')
+
   const depois = await c.abrirFicha(ficha!.participacaoId)
-  assert.equal(depois.ficha?.proximaPendente?.tipo, 'meio')
+  const meio = depois.ficha?.etapas.find(e => e.tipo === 'meio')
+  assert.ok(meio?.quandoISO)
+  const entrada = depois.ficha?.etapas.find(e => e.tipo === 'entrada')
+  assert.equal(entrada?.quandoISO, null, 'escolher o meio não inventa a entrada')
+})
+
+test('escolher uma etapa já registrada sobrescreve o horário — é correção, não duplicata', async () => {
+  const c = await noPortao()
+  const { ficha } = await c.localizarPessoa('037.482.615-09')
+
+  await c.registrarPresencaAssistida(ficha!.participacaoId, { tipo: 'entrada', fotoBase64: 'foto' })
+  const primeiroHorario = (await c.abrirFicha(ficha!.participacaoId)).ficha!
+    .etapas.find(e => e.tipo === 'entrada')!.quandoISO
+
+  await c.registrarPresencaAssistida(ficha!.participacaoId, { tipo: 'entrada', fotoBase64: 'foto de novo' })
+  const segundoHorario = (await c.abrirFicha(ficha!.participacaoId)).ficha!
+    .etapas.find(e => e.tipo === 'entrada')!.quandoISO
+
+  assert.ok(primeiroHorario && segundoHorario)
+  // No falso o relógio não avança sozinho entre as duas chamadas, mas o que
+  // importa é que a segunda gravação SUBSTITUI — não gera uma segunda linha
+  // nem recusa por "já registrado".
+  const ficha2 = (await c.abrirFicha(ficha!.participacaoId)).ficha!
+  assert.equal(ficha2.etapas.filter(e => e.tipo === 'entrada').length, 1)
+})
+
+test('etapa inválida é recusada pelo servidor, não só pela tela', async () => {
+  const c = await noPortao()
+  const { ficha } = await c.localizarPessoa('037.482.615-09')
+  const r = await c.registrarPresencaAssistida(
+    ficha!.participacaoId,
+    { tipo: 'almoco' as never, fotoBase64: 'foto' },
+  )
+  assert.ok(r.erro)
 })
 
 test('pessoa não ativada não recebe presença registrada por terceiro', async () => {
@@ -727,7 +777,7 @@ test('pessoa não ativada não recebe presença registrada por terceiro', async 
   const { ficha } = await c.localizarPessoa('87204953167')
   assert.equal(ficha?.ativo, false)
 
-  const r = await c.registrarPresencaAssistida(ficha!.participacaoId, { fotoBase64: 'foto' })
+  const r = await c.registrarPresencaAssistida(ficha!.participacaoId, { tipo: 'entrada', fotoBase64: 'foto' })
   assert.ok(r.erro)
 })
 
@@ -746,7 +796,7 @@ test('o supervisor localiza e registra, mesmo sem escanear', async () => {
   const r = await c.localizarPessoa('037.482.615-09')
   assert.ok(r.ficha)
 
-  const gravou = await c.registrarPresencaAssistida(r.ficha.participacaoId, { fotoBase64: 'foto' })
+  const gravou = await c.registrarPresencaAssistida(r.ficha.participacaoId, { tipo: 'entrada', fotoBase64: 'foto' })
   assert.equal(gravou.erro, undefined)
 })
 

@@ -784,17 +784,21 @@ export class ClienteFalso implements ClienteApi {
   /** Quem está logado. Muda `eu()` e o que o painel devolve. */
   private quemEntrou: { nome: string; papel: Papel } = { nome: 'João da Silva', papel: 'colaborador' }
   /**
-   * As etapas que cada pessoa da equipe já registrou hoje.
+   * As etapas que cada pessoa da equipe já registrou hoje, com o horário.
    *
    * Separado de `batidas`, que é a fila do colaborador logado: aqui é o que o
-   * operador vê e grava sobre OUTRAS pessoas.
+   * operador vê e grava sobre OUTRAS pessoas. Guarda o horário (e não só
+   * "já fez") porque o registro assistido pode ESCOLHER uma etapa que já
+   * tem registro — é uma correção deliberada, que sobrescreve o horário —
+   * e a ficha precisa mostrar "pendente" ou a hora de cada etapa.
    */
-  private batidasDaEquipe = new Map<string, Set<TipoBatida>>()
+  private batidasDaEquipe = new Map<string, Map<TipoBatida, string>>()
   /**
-   * O log de entrada/saída de cada pessoa da equipe, com horário — é o que
-   * alimenta `inferirMomentoDoScanner`. `batidasDaEquipe` guarda só "já fez",
-   * sem quando; esta guarda quando, porque a decisão de reabrir o turno
-   * depende do horário da última saída.
+   * O log de entrada/saída de cada pessoa da equipe, na ORDEM em que
+   * aconteceu — é o que alimenta `inferirMomentoDoScanner`. `batidasDaEquipe`
+   * guarda só o horário mais recente de cada etapa (o que a ficha mostra);
+   * esta guarda a sequência inteira, porque reabrir o turno depende de saber
+   * QUAL registro foi a última saída, não só quando.
    */
   private logDeRegistros = new Map<string, RegistroParaInferencia[]>()
   /** O que a ficha de cada pessoa mudou nesta sessão. */
@@ -1268,7 +1272,7 @@ export class ClienteFalso implements ClienteApi {
       id: `reg-${pessoa.id}-${this.registrosDe(pessoa.id).length + 1}`,
       tipo: momento, em: agora.toISOString(), dataRef: hoje,
     })
-    this.etapasDe(pessoa.id).add(momento)
+    this.etapasDe(pessoa.id).set(momento, agora.toISOString())
 
     return {
       situacao: 'registrado',
@@ -1300,7 +1304,7 @@ export class ClienteFalso implements ClienteApi {
       funcao: pessoa.funcao,
       setorNome: pessoa.setor,
       ativo: pessoa.ativo,
-      etapasFeitas: [...this.etapasDe(pessoa.id)],
+      etapasFeitas: [...this.etapasDe(pessoa.id).keys()],
       mensagem: pessoa.ativo
         ? `${pessoa.nome} está credenciada em ${pessoa.setor}.`
         : `${pessoa.nome} está na lista, mas ainda não foi ativada no evento.`,
@@ -1380,6 +1384,10 @@ export class ClienteFalso implements ClienteApi {
       return { erro: `${pessoa.nome} ainda não foi ativada neste evento.` }
     }
 
+    // Etapa inválida — nunca confia cegamente no que a tela mandou, mesmo
+    // aqui, onde é o operador que escolhe.
+    if (!ORDEM_DAS_ETAPAS.includes(dados.tipo)) return { erro: 'Etapa inválida.' }
+
     /*
      * Sem foto, não registra.
      *
@@ -1391,18 +1399,27 @@ export class ClienteFalso implements ClienteApi {
       return { erro: 'A foto do rosto é obrigatória para registrar por outra pessoa.' }
     }
 
-    const pendente = this.pendenteDe(pessoa.id)
-    if (!pendente) return { erro: `${pessoa.nome} já tem todas as batidas de hoje.` }
-
-    this.etapasDe(pessoa.id).add(pendente)
-    return { nome: pessoa.nome, etapa: ROTULO_DA_ETAPA[pendente] }
+    /*
+     * QUEM ESCOLHE A ETAPA É O OPERADOR, não o servidor — trazido do site em
+     * 11/09/2026. Existia uma trava aqui ("grava só a pendente") pensada
+     * contra erro; na operação real virou o problema oposto: sem QR na hora,
+     * pode faltar entrada, meio OU saída, e a "próxima" calculada nem sempre
+     * é a que aconteceu de verdade. Por isso, ao contrário do scanner
+     * (`registrarPorQr`), aqui NÃO se exige o meio antes da saída: é uma
+     * correção deliberada e auditada, não uma leitura no portão.
+     *
+     * Escolher uma etapa que já tem registro sobrescreve o horário — é
+     * correção, não duplicata.
+     */
+    this.etapasDe(pessoa.id).set(dados.tipo, new Date(this.agora()).toISOString())
+    return { nome: pessoa.nome, etapa: ROTULO_DA_ETAPA[dados.tipo] }
   }
 
-  /** As etapas que aquela pessoa já registrou hoje. */
-  private etapasDe(id: string): Set<TipoBatida> {
+  /** As etapas que aquela pessoa já registrou hoje, com o horário de cada uma. */
+  private etapasDe(id: string): Map<TipoBatida, string> {
     let feitas = this.batidasDaEquipe.get(id)
     if (!feitas) {
-      feitas = new Set()
+      feitas = new Map()
       this.batidasDaEquipe.set(id, feitas)
     }
     return feitas
@@ -1437,9 +1454,13 @@ export class ClienteFalso implements ClienteApi {
   }
 
   private ficha(p: (typeof EQUIPE_DE_MENTIRA)[number]): FichaLocalizada {
-    const feitas = [...this.etapasDe(p.id)]
-    const ultima = feitas[feitas.length - 1] ?? null
+    const feitas = this.etapasDe(p.id)
     const pendente = this.pendenteDe(p.id)
+
+    // A última = a mais recente no relógio, não a última da ordem das etapas:
+    // alguém pode ter batido o meio sem ter batido a entrada (registro
+    // assistido de correção).
+    const ultima = [...feitas.entries()].sort((a, b) => b[1].localeCompare(a[1]))[0] ?? null
 
     return {
       participacaoId: p.id,
@@ -1451,9 +1472,10 @@ export class ClienteFalso implements ClienteApi {
       setorNome: p.setor,
       eventoNome: EVENTO.nome,
       supervisorNome: p.supervisor,
-      ultimaBatida: ultima
-        ? { rotulo: ROTULO_DA_ETAPA[ultima], quandoISO: new Date(this.agora()).toISOString() }
-        : null,
+      ultimaBatida: ultima ? { rotulo: ROTULO_DA_ETAPA[ultima[0]], quandoISO: ultima[1] } : null,
+      etapas: ORDEM_DAS_ETAPAS.map(tipo => ({
+        tipo, rotulo: ROTULO_DA_ETAPA[tipo], quandoISO: feitas.get(tipo) ?? null,
+      })),
       proximaPendente: pendente ? { tipo: pendente, rotulo: ROTULO_DA_ETAPA[pendente] } : null,
     }
   }
@@ -1516,14 +1538,14 @@ export class ClienteFalso implements ClienteApi {
       for (const [id, etapas] of this.batidasDaEquipe) {
         const pessoa = EQUIPE_DE_MENTIRA.find(p => p.id === id)
         if (!pessoa) continue
-        for (const etapa of etapas) {
+        for (const [etapa, em] of etapas) {
           desteUso.push({
             id: `${id}-${etapa}`,
             nome: pessoa.nome,
             cpf: pessoa.cpf,
             setor: pessoa.setor,
             etapa,
-            em: new Date(this.agora()).toISOString(),
+            em,
             manual: false,
           })
         }

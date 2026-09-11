@@ -3,8 +3,9 @@
 // É a cópia da tela "Registrar ponto" do sistema web (`/admin/localizar`), com
 // as quatro regras que ela carrega:
 //
-//   1. BUSCA por CPF ou nome, e só dentro do alcance de quem procura. O
-//      supervisor não encontra gente de outro setor.
+//   1. BUSCA por CPF ou nome, tolerando até 2 dígitos errados no CPF, e só
+//      dentro do alcance de quem procura. O supervisor não encontra gente de
+//      outro setor.
 //
 //   2. ESCOLHA quando o nome bate com mais de uma pessoa — que é o caso comum.
 //      Quem escolhe é quem está olhando para a pessoa, nunca o sistema.
@@ -13,9 +14,13 @@
 //      de quem registrou. Sem ela, registrar por terceiro seria só digitar um
 //      nome — e uma batida que ninguém consegue contestar é uma porta aberta.
 //
-//   4. A ETAPA NÃO SE ESCOLHE. O servidor grava a que está pendente. Uma lista
-//      de opções abriria espaço para gravar a saída de quem ainda não entrou, e
-//      para "consertar" um horário depois do fato.
+//   4. A ETAPA O OPERADOR ESCOLHE — pré-marcada com a recomendação do sistema
+//      (a primeira pendente), mas livre para trocar. Trazido do site em
+//      11/09/2026: existia uma trava aqui ("o sistema decide sozinho"),
+//      pensada contra erro; na operação real virou o problema oposto — sem QR
+//      na hora, o que falta pode não ser a "próxima" que o sistema calcula, e
+//      o operador não tinha como corrigir. Escolher uma etapa que já tem
+//      registro SOBRESCREVE o horário — é correção, não duplicata.
 //
 // Junto com a batida ficam o nome de quem registrou, o horário, a localização e
 // o aparelho. Nada disso pode ser alterado depois.
@@ -24,7 +29,7 @@ import { useState } from 'react'
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import * as Location from 'expo-location'
 import { formatCpf, formatarBR } from '@credenciei/dominio'
-import type { CandidatoLocalizado, FichaLocalizada } from '@credenciei/contrato'
+import type { CandidatoLocalizado, FichaLocalizada, TipoBatida } from '@credenciei/contrato'
 import { mascararIdentificador } from '../../src/campos'
 import { mensagemDoErro } from '../../src/dados/pedido'
 import { useSessao } from '../../src/sessao/contexto'
@@ -44,6 +49,10 @@ export default function RegistrarPonto() {
   const [termo, setTermo] = useState('')
   const [candidatos, setCandidatos] = useState<CandidatoLocalizado[] | null>(null)
   const [ficha, setFicha] = useState<FichaLocalizada | null>(null)
+  // A etapa que o operador escolhe — pré-marcada com a recomendação do
+  // sistema (proximaPendente), mas livre para trocar. Some quando a pessoa
+  // já tem tudo registrado, e aí o operador escolhe manualmente qual corrigir.
+  const [etapa, setEtapa] = useState<TipoBatida | null>(null)
   const [foto, setFoto] = useState<string | null>(null)
   const [camera, setCamera] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -51,10 +60,17 @@ export default function RegistrarPonto() {
   const [registrando, setRegistrando] = useState(false)
   const [sucesso, setSucesso] = useState<Sucesso | null>(null)
 
+  function abrirFicha(f: FichaLocalizada) {
+    setFicha(f)
+    setEtapa(f.proximaPendente?.tipo ?? null)
+    setFoto(null)
+  }
+
   function recomecar() {
     setTermo('')
     setCandidatos(null)
     setFicha(null)
+    setEtapa(null)
     setFoto(null)
     setErro(null)
     setSucesso(null)
@@ -64,13 +80,14 @@ export default function RegistrarPonto() {
     setErro(null)
     setCandidatos(null)
     setFicha(null)
+    setEtapa(null)
     setFoto(null)
     setBuscando(true)
     try {
       const r = await cliente.localizarPessoa(termo)
       if (r.erro) return setErro(r.erro)
       if (r.candidatos) return setCandidatos(r.candidatos)
-      if (r.ficha) return setFicha(r.ficha)
+      if (r.ficha) return abrirFicha(r.ficha)
     } catch (e) {
       setErro(mensagemDoErro(e))
     } finally {
@@ -85,7 +102,7 @@ export default function RegistrarPonto() {
       const r = await cliente.abrirFicha(participacaoId)
       if (r.erro) return setErro(r.erro)
       setCandidatos(null)
-      setFicha(r.ficha ?? null)
+      if (r.ficha) abrirFicha(r.ficha)
     } catch (e) {
       setErro(mensagemDoErro(e))
     } finally {
@@ -94,12 +111,13 @@ export default function RegistrarPonto() {
   }
 
   async function registrar() {
-    if (!ficha || !foto) return
+    if (!ficha || !etapa || !foto) return
     setErro(null)
     setRegistrando(true)
     try {
       const onde = await ondeEstamos()
       const r = await cliente.registrarPresencaAssistida(ficha.participacaoId, {
+        tipo: etapa,
         fotoBase64: foto,
         lat: onde?.lat,
         lng: onde?.lng,
@@ -210,8 +228,47 @@ export default function RegistrarPonto() {
         <>
           <FichaDaPessoa ficha={ficha} />
 
-          {ficha.ativo && ficha.proximaPendente ? (
+          {ficha.ativo ? (
             <>
+              {/*
+                Seletor de etapa — o operador escolhe, o sistema só sugere.
+                Ver o comentário no topo do arquivo.
+              */}
+              <Cartao>
+                <TituloDeCartao>Que batida é esta?</TituloDeCartao>
+                <Respiro altura={espaco.m} />
+                <View style={e.etapas}>
+                  {ficha.etapas.map(et => {
+                    const feita = !!et.quandoISO
+                    const ativa = etapa === et.tipo
+                    return (
+                      <Pressable
+                        key={et.tipo}
+                        onPress={() => setEtapa(et.tipo)}
+                        style={[e.etapa, ativa && e.etapaAtiva]}
+                      >
+                        <View style={e.etapaTopo}>
+                          {feita ? <Icone nome="Check" tamanho={12} tom={cor.sucesso600} /> : null}
+                          <Text style={e.etapaRotulo} numberOfLines={1}>{et.rotulo}</Text>
+                        </View>
+                        <Text style={e.etapaEstado}>
+                          {feita ? formatarBR(et.quandoISO!, 'curto') : 'pendente'}
+                        </Text>
+                      </Pressable>
+                    )
+                  })}
+                </View>
+                {etapa && ficha.etapas.find(et => et.tipo === etapa)?.quandoISO ? (
+                  <>
+                    <Respiro altura={espaco.s} />
+                    <Aviso tipo="aviso">
+                      Esta etapa já tem registro — confirmar substitui o horário
+                      anterior por agora.
+                    </Aviso>
+                  </>
+                ) : null}
+              </Cartao>
+
               <Cartao>
                 <TituloDeCartao>Validar colaborador</TituloDeCartao>
                 <Respiro altura={espaco.xs} />
@@ -246,12 +303,16 @@ export default function RegistrarPonto() {
               </Cartao>
 
               <Botao
-                titulo={`Registrar batida — ${ficha.proximaPendente.rotulo}`}
+                titulo={
+                  etapa
+                    ? `Registrar batida — ${ficha.etapas.find(et => et.tipo === etapa)?.rotulo}`
+                    : 'Escolha a etapa acima'
+                }
                 onPress={registrar}
                 ocupado={registrando}
-                desabilitado={!foto}
+                desabilitado={!etapa || !foto}
               />
-              {!foto ? (
+              {etapa && !foto ? (
                 <>
                   <Respiro altura={espaco.s} />
                   <Legenda>Tire a foto para liberar o registro.</Legenda>
@@ -387,6 +448,21 @@ async function ondeEstamos(): Promise<{ lat: number; lng: number } | null> {
 
 const e = StyleSheet.create({
   sucesso: { alignItems: 'center', gap: espaco.s, paddingVertical: espaco.g },
+
+  etapas: { flexDirection: 'row', gap: espaco.s },
+  etapa: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: espaco.s,
+    paddingVertical: espaco.m,
+    borderRadius: raio.campo,
+    borderWidth: 1,
+    borderColor: uso.borda,
+  },
+  etapaAtiva: { borderColor: cor.acento500, backgroundColor: cor.acento50 },
+  etapaTopo: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  etapaRotulo: { ...texto.xs, fontFamily: tipo.semi, color: uso.tinta, flexShrink: 1 },
+  etapaEstado: { ...texto.xxs, color: uso.tintaFraca, marginTop: 2 },
 
   cabecalhoDaLista: {
     ...texto.xs,
