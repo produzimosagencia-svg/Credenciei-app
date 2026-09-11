@@ -2203,3 +2203,85 @@ test('o operador de portão não confere equipe nenhuma', async () => {
   })
   await assert.rejects(() => c.conferenciaDoSetor('s-1'), /permissão/i)
 })
+
+// ─── Relatórios ─────────────────────────────────────────────────────────────
+//
+// Presença/ponto da equipe em planilha — não é financeiro. A planilha é
+// gerada do outro lado; aqui só se decide quem pode pedir. Trazido do site
+// em 11/09.
+
+test('o admin vê os eventos da própria organização para relatório', async () => {
+  const c = await noPortao()
+  const eventos = await c.eventosParaRelatorios()
+  assert.ok(eventos.length > 0)
+})
+
+test('o supervisor só vê os eventos onde tem setor', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const eventos = await c.eventosParaRelatorios()
+
+  // Carlos Silva supervisiona s-1 (ev-1) e s-6 (ev-2) — não tem setor no ev-3.
+  assert.deepEqual(new Set(eventos.map(e => e.eventoId)), new Set(['ev-1', 'ev-2']))
+})
+
+test('o resumo traz o período completo do evento e o total de funcionários', async () => {
+  const c = await noPortao()
+  const r = await c.resumoDeRelatorios('ev-1')
+
+  assert.equal(r.eventoNome, 'Henrique e Juliano - Kleber Andrade')
+  assert.deepEqual(r.periodoCompleto, { de: '2026-08-29', ate: '2026-08-30' })
+  assert.ok(r.setores.length > 1, 'ev-1 tem vários setores de mentira')
+  assert.ok(r.totalFuncionarios > 0)
+})
+
+test('o supervisor só vê o próprio setor no resumo — não o evento inteiro', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const r = await c.resumoDeRelatorios('ev-1')
+
+  assert.equal(r.setores.length, 1)
+  assert.equal(r.setores[0]?.setorId, 's-1')
+})
+
+test('relatório completo devolve nome e url, com o período no nome', async () => {
+  const c = await noPortao()
+  const r = await c.relatorioDoEvento('ev-1', { de: '2026-08-29', ate: '2026-08-30' }, 'credenciados')
+
+  assert.match(r.nome, /2026-08-29/)
+  assert.match(r.nome, /2026-08-30/)
+  assert.ok(r.url)
+})
+
+test('relatório de ausentes tem o próprio sufixo no nome', async () => {
+  const c = await noPortao()
+  const r = await c.relatorioDoEvento('ev-1', { de: '2026-08-29', ate: '2026-08-30' }, 'ausentes')
+  assert.match(r.nome, /ausentes/)
+})
+
+test('o relatório completo é só para quem gerencia o evento inteiro — o supervisor é recusado', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  await assert.rejects(
+    () => c.relatorioDoEvento('ev-1', { de: '2026-08-29', ate: '2026-08-30' }, 'credenciados'),
+    /evento inteiro/i,
+  )
+  await assert.rejects(
+    () => c.relatoriosPorSetorZip('ev-1', { de: '2026-08-29', ate: '2026-08-30' }, 'credenciados'),
+    /evento inteiro/i,
+  )
+})
+
+test('o supervisor exporta o próprio setor, mas não o setor de outro supervisor', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+
+  const proprio = await c.relatorioDoSetor('ev-1', 's-1', { de: '2026-08-29', ate: '2026-08-30' }, 'credenciados')
+  assert.ok(proprio.url)
+
+  // s-4 (Camarim) é supervisionado pela Débora, não pelo Carlos.
+  await assert.rejects(
+    () => c.relatorioDoSetor('ev-1', 's-4', { de: '2026-08-29', ate: '2026-08-30' }, 'credenciados'),
+    /permissão/i,
+  )
+})

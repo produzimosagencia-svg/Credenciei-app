@@ -17,8 +17,8 @@
 // Painel, e o item levaria para a mesma tela em que a pessoa já está.
 
 import {
-  ehMaster, podeAcompanhar, podeBloquearCpf, podeEscanear, podeGerenciarUsuarios,
-  podeGerenciarVeiculos,
+  ehMaster, podeAcompanhar, podeBloquearCpf, podeEscanear, podeGerenciarEventos,
+  podeGerenciarUsuarios, podeGerenciarVeiculos,
 } from '@credenciei/dominio'
 
 export type ItemDoMenu = {
@@ -85,6 +85,12 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
   // quem pode se cadastrar.
   if (podeBloquearCpf(papel)) {
     principal.push({ rota: '/bloquear-cpf', rotulo: 'Bloquear CPF', icone: 'ShieldBan', pronta: true })
+  }
+
+  // Mesmo alcance de `exigirAcessoAoEvento` no site: quem gerencia evento, e
+  // supervisor (só o próprio setor). Sem suporte — não está na régua de lá.
+  if (podeGerenciarEventos(papel) || papel === 'supervisor') {
+    principal.push({ rota: '/relatorios', rotulo: 'Relatórios', icone: 'FileSpreadsheet', pronta: true })
   }
 
   grupos.push({ itens: principal })

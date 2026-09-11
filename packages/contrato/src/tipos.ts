@@ -1194,3 +1194,32 @@ export type ConferenciaDoSetor = {
   totalRemovidos: number | null
   equipe: MembroDaConferencia[]
 }
+
+// ─── Relatórios ─────────────────────────────────────────────────────────────
+//
+// Exporta presença/ponto da equipe em planilha — não é financeiro, apesar do
+// nome parecer. Oito perguntas só: quem entrou, quem saiu, quando, em qual
+// setor, em qual função, quantos entraram, quantos saíram, qual período.
+// Trazido do site em 11/09/2026.
+//
+// A planilha em si é gerada do outro lado (mesmo padrão de `exportarEquipe`):
+// o app só recebe `{ nome, url }` e compartilha — nada de gerar .xlsx no
+// celular.
+
+export type Periodo = { de: string; ate: string }
+
+export type ResumoDeRelatorios = {
+  eventoNome: string
+  /** O intervalo INTEIRO de operação do evento — o padrão dos campos de data. */
+  periodoCompleto: Periodo
+  /**
+   * Os setores que ESTA pessoa pode exportar. Supervisor vê só o(s) dele —
+   * "relatório completo" (todos os setores numa planilha) não aparece para
+   * quem tem só um.
+   */
+  setores: { setorId: string; nome: string }[]
+  totalFuncionarios: number
+}
+
+/** Quem entra na planilha: quem bateu ponto, ou o avesso — quem não bateu nada. */
+export type QuemNoRelatorio = 'credenciados' | 'ausentes'

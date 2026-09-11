@@ -40,7 +40,7 @@ import type {
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
-  ConferenciaDoSetor,
+  ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
 } from './tipos.js'
 
 export type OpcoesDoClienteHttp = {
@@ -681,5 +681,37 @@ export class ClienteHttp implements ClienteApi {
   async confirmarConferencia(_setorId: string): Promise<{ erro?: string }> {
     void _setorId
     throw new AindaNaoNaApi('confirmarConferencia')
+  }
+
+  // ─── Relatórios ───────────────────────────────────────────────────────────
+
+  async eventosParaRelatorios(): Promise<EventoEscaneavel[]> {
+    throw new AindaNaoNaApi('eventosParaRelatorios')
+  }
+
+  async resumoDeRelatorios(_eventoId: string): Promise<ResumoDeRelatorios> {
+    void _eventoId
+    throw new AindaNaoNaApi('resumoDeRelatorios')
+  }
+
+  async relatorioDoEvento(
+    _eventoId: string, _periodo: Periodo, _quem: QuemNoRelatorio,
+  ): Promise<ArquivoDePlanilha> {
+    void _eventoId; void _periodo; void _quem
+    throw new AindaNaoNaApi('relatorioDoEvento')
+  }
+
+  async relatorioDoSetor(
+    _eventoId: string, _setorId: string, _periodo: Periodo, _quem: QuemNoRelatorio,
+  ): Promise<ArquivoDePlanilha> {
+    void _eventoId; void _setorId; void _periodo; void _quem
+    throw new AindaNaoNaApi('relatorioDoSetor')
+  }
+
+  async relatoriosPorSetorZip(
+    _eventoId: string, _periodo: Periodo, _quem: QuemNoRelatorio,
+  ): Promise<ArquivoDePlanilha> {
+    void _eventoId; void _periodo; void _quem
+    throw new AindaNaoNaApi('relatoriosPorSetorZip')
   }
 }

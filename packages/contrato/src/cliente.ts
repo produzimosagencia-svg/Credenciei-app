@@ -21,7 +21,7 @@ import type {
   ResultadoDaImportacao, ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida,
   ResumoParticipacao, SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
-  ConferenciaDoSetor,
+  ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
 } from './tipos.js'
 
 export interface ClienteApi {
@@ -420,4 +420,40 @@ export interface ClienteApi {
 
   /** Fecha a conferência: carimba quem, quando, e os números. */
   confirmarConferencia(setorId: string): Promise<{ erro?: string }>
+
+  // ── Relatórios ───────────────────────────────────────────────────────────
+  //
+  // Presença/ponto da equipe em planilha — não é financeiro. Trazido do site
+  // em 11/09/2026.
+
+  /** Os eventos que ESTA pessoa pode exportar — mesmo alcance de `exigirAcessoAoEvento` no site. */
+  eventosParaRelatorios(): Promise<EventoEscaneavel[]>
+
+  /** O que a TELA precisa pra se montar — não a planilha em si. */
+  resumoDeRelatorios(eventoId: string): Promise<ResumoDeRelatorios>
+
+  /**
+   * Todos os setores, uma planilha só. Só para quem gerencia o evento
+   * inteiro — supervisor nunca chega aqui (o site recusa: "é só para quem
+   * gerencia o evento inteiro").
+   */
+  relatorioDoEvento(
+    eventoId: string,
+    periodo: Periodo,
+    quem: QuemNoRelatorio,
+  ): Promise<ArquivoDePlanilha>
+
+  relatorioDoSetor(
+    eventoId: string,
+    setorId: string,
+    periodo: Periodo,
+    quem: QuemNoRelatorio,
+  ): Promise<ArquivoDePlanilha>
+
+  /** Todos os setores, um arquivo por setor, num .zip — pronto pra mandar pro fornecedor. */
+  relatoriosPorSetorZip(
+    eventoId: string,
+    periodo: Periodo,
+    quem: QuemNoRelatorio,
+  ): Promise<ArquivoDePlanilha>
 }

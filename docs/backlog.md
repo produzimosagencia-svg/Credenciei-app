@@ -1,8 +1,8 @@
 # Backlog
 
-**332 tasks · 211 no MVP · 166 concluídas (50%)**
+**332 tasks · 211 no MVP · 167 concluídas (50%)**
 
-**Só o MVP: 137 de 211 (65%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 138 de 211 (65%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -91,9 +91,9 @@ nada do resto importa ainda.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 5 | 15 | — | Isolamento e limite feitos; falta LGPD, retenção e a trilha de auditoria |
-| 15 | Testes | 9 | 14 | — | 459 testes rodando |
+| 15 | Testes | 9 | 14 | — | 467 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 41 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
+| 17 | Painel no app | 42 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
 | 18 | Configurar evento | 9 | 17 | ✓ | Falta a API, o auto-atendimento no dia principal e a configuração do meio por setor |
 | 19 | Gastos (produto do Produtor) | 0 | 6 | — | Produto novo e isolado do credenciamento — escopo a confirmar com o Juan |
 
@@ -361,7 +361,7 @@ countable, cada linha já dentro do total da tabela acima.
 | Bloquear CPF do evento inteiro, sem apagar histórico | 17 | ✅ **Trazido** — `podeBloquearCpf` novo no domínio; supervisor entra, operador de portão não |
 | Conferência de equipe (D-1): supervisor confirma a lista antes do evento | 17 | ✅ **Trazido** — abre 24h antes e não fecha mais; `packages/dominio` tem a janela |
 | Suporte: tela de gerenciar o acesso externo, com escopo e expiração | 17 | Falta |
-| Relatórios: exportar presença/ponto da equipe em planilha | 17 | Falta |
+| Relatórios: exportar presença/ponto da equipe em planilha | 17 | ✅ **Trazido** — mesmo padrão de `exportarEquipe`: o app pede `{ nome, url }` e compartilha |
 | Lançar ponto manual: regulariza quem já foi embora, com motivo | 17 | Falta |
 | Editar colaborador: atalho que busca em todos os setores do evento | 17 | Falta |
 | Auto-atendimento no dia principal (`checkin_autonomo`) | 18 | Falta |

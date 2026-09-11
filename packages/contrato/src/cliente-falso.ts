@@ -47,7 +47,7 @@ import type {
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, StatusDaEtapa, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, Veiculo, VeiculosDoEvento, CpfBloqueado,
-  ConferenciaDoSetor,
+  ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
 } from './tipos.js'
 import { VISOES_DE_ATIVIDADE } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
@@ -3111,6 +3111,127 @@ export class ClienteFalso implements ClienteApi {
       totalRemovidos,
     })
     return {}
+  }
+
+  // ── Relatórios ───────────────────────────────────────────────────────────
+  //
+  // Presença/ponto da equipe em planilha — não é financeiro. A planilha em
+  // si é gerada do outro lado (mesmo padrão de `exportarEquipe`): aqui só se
+  // decide QUEM pode pedir, e devolve `{ nome, url }`. Trazido do site em
+  // 11/09/2026.
+
+  /**
+   * Master e quem gerencia eventos entram sempre (admin/gerente/cliente, na
+   * própria organização). Supervisor só nos setores onde está vinculado —
+   * `setoresPermitidos: null` no site quer dizer "o evento inteiro"; aqui é
+   * o mesmo sinal.
+   */
+  private exigirAcessoAoRelatorio(eventoId: string): { setoresPermitidos: string[] | null } {
+    this.exigirSessao()
+    const setores = SETORES_DE_MENTIRA[eventoId]
+    if (!setores) throw new Error('Evento não encontrado.')
+
+    const papel = this.sessao!.papel
+    if (papel === 'supervisor') {
+      const meuAcesso = ACESSOS_DE_MENTIRA.find(a => a.nome === this.quemEntrou.nome)
+      const meus = setores
+        .filter(s => s.supervisores.some(sup => sup.id === meuAcesso?.id))
+        .map(s => s.setorId)
+      if (meus.length === 0) throw new Error('Sem permissão sobre este evento.')
+      return { setoresPermitidos: meus }
+    }
+    if (!podeGerenciarEventos(papel)) throw new Error('Sem permissão para gerar relatórios.')
+    return { setoresPermitidos: null }
+  }
+
+  async eventosParaRelatorios(): Promise<EventoEscaneavel[]> {
+    await this.rede()
+    this.exigirSessao()
+    const papel = this.sessao!.papel
+
+    let meus: typeof EVENTOS_DO_PAINEL
+    if (papel === 'supervisor') {
+      const meuAcesso = ACESSOS_DE_MENTIRA.find(a => a.nome === this.quemEntrou.nome)
+      meus = EVENTOS_DO_PAINEL.filter(ev =>
+        (SETORES_DE_MENTIRA[ev.eventoId] ?? []).some(s => s.supervisores.some(sup => sup.id === meuAcesso?.id)),
+      )
+    } else if (!podeGerenciarEventos(papel)) {
+      throw new Error('Você não tem permissão para gerar relatórios.')
+    } else {
+      meus = ehMaster(papel)
+        ? EVENTOS_DO_PAINEL
+        : EVENTOS_DO_PAINEL.filter(ev => ev.organizacaoId === ORGANIZACAO_DO_ADMIN_DE_MENTIRA)
+    }
+    return meus.map(ev => ({ eventoId: ev.eventoId, nome: ev.nome }))
+  }
+
+  async resumoDeRelatorios(eventoId: string): Promise<ResumoDeRelatorios> {
+    await this.rede()
+    const { setoresPermitidos } = this.exigirAcessoAoRelatorio(eventoId)
+    const evento = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+    if (!evento) throw new Error('Evento não encontrado.')
+
+    const todos = SETORES_DE_MENTIRA[eventoId] ?? []
+    const visiveis = setoresPermitidos ? todos.filter(s => setoresPermitidos.includes(s.setorId)) : todos
+
+    const dias = DIAS_DE_ATIVIDADE_DE_MENTIRA[eventoId] ?? [diaBRT(evento.dataInicio)]
+
+    return {
+      eventoNome: evento.nome,
+      periodoCompleto: { de: dias[0]!, ate: dias[dias.length - 1]! },
+      setores: visiveis.map(s => ({ setorId: s.setorId, nome: s.nome })),
+      totalFuncionarios: visiveis.reduce((a, s) => a + s.pessoas, 0),
+    }
+  }
+
+  async relatorioDoEvento(
+    eventoId: string, periodo: Periodo, quem: QuemNoRelatorio,
+  ): Promise<ArquivoDePlanilha> {
+    await this.rede()
+    const { setoresPermitidos } = this.exigirAcessoAoRelatorio(eventoId)
+    if (setoresPermitidos) {
+      throw new Error('O relatório completo é só para quem gerencia o evento inteiro.')
+    }
+
+    const sufixo = quem === 'ausentes' ? '-ausentes' : ''
+    return {
+      nome: `relatorio-${eventoId}-${periodo.de}-a-${periodo.ate}${sufixo}.xlsx`,
+      url: `${ENDERECO_DE_ARQUIVOS}/relatorios/${eventoId}?de=${periodo.de}&ate=${periodo.ate}&quem=${quem}`,
+    }
+  }
+
+  async relatorioDoSetor(
+    eventoId: string, setorId: string, periodo: Periodo, quem: QuemNoRelatorio,
+  ): Promise<ArquivoDePlanilha> {
+    await this.rede()
+    const { setoresPermitidos } = this.exigirAcessoAoRelatorio(eventoId)
+    if (setoresPermitidos && !setoresPermitidos.includes(setorId)) {
+      throw new Error('Sem permissão sobre este setor.')
+    }
+    const setor = (SETORES_DE_MENTIRA[eventoId] ?? []).find(s => s.setorId === setorId)
+    if (!setor) throw new Error('Setor não encontrado.')
+
+    const sufixo = quem === 'ausentes' ? '-ausentes' : ''
+    return {
+      nome: `relatorio-${setor.nome}-${periodo.de}-a-${periodo.ate}${sufixo}.xlsx`,
+      url: `${ENDERECO_DE_ARQUIVOS}/relatorios/${eventoId}/setor/${setorId}?de=${periodo.de}&ate=${periodo.ate}&quem=${quem}`,
+    }
+  }
+
+  /** Todos os setores, um arquivo por setor, num .zip — mesmo alcance do relatório completo. */
+  async relatoriosPorSetorZip(
+    eventoId: string, periodo: Periodo, quem: QuemNoRelatorio,
+  ): Promise<ArquivoDePlanilha> {
+    await this.rede()
+    const { setoresPermitidos } = this.exigirAcessoAoRelatorio(eventoId)
+    if (setoresPermitidos) {
+      throw new Error('O relatório completo é só para quem gerencia o evento inteiro.')
+    }
+
+    return {
+      nome: `relatorios-${eventoId}-${periodo.de}-a-${periodo.ate}.zip`,
+      url: `${ENDERECO_DE_ARQUIVOS}/relatorios/${eventoId}/zip?de=${periodo.de}&ate=${periodo.ate}&quem=${quem}`,
+    }
   }
 
   // ── Guardas ───────────────────────────────────────────────────────────────
