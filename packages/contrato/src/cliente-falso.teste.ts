@@ -932,6 +932,7 @@ test('o supervisor não vê a tela de acessos', async () => {
 test('criar acesso exige nome, CPF e setor', async () => {
   const c = await noPortao()
   const base = {
+    funcao: 'supervisor' as const,
     nome: 'Larissa Prado', cpf: '11122233344', telefone: '27999887766',
     eventoId: 'ev-1', setorId: 's-2', ativo: true,
   }
@@ -944,6 +945,7 @@ test('criar acesso exige nome, CPF e setor', async () => {
 test('o acesso criado nasce supervisor, preso a um setor', async () => {
   const c = await noPortao()
   const r = await c.criarAcesso({
+    funcao: 'supervisor',
     nome: 'Larissa Prado', cpf: '65498732100', telefone: '27999887766',
     eventoId: 'ev-1', setorId: 's-2', ativo: true,
   })
@@ -958,11 +960,35 @@ test('CPF repetido é recusado', async () => {
   // Dois acessos com o mesmo CPF fariam duas pessoas entrarem na mesma conta.
   const c = await noPortao()
   const dados = {
+    funcao: 'supervisor' as const,
     nome: 'Outra Pessoa', cpf: '99988877766', telefone: '27999887766',
     eventoId: 'ev-1', setorId: 's-2', ativo: true,
   }
   assert.ok((await c.criarAcesso(dados)).acesso)
   assert.ok((await c.criarAcesso({ ...dados, nome: 'Mais Outra' })).erro)
+})
+
+test('operador de portão e suporte nascem sem setor, presos ao evento inteiro', async () => {
+  const c = await noPortao()
+
+  const operador = await c.criarAcesso({
+    funcao: 'operador_portao',
+    nome: 'Marcos Lima', cpf: '22233344455', telefone: '27999887766',
+    eventoId: 'ev-1', ativo: true,
+  })
+  assert.ok(operador.acesso, operador.erro)
+  assert.equal(operador.acesso.papel, 'operador_portao')
+  assert.equal(operador.acesso.setorNome, null)
+
+  const suporte = await c.criarAcesso({
+    funcao: 'suporte',
+    nome: 'Beatriz Nunes', cpf: '33344455566', telefone: '27999887766',
+    eventoId: 'ev-1', ativo: true, expiraEm: '2026-12-01',
+  })
+  assert.ok(suporte.acesso, suporte.erro)
+  assert.equal(suporte.acesso.papel, 'suporte')
+  assert.equal(suporte.acesso.setorNome, null)
+  assert.equal(suporte.acesso.expiraEm, '2026-12-01')
 })
 
 test('todo evento oferecido para criar acesso tem setor', async () => {

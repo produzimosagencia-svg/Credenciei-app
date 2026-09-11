@@ -428,6 +428,8 @@ export type Acesso = {
   setorNome: string | null
   eventos: number
   criadoEm: string
+  /** Só o suporte tem — opcional. Passada a data, o acesso para sozinho. */
+  expiraEm: string | null
   /**
    * É a própria pessoa que está olhando?
    *
@@ -458,12 +460,26 @@ export type EventoComSetores = {
   setores: SetorDoEvento[]
 }
 
+/**
+ * A função de quem está sendo criado — decide o vínculo que a tela pede.
+ *
+ * Trazido do site em 11/09/2026, do formulário `NovoUsuarioForm`: eram só
+ * "supervisor" antes. Fica fora `admin` e `produtor` de propósito — admin é
+ * criado pela plataforma, noutro lugar; produtor é do módulo Gastos, que o
+ * app não tem (Epic 19).
+ */
+export type FuncaoDeAcesso = 'supervisor' | 'operador_portao' | 'suporte'
+
 export type NovoAcesso = {
+  funcao: FuncaoDeAcesso
   nome: string
   cpf: string
   telefone: string
   eventoId: string
-  setorId: string
+  /** Só o supervisor tem: os outros dois são do evento inteiro, sem setor. */
+  setorId?: string
+  /** Só o suporte tem — opcional. Passada a data, o acesso para sozinho. */
+  expiraEm?: string | null
   /**
    * Criar já ativo, ou bloqueado?
    *

@@ -1,21 +1,34 @@
 // Criar um acesso.
 //
-// ─── O QUE ESTA TELA CRIA, E O QUE NÃO CRIA ─────────────────────────────────
+// ─── AS TRÊS FUNÇÕES QUE ESTA TELA CRIA ─────────────────────────────────────
 //
-// Ela cria SUPERVISOR — e nada mais. Um supervisor nasce preso a um setor de um
-// evento: é só ali que ele enxerga equipe, presença e histórico. Não existe
-// supervisor "da organização", e é essa amarra que faz o isolamento entre
-// setores funcionar por construção.
+// Trazido do site em 11/09/2026: eram só supervisor antes. Agora são três,
+// cada uma com um vínculo diferente:
 //
-// Admin e master são criados pela plataforma, noutro lugar. Colocar os três no
-// mesmo formulário faria alguém dar acesso à organização inteira querendo dar
-// acesso a um setor.
+//   supervisor        preso a UM setor de um evento — só enxerga aquele
+//                      setor, equipe e presença.
+//   operador de portão preso ao EVENTO inteiro, sem setor — lê o QR e
+//                      registra ponto, não gerencia nada. É o posto de
+//                      credenciamento em si.
+//   suporte            preso ao EVENTO inteiro, sem setor, com validade
+//                      opcional — apoio contratado pro dia, corrige a
+//                      operação, nunca administra.
+//
+// Admin e master ficam fora deste formulário de propósito: são criados pela
+// plataforma, noutro lugar. Produtor também fica fora — é o módulo Gastos,
+// que o app ainda não tem (ver Epic 19 do backlog).
+//
+// A aba "Funções ligadas" (o catálogo de capacidades que o site liga e
+// desliga por acesso) ainda não está aqui — cada função nasce com o padrão
+// do código, sem override. Fica para uma tela de Configurações que o app
+// também não tem ainda.
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatTelefone, titleCaseNome } from '@credenciei/dominio'
-import type { EventoComSetores } from '@credenciei/contrato'
+import type { EventoComSetores, FuncaoDeAcesso } from '@credenciei/contrato'
+import { mascararData } from '../../src/campos'
 import { mensagemDoErro } from '../../src/dados/pedido'
 import { useSessao } from '../../src/sessao/contexto'
 import {
@@ -25,16 +38,46 @@ import {
 import { Icone } from '../../src/ui/icone'
 import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
 
+const FUNCOES: {
+  valor: FuncaoDeAcesso
+  rotulo: string
+  icone: string
+  vinculo: string
+  ajuda: string
+}[] = [
+  {
+    valor: 'supervisor', rotulo: 'Supervisor', icone: 'Users', vinculo: 'evento + setor',
+    ajuda: 'Fica preso a um único setor: enxerga só a equipe daquele setor. Se cuida de dois, crie dois acessos.',
+  },
+  {
+    valor: 'operador_portao', rotulo: 'Gestor de credenciamento', icone: 'ShieldCheck', vinculo: 'evento',
+    ajuda: 'Lê o QR no portão e registra ponto. Não gerencia evento nem equipe. Cobre o evento inteiro.',
+  },
+  {
+    valor: 'suporte', rotulo: 'Suporte de sistema', icone: 'User', vinculo: 'evento',
+    ajuda: 'Apoio contratado pro dia do evento: acompanha e ajuda a resolver problema de operação. Nunca administra. Pode ter prazo de validade.',
+  },
+]
+
+/** "08/09/2026" completo → "2026-09-08"; incompleto → null. */
+function paraISO(dataDigitada: string): string | null {
+  const [dd, mm, aaaa] = dataDigitada.split('/')
+  if (!dd || !mm || aaaa?.length !== 4) return null
+  return `${aaaa}-${mm}-${dd}`
+}
+
 export default function NovoAcesso() {
   const router = useRouter()
   const { cliente } = useSessao()
 
   const [eventos, setEventos] = useState<EventoComSetores[] | null>(null)
+  const [funcao, setFuncao] = useState<FuncaoDeAcesso>('supervisor')
   const [eventoId, setEventoId] = useState('')
   const [setorId, setSetorId] = useState('')
   const [nome, setNome] = useState('')
   const [cpf, setCpf] = useState('')
   const [telefone, setTelefone] = useState('')
+  const [expiraEm, setExpiraEm] = useState('')
   const [ativo, setAtivo] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -58,6 +101,12 @@ export default function NovoAcesso() {
 
   const evento = eventos?.find(x => x.eventoId === eventoId)
   const setores = evento?.setores ?? []
+  const cfg = FUNCOES.find(f => f.valor === funcao)!
+
+  function trocarFuncao(f: FuncaoDeAcesso) {
+    setFuncao(f)
+    setErro(null)
+  }
 
   function trocarEvento(id: string) {
     setEventoId(id)
@@ -69,9 +118,22 @@ export default function NovoAcesso() {
 
   async function salvar() {
     setErro(null)
+    if (funcao === 'supervisor' && !setorId) {
+      setErro('Escolha o setor do supervisor.')
+      return
+    }
     setSalvando(true)
     try {
-      const r = await cliente.criarAcesso({ nome, cpf, telefone, eventoId, setorId, ativo })
+      const r = await cliente.criarAcesso({
+        funcao,
+        nome,
+        cpf,
+        telefone,
+        eventoId,
+        setorId: funcao === 'supervisor' ? setorId : undefined,
+        expiraEm: funcao === 'suporte' ? paraISO(expiraEm) : undefined,
+        ativo,
+      })
       if (r.erro) return setErro(r.erro)
       setCriado(r.acesso?.nome ?? nome)
     } catch (e) {
@@ -100,7 +162,7 @@ export default function NovoAcesso() {
           <Respiro altura={espaco.s} />
           <Botao
             titulo="Criar outro"
-            onPress={() => { setCriado(null); setNome(''); setCpf(''); setTelefone('') }}
+            onPress={() => { setCriado(null); setNome(''); setCpf(''); setTelefone(''); setExpiraEm('') }}
             tipo="secundario"
           />
         </Cartao>
@@ -119,8 +181,8 @@ export default function NovoAcesso() {
         <Respiro />
         <Cartao>
           <Corpo>
-            Cadastre um evento e ao menos um setor antes de criar supervisores.
-            Sem setor, o supervisor não teria equipe nenhuma para cuidar.
+            Cadastre um evento antes de criar acessos — supervisor, gestor de
+            credenciamento ou suporte, todos precisam de um evento para atuar.
           </Corpo>
         </Cartao>
       </Tela>
@@ -130,15 +192,35 @@ export default function NovoAcesso() {
   return (
     <Tela>
       <TituloDaTela>Criar acesso</TituloDaTela>
-      <Legenda>O supervisor é vinculado a um setor, e só enxerga aquele setor</Legenda>
+      <Legenda>Escolha a função — o vínculo muda de acordo com ela</Legenda>
       <Respiro />
 
       {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
 
-      <Aviso tipo="info">
-        O supervisor escaneia e gerencia a equipe de um setor específico. Ele não
-        vê outros setores, outros eventos, nem a organização.
-      </Aviso>
+      <Cartao>
+        <TituloDeCartao>Função no sistema</TituloDeCartao>
+        <Respiro altura={espaco.m} />
+        {FUNCOES.map(f => {
+          const ativa = f.valor === funcao
+          return (
+            <Pressable
+              key={f.valor}
+              onPress={() => trocarFuncao(f.valor)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: ativa }}
+              style={[e.funcao, ativa && e.funcaoAtiva]}
+            >
+              <View style={e.funcaoTopo}>
+                <Icone nome={f.icone} tamanho={16} tom={ativa ? cor.acento600 : uso.tintaFraca} />
+                <Text style={[e.funcaoTitulo, ativa && e.funcaoTituloAtivo]}>{f.rotulo}</Text>
+              </View>
+              <Text style={e.funcaoVinculo}>Vínculo: {f.vinculo}</Text>
+            </Pressable>
+          )
+        })}
+        <Respiro altura={espaco.s} />
+        <Legenda>{cfg.ajuda}</Legenda>
+      </Cartao>
 
       <Cartao>
         <Campo
@@ -165,6 +247,17 @@ export default function NovoAcesso() {
           keyboardType="phone-pad"
           maxLength={15}
         />
+        {funcao === 'suporte' ? (
+          <Campo
+            rotulo="Acesso expira em (opcional)"
+            value={expiraEm}
+            onChangeText={t => setExpiraEm(mascararData(t))}
+            placeholder="dd/mm/aaaa"
+            keyboardType="number-pad"
+            maxLength={10}
+            ajuda="Passada a data, o acesso para de funcionar sozinho."
+          />
+        ) : null}
       </Cartao>
 
       <Cartao>
@@ -193,21 +286,25 @@ export default function NovoAcesso() {
           )
         })}
 
-        <Respiro />
-        <Text style={e.rotulo}>SETOR</Text>
-        <Respiro altura={espaco.s} />
-        {setores.length === 0 ? (
-          <Corpo>Este evento ainda não tem setores.</Corpo>
-        ) : (
-          <Escolha
-            opcoes={setores.map(s => s.nome)}
-            valor={setores.find(s => s.setorId === setorId)?.nome ?? null}
-            aoEscolher={nomeDoSetor => {
-              const achado = setores.find(s => s.nome === nomeDoSetor)
-              if (achado) setSetorId(achado.setorId)
-            }}
-          />
-        )}
+        {funcao === 'supervisor' ? (
+          <>
+            <Respiro />
+            <Text style={e.rotulo}>SETOR</Text>
+            <Respiro altura={espaco.s} />
+            {setores.length === 0 ? (
+              <Corpo>Este evento ainda não tem setores.</Corpo>
+            ) : (
+              <Escolha
+                opcoes={setores.map(s => s.nome)}
+                valor={setores.find(s => s.setorId === setorId)?.nome ?? null}
+                aoEscolher={nomeDoSetor => {
+                  const achado = setores.find(s => s.nome === nomeDoSetor)
+                  if (achado) setSetorId(achado.setorId)
+                }}
+              />
+            )}
+          </>
+        ) : null}
       </Cartao>
 
       <Cartao>
@@ -241,6 +338,20 @@ const e = StyleSheet.create({
   sucesso: { alignItems: 'center', gap: espaco.s, paddingVertical: espaco.g },
 
   rotulo: { ...texto.etiqueta, color: uso.tintaFraca },
+
+  funcao: {
+    paddingHorizontal: espaco.m,
+    paddingVertical: espaco.m,
+    borderRadius: raio.campo,
+    borderWidth: 1,
+    borderColor: uso.borda,
+    marginBottom: espaco.s,
+  },
+  funcaoAtiva: { borderColor: cor.acento500, backgroundColor: cor.acento50 },
+  funcaoTopo: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
+  funcaoTitulo: { ...texto.corpoForte, color: uso.tintaMedia },
+  funcaoTituloAtivo: { color: uso.tinta, fontFamily: tipo.semi },
+  funcaoVinculo: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, marginTop: 4, marginLeft: 24 },
 
   opcao: {
     flexDirection: 'row',

@@ -9,12 +9,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ehDePainel, ehMaster, NOME_DO_PAPEL, podeAcompanhar, podeEscanear,
+  ehDePainel, ehMaster, ehSuporte, NOME_DO_PAPEL, podeAcompanhar, podeEscanear,
   podeExcluir, podeGerenciarEventos, podeGerenciarOrganizacoes,
   podeGerenciarUsuarios, veTodosEventos, type Papel,
 } from './permissoes.js'
 
-const TODOS: Papel[] = ['master', 'admin', 'supervisor', 'gerente', 'cliente', 'colaborador']
+const TODOS: Papel[] = [
+  'master', 'admin', 'supervisor', 'operador_portao', 'suporte', 'gerente', 'cliente', 'colaborador',
+]
 
 const PODERES = [
   ehMaster, veTodosEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
@@ -87,6 +89,27 @@ test('o cliente cria e escaneia, mas não mexe em quem tem acesso', () => {
   assert.equal(podeGerenciarEventos('cliente'), true)
   assert.equal(podeEscanear('cliente'), true)
   assert.equal(podeGerenciarUsuarios('cliente'), false)
+})
+
+test('o operador de portão escaneia, mas não gerencia nada', () => {
+  // É o posto de credenciamento em si — não precisa de senha de admin pra
+  // registrar presença, e não pode criar evento, setor ou acesso.
+  assert.equal(podeEscanear('operador_portao'), true)
+  assert.equal(podeAcompanhar('operador_portao'), true)
+  assert.equal(podeGerenciarEventos('operador_portao'), false)
+  assert.equal(podeGerenciarUsuarios('operador_portao'), false)
+  assert.equal(ehDePainel('operador_portao'), true)
+})
+
+test('o suporte acompanha, mas não escaneia nem administra', () => {
+  // Corrige a operação (ver Epic 17 — corrigir CPF, veículos); nunca
+  // administra: não cria evento, não gerencia acessos.
+  assert.equal(ehSuporte('suporte'), true)
+  assert.equal(podeEscanear('suporte'), false)
+  assert.equal(podeAcompanhar('suporte'), true)
+  assert.equal(podeGerenciarEventos('suporte'), false)
+  assert.equal(podeGerenciarUsuarios('suporte'), false)
+  assert.equal(ehDePainel('suporte'), true)
 })
 
 test('todo papel tem um nome para mostrar na tela', () => {

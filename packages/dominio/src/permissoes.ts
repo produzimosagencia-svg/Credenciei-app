@@ -18,6 +18,14 @@
 //                 e os eventos até o limite contratado. NÃO exclui nada.
 //   supervisor    vinculado a UM setor. Cuida da equipe daquele setor, e não
 //                 vê outro setor, outro evento nem a organização.
+//   operador_portao vinculado ao EVENTO inteiro (não a um setor). Só lê QR e
+//                 registra ponto manual — nunca gerencia evento, equipe ou
+//                 usuários. É o posto de credenciamento em si, sem precisar
+//                 de senha de admin. Trazido do site em 11/09/2026.
+//   suporte       gente contratada pro dia do evento, pra resolver problema
+//                 de operação (CPF errado, ponto que não bateu) sem ser dona
+//                 da conta. Corrige a operação; nunca administra. Trazido do
+//                 site em 11/09/2026.
 //   colaborador   NOVO, e só existe no app. É a pessoa contratada para o
 //                 evento. Vê a própria credencial, o próprio ponto e o próprio
 //                 pagamento — nada mais. No sistema web ela não tem login: a
@@ -25,11 +33,17 @@
 //
 // `gerente` e `cliente` são papéis legados: continuam no banco e continuam
 // valendo, mas não são mais oferecidos. `gerente` equivale a admin.
+//
+// `produtor` existe no site (cliente do produto Gastos, isolado do
+// credenciamento) mas não entra aqui: nenhuma capacidade deste arquivo o
+// envolve, e o app não tem o módulo Gastos — ver Epic 19 do backlog.
 
 export type Papel =
   | 'master'
   | 'admin'
   | 'supervisor'
+  | 'operador_portao'
+  | 'suporte'
   | 'gerente'
   | 'cliente'
   | 'colaborador'
@@ -38,6 +52,8 @@ export const NOME_DO_PAPEL: Record<Papel, string> = {
   master: 'Master',
   admin: 'Administrador',
   supervisor: 'Supervisor',
+  operador_portao: 'Operador de portão',
+  suporte: 'Suporte de Sistema',
   gerente: 'Gerente',
   cliente: 'Cliente',
   colaborador: 'Colaborador',
@@ -46,10 +62,14 @@ export const NOME_DO_PAPEL: Record<Papel, string> = {
 /** Dono da plataforma: acesso irrestrito a todas as organizações. */
 export const ehMaster = (papel?: string) => papel === 'master'
 
+/** Dono de um acesso de apoio contratado pro evento — nunca administra. */
+export const ehSuporte = (papel?: string) => papel === 'suporte'
+
 /** É gente de painel? O colaborador não é — ele só vê o que é dele. */
 export const ehDePainel = (papel?: string) =>
   papel === 'master' || papel === 'admin' || papel === 'gerente'
   || papel === 'cliente' || papel === 'supervisor'
+  || papel === 'operador_portao' || papel === 'suporte'
 
 /** Enxerga todos os eventos do sistema, não só os da própria organização. */
 export const veTodosEventos = (papel?: string) => papel === 'master'
@@ -83,9 +103,14 @@ export const podeExcluir = (papel?: string) => papel === 'master'
  * credenciamento — o supervisor cuida da equipe, não do portão. É a mesma
  * separação que as mensagens já dizem à equipe ("vá ao credenciamento", e não
  * "procure seu supervisor"), valendo também no sistema.
+ *
+ * `operador_portao` existe exatamente para ser o posto de credenciamento:
+ * escaneia, mas não gerencia nada — ver `podeGerenciarEventos`, que ele NÃO
+ * satisfaz. Trazido do site em 11/09/2026.
  */
 export const podeEscanear = (papel?: string) =>
   papel === 'master' || papel === 'admin' || papel === 'gerente' || papel === 'cliente'
+  || papel === 'operador_portao'
 
 /**
  * Pode ACOMPANHAR a operação: atividades, pendências, histórico e a tela de
@@ -96,4 +121,4 @@ export const podeEscanear = (papel?: string) =>
  * não pode cegá-lo em relação à própria equipe — é disso que ele cuida.
  */
 export const podeAcompanhar = (papel?: string) =>
-  podeEscanear(papel) || papel === 'supervisor'
+  podeEscanear(papel) || papel === 'supervisor' || papel === 'suporte'

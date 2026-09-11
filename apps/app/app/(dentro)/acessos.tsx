@@ -230,6 +230,12 @@ function LinhaDeAcesso({
             <Icone nome="CalendarDays" tamanho={11} tom={uso.tintaFraca} />
             <Text style={e.metaTexto}>{formatarBR(acesso.criadoEm, 'data')}</Text>
           </View>
+          {acesso.expiraEm ? (
+            <View style={e.metaItem}>
+              <Icone nome="AlertTriangle" tamanho={11} tom={cor.aviso700} />
+              <Text style={[e.metaTexto, e.metaExpira]}>expira em {formatarBR(acesso.expiraEm, 'data')}</Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -325,6 +331,7 @@ const e = StyleSheet.create({
   meta: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' },
   metaTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, flexShrink: 1 },
+  metaExpira: { color: cor.aviso700 },
 
   acao: {
     minHeight: 34,

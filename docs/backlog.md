@@ -1,8 +1,8 @@
 # Backlog
 
-**331 tasks · 210 no MVP · 159 concluídas (48%)**
+**332 tasks · 211 no MVP · 161 concluídas (48%)**
 
-**Só o MVP: 130 de 210 (62%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 132 de 211 (63%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -78,7 +78,7 @@ nada do resto importa ainda.
 | # | Epic | Feito | Total | MVP | Situação |
 |---|---|---|---|---|---|
 | 1 | Modelo de dados | 3 | 16 | ✓ | SQL escrito, nada executado |
-| 2 | Fundação | 7 | 13 | ✓ | Domínio sincronizado; faltam os papéis produtor, operador de portão e suporte |
+| 2 | Fundação | 8 | 13 | ✓ | `operador_portao` e `suporte` no domínio; falta só `produtor` (módulo Gastos) |
 | 3 | API v1 | 27 | 32 | ✓ | Login de painel real; faltam painel, escanear, ponto, atividades, acessos, evento e Plataforma |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
 | 5 | App base | 14 | 15 | ✓ | Navegação com voltar, campos e data/hora; falta o redesign "Arena" (laranja/escuro) |
@@ -91,9 +91,9 @@ nada do resto importa ainda.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 5 | 15 | — | Isolamento e limite feitos; falta LGPD, retenção e a trilha de auditoria |
-| 15 | Testes | 9 | 14 | — | 414 testes rodando |
+| 15 | Testes | 9 | 14 | — | 417 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 35 | 52 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
+| 17 | Painel no app | 36 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
 | 18 | Configurar evento | 9 | 17 | ✓ | Falta a API, o auto-atendimento no dia principal e a configuração do meio por setor |
 | 19 | Gastos (produto do Produtor) | 0 | 6 | — | Produto novo e isolado do credenciamento — escopo a confirmar com o Juan |
 
@@ -348,14 +348,15 @@ countable, cada linha já dentro do total da tabela acima.
 |---|---|---|
 | QR de evento que vira a noite (`faseAtualDoQR`) | 6 | ✅ **Trazido e corrigido** — `meuQr`, `painelDaEquipe` e o servidor falso todo |
 | Sair e volta no mesmo dia reabre o turno (`inferirMomentoDoScanner`) | 6 | ✅ **Trazido e corrigido** — inclusive a tela Escanear, que perdeu o seletor manual |
-| Papéis `produtor`, `operador_portao` e `suporte` no domínio | 2 | Falta |
+| Papéis `produtor`, `operador_portao` e `suporte` no domínio | 2 | ⚠️ **Parcial** — `operador_portao` e `suporte` trazidos, com `podeEscanear`/`podeAcompanhar`; `produtor` fica de fora (é o módulo Gastos, que o app não tem) |
 | Identidade visual "Arena" (laranja `#FF4A0F`, tema escuro) | 5 | Falta — troca `tema.ts` inteiro, toda tela é afetada |
 | Registrar ponto: operador escolhe a etapa (pré-marcada, livre pra trocar) | 17 | Falta — hoje o app decide sozinho, do jeito que o site fazia antes de 03/09 |
 | Registrar ponto: busca de CPF tolera até 2 dígitos errados | 17 | Falta |
 | Base de funcionários funde com Encontre colaborador (um toggle, não duas telas) | 17 | ✅ **Trazido** — `/encontrar` ganhou o toggle, `/base-funcionarios` virou redirect |
 | Criar setor pede o supervisor (nome, CPF, WhatsApp) no mesmo formulário | 17 | ✅ **Trazido** — mesmo CPF reaproveita supervisor já existente, sem login novo |
 | Atividades: reescrita com as 7 visões, seletor de dia sempre visível | 17 | ✅ **Trazido** — `cliente.atividades(eventoId, { visao, dia })`, uma régua só |
-| Acessos: Produtor, operador de portão e Suporte como opções, com abas de Funções granulares | 17 | Falta |
+| Acessos: operador de portão e Suporte como opções na criação | 17 | ✅ **Trazido** — Produtor fica de fora (módulo Gastos) |
+| Acessos: aba "Funções ligadas" — catálogo de capacidades por acesso, 3 camadas (usuário → organização → padrão do código) | 17 | Falta — precisa do catálogo `CAPACIDADES` no domínio e de uma tela de Configurações que o app ainda não tem |
 | Veículos: cadastro por evento, consulta manual na portaria | 17 | Falta |
 | Bloquear CPF do evento inteiro, sem apagar histórico | 17 | Falta |
 | Conferência de equipe (D-1): supervisor confirma a lista antes do evento | 17 | Falta |

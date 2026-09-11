@@ -257,12 +257,22 @@ const ACESSOS_DE_MENTIRA: {
   setorNome: string | null
   eventos: number
   criadoEm: string
+  expiraEm: string | null
 }[] = [
-  { id: 'u-1', nome: 'Juan Muzy', identificador: 'juan@produzimos.com.br', papel: 'master', ativo: true, setorNome: null, eventos: 3, criadoEm: '2025-11-04T10:00:00-03:00' },
-  { id: 'u-2', nome: 'Marina Alves', identificador: 'marina@produzimos.com.br', papel: 'admin', ativo: true, setorNome: null, eventos: 3, criadoEm: '2026-02-17T09:30:00-03:00' },
-  { id: 'u-3', nome: 'Carlos Silva', identificador: 'carlos@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Produção', eventos: 1, criadoEm: '2026-06-02T14:12:00-03:00' },
-  { id: 'u-4', nome: 'Débora Antunes', identificador: 'debora@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Camarim', eventos: 1, criadoEm: '2026-07-21T11:45:00-03:00' },
-  { id: 'u-5', nome: 'Fábio Queiroz', identificador: 'fabio@produzimos.com.br', papel: 'supervisor', ativo: false, setorNome: 'Portaria', eventos: 2, criadoEm: '2025-12-09T16:20:00-03:00' },
+  { id: 'u-1', nome: 'Juan Muzy', identificador: 'juan@produzimos.com.br', papel: 'master', ativo: true, setorNome: null, eventos: 3, criadoEm: '2025-11-04T10:00:00-03:00', expiraEm: null },
+  { id: 'u-2', nome: 'Marina Alves', identificador: 'marina@produzimos.com.br', papel: 'admin', ativo: true, setorNome: null, eventos: 3, criadoEm: '2026-02-17T09:30:00-03:00', expiraEm: null },
+  { id: 'u-3', nome: 'Carlos Silva', identificador: 'carlos@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Produção', eventos: 1, criadoEm: '2026-06-02T14:12:00-03:00', expiraEm: null },
+  { id: 'u-4', nome: 'Débora Antunes', identificador: 'debora@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Camarim', eventos: 1, criadoEm: '2026-07-21T11:45:00-03:00', expiraEm: null },
+  { id: 'u-5', nome: 'Fábio Queiroz', identificador: 'fabio@produzimos.com.br', papel: 'supervisor', ativo: false, setorNome: 'Portaria', eventos: 2, criadoEm: '2025-12-09T16:20:00-03:00', expiraEm: null },
+  {
+    id: 'u-6', nome: 'Rogério Batista', identificador: 'rogerio@produzimos.com.br', papel: 'operador_portao',
+    ativo: true, setorNome: null, eventos: 1, criadoEm: '2026-08-10T09:00:00-03:00', expiraEm: null,
+  },
+  // Com expiração de propósito: é o caso que a tela precisa saber mostrar.
+  {
+    id: 'u-7', nome: 'Renata Souza', identificador: 'renata@produzimos.com.br', papel: 'suporte',
+    ativo: true, setorNome: null, eventos: 1, criadoEm: '2026-09-01T10:00:00-03:00', expiraEm: '2026-09-30',
+  },
 ]
 
 /**
@@ -1802,6 +1812,7 @@ export class ClienteFalso implements ClienteApi {
       setorNome: nome,
       eventos: 1,
       criadoEm: new Date(this.agora()).toISOString(),
+      expiraEm: null,
       souEu: false,
     }
     if (!existente) ACESSOS_DE_MENTIRA.push({ ...supervisor })
@@ -2261,10 +2272,17 @@ export class ClienteFalso implements ClienteApi {
 
     const nome = (dados.nome ?? '').trim()
     const cpf = (dados.cpf ?? '').replace(/\D/g, '')
+    const funcao = dados.funcao ?? 'supervisor'
 
     if (nome.length < 3) return { erro: 'Digite o nome completo da pessoa.' }
     if (cpf.length !== 11) return { erro: 'O CPF precisa ter 11 dígitos.' }
-    if (!dados.setorId) return { erro: 'Escolha o setor do supervisor.' }
+    if (!dados.eventoId) return { erro: 'Escolha o evento.' }
+    // Só o supervisor pede setor — operador de portão e suporte são do
+    // evento inteiro, sem setor: prender os dois num setor faria o
+    // credenciamento parar quando o supervisor daquele setor não está.
+    if (funcao === 'supervisor' && !dados.setorId) {
+      return { erro: 'Escolha o setor do supervisor.' }
+    }
 
     // O CPF é a chave de identidade: dois acessos com o mesmo CPF fariam duas
     // pessoas diferentes entrarem na mesma conta.
@@ -2272,19 +2290,20 @@ export class ClienteFalso implements ClienteApi {
       return { erro: 'Já existe um acesso com este CPF.' }
     }
 
-    const setor = Object.values(SETORES_DE_MENTIRA)
-      .flat()
-      .find(x => x.setorId === dados.setorId)
+    const setor = funcao === 'supervisor'
+      ? Object.values(SETORES_DE_MENTIRA).flat().find(x => x.setorId === dados.setorId)
+      : undefined
 
     const novo: Acesso = {
       id: `u-${ACESSOS_DE_MENTIRA.length + 1}`,
       nome,
       identificador: formatCpf(cpf),
-      papel: 'supervisor',
+      papel: funcao,
       ativo: dados.ativo,
       setorNome: setor?.nome ?? null,
       eventos: 1,
       criadoEm: new Date(this.agora()).toISOString(),
+      expiraEm: funcao === 'suporte' ? (dados.expiraEm ?? null) : null,
       souEu: false,
     }
 

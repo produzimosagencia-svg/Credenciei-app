@@ -286,7 +286,10 @@ export interface ClienteApi {
   /** Os eventos com os setores de cada um — todo supervisor nasce num setor. */
   eventosComSetores(): Promise<EventoComSetores[]>
 
-  /** Cria o acesso de um supervisor, preso a um setor. */
+  /**
+   * Cria um acesso — supervisor (preso a um setor), operador de portão ou
+   * suporte (os dois presos ao evento inteiro, sem setor).
+   */
   criarAcesso(dados: NovoAcesso): Promise<{ acesso?: Acesso; erro?: string }>
 
   // ── Plataforma ──────────────────────────────────────────────────────────
