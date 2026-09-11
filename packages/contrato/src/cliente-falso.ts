@@ -31,19 +31,19 @@ import {
 import type { ClienteApi } from './cliente.js'
 import type {
   Acesso, ArquivoDePlanilha, AtividadeRecente, AtividadesDoEvento,
-  BatidaAssistida, CandidatoLocalizado, ConferenciaPorCpf, ConfiguracaoDoEvento,
+  BatidaAssistida, CandidatoLocalizado, CentralDeAvisos, ConferenciaPorCpf, ConfiguracaoDoEvento,
   ConviteDoEvento, DadosDeNovoEvento, DiaDaParticipacao, EdicaoDoEvento, EnvioDeBatida,
   EquipeDoSetor, Eu, EventoComSetores, EventoDetalhado, EventoEscaneavel,
   FichaDaPessoa, FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao,
   LinhaDaAtividade,
-  ListaDeAcessos, MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe,
+  ListaDeAcessos, MomentoDaLeitura, Notificacao, NovoAcesso, Painel, PainelDaEquipe,
   PessoaDaLista, PessoaDoSetor, Portaria, ResultadoDaImportacao,
   BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, EventoParaAtribuir,
   FichaDaPessoaNaBase, ListaDeOrganizacoes,
   Organizacao, PainelDoWhatsApp, PessoaDaBase, PessoaRegional,
   ResultadoDeAtribuicao, SetorParaAtribuir, TrabalhoDaPessoa,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
-  SetorDetalhado, StatusDaEtapa, Sessao,
+  SetorDetalhado, StatusDaEtapa, Sessao, TipoDeAviso,
 } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
@@ -624,6 +624,77 @@ const TEMPLATES_DE_MENTIRA: PainelDoWhatsApp['templates'] = [
   { nome: 'lembrete_do_meio', situacao: 'aprovado', categoria: 'UTILITY' },
   { nome: 'convite_supervisor', situacao: 'em_analise', categoria: 'UTILITY' },
   { nome: 'promocao_evento', situacao: 'rejeitado', categoria: 'MARKETING' },
+]
+
+/**
+ * Os avisos — mesmas regras de `lib/mensagens.ts` do sistema web, canal
+ * trocado de WhatsApp para push nativo. Rótulo e descrição usados tanto na
+ * lista de preferências quanto, futuramente, na tela de configurar avisos.
+ *
+ * Master e admin não têm nenhum tipo aqui de propósito: o sistema web também
+ * não manda nada automático pra eles, só o painel de acompanhar.
+ */
+const ROTULO_DO_AVISO: Record<TipoDeAviso, { rotulo: string; descricao: string }> = {
+  dia_evento: { rotulo: 'Dia do evento', descricao: 'Aviso na manhã do dia, com os horários de entrada e saída' },
+  montagem: { rotulo: 'Dias de montagem', descricao: 'Aviso às 7h de cada dia de preparação antes do evento' },
+  desmontagem: { rotulo: 'Dias de desmontagem', descricao: 'Aviso às 7h de cada dia depois do evento' },
+  lembrete_entrada: { rotulo: 'Hora da entrada', descricao: 'Quando a janela de entrada abrir' },
+  lembrete_meio: { rotulo: 'Hora da selfie', descricao: '4 horas depois da sua entrada' },
+  lembrete_fim: { rotulo: 'Hora da saída', descricao: 'Quando a janela de saída abrir' },
+  reforco: { rotulo: 'Reforço de prazo', descricao: 'Perto do fim do prazo, só se você ainda não registrou' },
+  pagamento_marcado: { rotulo: 'Pagamento marcado', descricao: 'Quando seu pagamento for confirmado pelo organizador' },
+  realocacao: { rotulo: 'Nova escala', descricao: 'Quando você for movido para outro setor' },
+  alerta_pendencia: { rotulo: 'Pendência da equipe', descricao: 'Quando alguém do seu setor passar do prazo de uma etapa' },
+}
+
+const TIPOS_DO_COLABORADOR: TipoDeAviso[] = [
+  'dia_evento', 'montagem', 'desmontagem', 'lembrete_entrada', 'lembrete_meio',
+  'lembrete_fim', 'reforco', 'pagamento_marcado',
+]
+const TIPOS_DO_SUPERVISOR: TipoDeAviso[] = ['realocacao', 'alerta_pendencia']
+
+/** Um histórico plausível por papel — pensado pra tela nunca ficar vazia. */
+const NOTIFICACOES_DO_COLABORADOR: Notificacao[] = [
+  {
+    id: 'not-1', tipo: 'lembrete_meio',
+    titulo: '🔔 Hora da sua selfie', corpo: 'Confirme que você continua no posto.',
+    criadaEm: '2026-08-30T18:00:00-03:00', lida: false, destino: '/ponto',
+  },
+  {
+    id: 'not-2', tipo: 'dia_evento',
+    titulo: '🎉 Hoje é o grande dia!',
+    corpo: 'Henrique e Juliano - Kleber Andrade — entrada 18:30 · saída 08:00. Toque para ver sua credencial.',
+    criadaEm: '2026-08-30T09:00:00-03:00', lida: true, destino: '/credencial',
+  },
+  {
+    id: 'not-3', tipo: 'pagamento_marcado',
+    titulo: 'Pagamento marcado', corpo: 'Seu pagamento de R$ 150 foi confirmado pelo organizador.',
+    criadaEm: '2026-08-29T16:00:00-03:00', lida: true, destino: '/meu-pagamento',
+  },
+  {
+    id: 'not-4', tipo: 'reforco',
+    titulo: '⚠️ Ainda não registrado!', corpo: 'Corre lá, o prazo da saída está terminando.',
+    criadaEm: '2026-08-22T07:58:00-03:00', lida: true, destino: '/ponto',
+  },
+]
+/**
+ * Quais tipos de aviso estão desligados. Vazio no começo — sem preferência
+ * salva, tudo fica ligado, do mesmo jeito que `/admin/whatsapp/fluxos` faz
+ * no sistema web.
+ */
+const PREFERENCIAS_DESLIGADAS = new Set<TipoDeAviso>()
+
+const NOTIFICACOES_DO_SUPERVISOR: Notificacao[] = [
+  {
+    id: 'not-5', tipo: 'alerta_pendencia',
+    titulo: '🚨 3 pendências em Produção', corpo: 'Ana Cláudia, Rodrigo e mais 1 ainda não bateram a entrada.',
+    criadaEm: '2026-08-30T19:15:00-03:00', lida: false, destino: '/atividades',
+  },
+  {
+    id: 'not-6', tipo: 'realocacao',
+    titulo: 'Nova escala', corpo: 'Você foi escalado para Camarim em Manos da Vila.',
+    criadaEm: '2026-08-28T10:00:00-03:00', lida: true, destino: '/evento/ev-2',
+  },
 ]
 
 const SEGREDO_DE_MENTIRA = 'segredo-do-cliente-falso'
@@ -2420,6 +2491,73 @@ export class ClienteFalso implements ClienteApi {
       custoEstimado: 214.5,
       templates: TEMPLATES_DE_MENTIRA,
     }
+  }
+
+  // ── Avisos ─────────────────────────────────────────────────────────────────
+
+  async minhasNotificacoes(): Promise<CentralDeAvisos> {
+    await this.rede()
+    this.exigirSessao()
+
+    const papel = this.sessao!.papel
+    const tipos = papel === 'supervisor' ? TIPOS_DO_SUPERVISOR
+      : papel === 'colaborador' ? TIPOS_DO_COLABORADOR
+      : [] // master, admin, gerente, cliente: nenhum aviso automático hoje.
+    const notificacoes = papel === 'supervisor' ? NOTIFICACOES_DO_SUPERVISOR
+      : papel === 'colaborador' ? NOTIFICACOES_DO_COLABORADOR
+      : []
+
+    return {
+      naoLidas: notificacoes.filter(n => !n.lida).length,
+      notificacoes: [...notificacoes].sort((a, b) => b.criadaEm.localeCompare(a.criadaEm)),
+      preferencias: tipos.map(tipo => ({
+        tipo,
+        rotulo: ROTULO_DO_AVISO[tipo].rotulo,
+        descricao: ROTULO_DO_AVISO[tipo].descricao,
+        ativo: !PREFERENCIAS_DESLIGADAS.has(tipo),
+      })),
+    }
+  }
+
+  async marcarNotificacaoComoLida(id: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    const n = [...NOTIFICACOES_DO_COLABORADOR, ...NOTIFICACOES_DO_SUPERVISOR].find(x => x.id === id)
+    if (!n) return { erro: 'Não encontramos este aviso.' }
+    n.lida = true
+    return {}
+  }
+
+  async marcarTodasComoLidas(): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    const papel = this.sessao!.papel
+    const minhas = papel === 'supervisor' ? NOTIFICACOES_DO_SUPERVISOR
+      : papel === 'colaborador' ? NOTIFICACOES_DO_COLABORADOR
+      : []
+    for (const n of minhas) n.lida = true
+    return {}
+  }
+
+  async salvarPreferenciasDeAvisos(tiposLigados: TipoDeAviso[]): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    const ligados = new Set(tiposLigados)
+    for (const tipo of [...TIPOS_DO_COLABORADOR, ...TIPOS_DO_SUPERVISOR]) {
+      if (ligados.has(tipo)) PREFERENCIAS_DESLIGADAS.delete(tipo)
+      else PREFERENCIAS_DESLIGADAS.add(tipo)
+    }
+    return {}
+  }
+
+  async registrarTokenDeAviso(token: string, plataforma: 'ios' | 'android' | 'web'): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    void token; void plataforma
+    // Não há o que fazer com o token no servidor de mentira — só confirma
+    // que a chamada existe e não quebra, para a tela poder ser construída
+    // contra ela antes de a API de verdade guardar o token.
+    return {}
   }
 
   // ── Supervisor ────────────────────────────────────────────────────────────

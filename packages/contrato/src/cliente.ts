@@ -16,10 +16,10 @@ import type {
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
   MomentoDaLeitura, NovoAcesso, Painel, PainelDaEquipe, Portaria,
-  BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, FichaDaPessoaNaBase,
+  BaseDeFuncionarios, BuscaRegional, CentralDeAvisos, DadosDeNovaOrganizacao, FichaDaPessoaNaBase,
   ListaDeOrganizacoes, Organizacao, PainelDoWhatsApp, ResultadoDeAtribuicao,
   ResultadoDaImportacao, ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida,
-  ResumoParticipacao, SetorDetalhado, Sessao,
+  ResumoParticipacao, SetorDetalhado, Sessao, TipoDeAviso,
 } from './tipos.js'
 
 export interface ClienteApi {
@@ -305,6 +305,25 @@ export interface ClienteApi {
 
   /** O estado do canal de WhatsApp e os templates aprovados pela Meta. */
   painelDoWhatsApp(): Promise<PainelDoWhatsApp>
+
+  // ── Avisos ───────────────────────────────────────────────────────────────
+  /** O histórico e as preferências de quem está logado — cada papel vê o que é seu. */
+  minhasNotificacoes(): Promise<CentralDeAvisos>
+
+  marcarNotificacaoComoLida(id: string): Promise<{ erro?: string }>
+  marcarTodasComoLidas(): Promise<{ erro?: string }>
+
+  /** A lista dos tipos que ficam LIGADOS — o resto desliga. */
+  salvarPreferenciasDeAvisos(tiposLigados: TipoDeAviso[]): Promise<{ erro?: string }>
+
+  /**
+   * Registra o token do aparelho para receber push.
+   *
+   * Chamado depois que a pessoa autoriza notificação no sistema — a
+   * permissão em si não passa por aqui, é uma pergunta do aparelho, não do
+   * servidor.
+   */
+  registrarTokenDeAviso(token: string, plataforma: 'ios' | 'android' | 'web'): Promise<{ erro?: string }>
 
   // ── Supervisor ──────────────────────────────────────────────────────────
   painelDaEquipe(eventoId: string): Promise<PainelDaEquipe>

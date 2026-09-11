@@ -990,6 +990,53 @@ export type ResultadoDeAtribuicao = {
   semTelefone: boolean
 }
 
+// ─── Avisos (push) ──────────────────────────────────────────────────────────
+//
+// O canal muda — hoje é WhatsApp, aqui é notificação nativa —, mas as
+// REGRAS são as mesmas de `lib/mensagens.ts` do sistema web: mesmos
+// gatilhos, mesma condição de "ainda não registrou" reconferida na hora do
+// envio, mesma ideia de não repetir aviso do mesmo tipo no mesmo dia.
+//
+// Uma diferença de propósito: lá o alerta de pendência vai só para UM
+// supervisor por setor — limitação do WhatsApp (risco de banimento por
+// volume). Push não tem esse custo, então aqui vai para todos os
+// supervisores ativos do setor.
+
+/**
+ * Cada linha é um tipo de aviso que ESTE papel pode receber — nem todo papel
+ * vê os mesmos. Master e admin não têm nenhum hoje: o sistema web também não
+ * manda nada automático para eles, só o painel de acompanhar.
+ */
+export type TipoDeAviso =
+  | 'dia_evento' | 'montagem' | 'desmontagem'
+  | 'lembrete_entrada' | 'lembrete_meio' | 'lembrete_fim' | 'reforco'
+  | 'pagamento_marcado'
+  | 'realocacao' | 'alerta_pendencia'
+
+export type Notificacao = {
+  id: string
+  tipo: TipoDeAviso
+  titulo: string
+  corpo: string
+  criadaEm: string
+  lida: boolean
+  /** Pra onde o toque leva — a mesma tela que o push abriria no aparelho. */
+  destino: string | null
+}
+
+export type PreferenciaDeAviso = {
+  tipo: TipoDeAviso
+  rotulo: string
+  descricao: string
+  ativo: boolean
+}
+
+export type CentralDeAvisos = {
+  naoLidas: number
+  notificacoes: Notificacao[]
+  preferencias: PreferenciaDeAviso[]
+}
+
 export type TemplateDoWhatsApp = {
   nome: string
   situacao: 'aprovado' | 'em_analise' | 'rejeitado'

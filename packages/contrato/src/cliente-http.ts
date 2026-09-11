@@ -34,11 +34,11 @@ import type {
   FichaLocalizada,
   FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos, MomentoDaLeitura,
   NovoAcesso, Painel, PainelDaEquipe, Portaria,
-  BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, FichaDaPessoaNaBase,
+  BaseDeFuncionarios, BuscaRegional, CentralDeAvisos, DadosDeNovaOrganizacao, FichaDaPessoaNaBase,
   ListaDeOrganizacoes, Organizacao, PainelDoWhatsApp, ResultadoDeAtribuicao,
   ResultadoDaImportacao,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
-  SetorDetalhado, Sessao,
+  SetorDetalhado, Sessao, TipoDeAviso,
 } from './tipos.js'
 
 export type OpcoesDoClienteHttp = {
@@ -567,6 +567,33 @@ export class ClienteHttp implements ClienteApi {
 
   async painelDoWhatsApp(): Promise<PainelDoWhatsApp> {
     throw new AindaNaoNaApi('painelDoWhatsApp')
+  }
+
+  // ─── Avisos ───────────────────────────────────────────────────────────────
+
+  async minhasNotificacoes(): Promise<CentralDeAvisos> {
+    throw new AindaNaoNaApi('minhasNotificacoes')
+  }
+
+  async marcarNotificacaoComoLida(_id: string): Promise<{ erro?: string }> {
+    void _id
+    throw new AindaNaoNaApi('marcarNotificacaoComoLida')
+  }
+
+  async marcarTodasComoLidas(): Promise<{ erro?: string }> {
+    throw new AindaNaoNaApi('marcarTodasComoLidas')
+  }
+
+  async salvarPreferenciasDeAvisos(_tiposLigados: TipoDeAviso[]): Promise<{ erro?: string }> {
+    void _tiposLigados
+    throw new AindaNaoNaApi('salvarPreferenciasDeAvisos')
+  }
+
+  async registrarTokenDeAviso(
+    _token: string, _plataforma: 'ios' | 'android' | 'web',
+  ): Promise<{ erro?: string }> {
+    void _token; void _plataforma
+    throw new AindaNaoNaApi('registrarTokenDeAviso')
   }
 
   // ─── Supervisor ───────────────────────────────────────────────────────────
