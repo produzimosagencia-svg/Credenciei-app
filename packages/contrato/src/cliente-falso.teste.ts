@@ -7,6 +7,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { distanciaEntreCpfs } from '@credenciei/dominio'
 import {
   ClienteFalso, CONTAS_DE_DEMONSTRACAO, credenciaisDeDemonstracao,
   SENHA_DE_DEMONSTRACAO, type ComportamentoFalso,
@@ -645,6 +646,38 @@ test('CPF completo abre a ficha direto', async () => {
   const r = await c.localizarPessoa('037.482.615-09')
   assert.ok(r.ficha)
   assert.equal(r.ficha.nome, 'Ana Cláudia Ferreira')
+})
+
+test('CPF com um dígito errado ainda acha a pessoa, marcado como aproximado', async () => {
+  /*
+   * O documento na mão do operador está certo — a consulta exata é que não
+   * acha uma linha gravada com um algarismo trocado no cadastro. Trazido do
+   * site em 11/09.
+   */
+  const c = await noPortao()
+  // CPF real da Ana (037.482.615-09) com o penúltimo dígito trocado.
+  const r = await c.localizarPessoa('037.482.615-19')
+
+  assert.equal(r.ficha, undefined, 'nunca escolhe sozinho, mesmo com um candidato só')
+  assert.ok(r.candidatos)
+  assert.equal(r.candidatos.length, 1)
+  assert.equal(r.candidatos[0]?.nome, 'Ana Cláudia Ferreira')
+  assert.equal(r.candidatos[0]?.cpfAproximado, true)
+})
+
+test('CPF exato não vem marcado como aproximado', async () => {
+  const c = await noPortao()
+  const r = await c.localizarPessoa('037.482.615-09')
+  assert.ok(r.ficha)
+})
+
+test('CPF com três dígitos diferentes passa da tolerância e não acha ninguém', async () => {
+  const c = await noPortao()
+  // 037.482.615-09 com três algarismos trocados (posições 0, 5 e 10).
+  assert.equal(distanciaEntreCpfs('03748261509', '13748961500'), 3)
+  const r = await c.localizarPessoa('137.489.615-00')
+  assert.ok(r.erro)
+  assert.equal(r.candidatos, undefined)
 })
 
 test('a busca por nome ignora acento', async () => {

@@ -311,6 +311,13 @@ export type CandidatoLocalizado = {
   funcao: string | null
   setorNome: string
   eventoNome: string
+  /**
+   * O CPF exato não achou ninguém, e isto veio da busca por proximidade
+   * (até 2 algarismos diferentes) — o operador precisa CONFIRMAR que é a
+   * pessoa certa antes de qualquer coisa, nunca é escolhido sozinho mesmo
+   * quando sobra um candidato só.
+   */
+  cpfAproximado?: boolean
 }
 
 export type FichaLocalizada = {

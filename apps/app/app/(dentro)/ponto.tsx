@@ -167,29 +167,43 @@ export default function RegistrarPonto() {
       {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
 
       {candidatos ? (
-        <Cartao semPadding>
-          <Text style={e.cabecalhoDaLista}>
-            {candidatos.length} pessoas encontradas — toque em quem você está atendendo
-          </Text>
-          {candidatos.map((c, i) => (
-            <View key={c.participacaoId}>
-              {i > 0 ? <View style={e.fio} /> : null}
-              <Pressable
-                onPress={() => escolher(c.participacaoId)}
-                disabled={buscando}
-                style={({ pressed }) => [e.candidato, pressed && e.candidatoTocado]}
-              >
-                <Iniciais nome={c.nome} />
-                <View style={e.candidatoTexto}>
-                  <Corpo forte>{c.nome}</Corpo>
-                  <Legenda>{formatCpf(c.cpf)}{c.funcao ? ` · ${c.funcao}` : ''}</Legenda>
-                  <Legenda>{c.setorNome} · {c.eventoNome}</Legenda>
-                </View>
-                <Icone nome="ChevronRight" tamanho={16} tom={cor.neutro400} />
-              </Pressable>
-            </View>
-          ))}
-        </Cartao>
+        <>
+          {candidatos[0]?.cpfAproximado ? (
+            <Aviso tipo="aviso">
+              Nenhum cadastro bate exatamente com esse CPF. Estas são as pessoas
+              com CPF parecido (até 2 números diferentes) — confira o nome e o
+              CPF salvo antes de escolher.
+            </Aviso>
+          ) : null}
+          <Cartao semPadding>
+            <Text style={e.cabecalhoDaLista}>
+              {candidatos.length === 1 && !candidatos[0]?.cpfAproximado
+                ? '1 pessoa encontrada'
+                : `${candidatos.length} pessoas encontradas`} — toque em quem você está atendendo
+            </Text>
+            {candidatos.map((c, i) => (
+              <View key={c.participacaoId}>
+                {i > 0 ? <View style={e.fio} /> : null}
+                <Pressable
+                  onPress={() => escolher(c.participacaoId)}
+                  disabled={buscando}
+                  style={({ pressed }) => [e.candidato, pressed && e.candidatoTocado]}
+                >
+                  <Iniciais nome={c.nome} />
+                  <View style={e.candidatoTexto}>
+                    <View style={e.candidatoTopo}>
+                      <Corpo forte>{c.nome}</Corpo>
+                      {c.cpfAproximado ? <Selo texto="CPF parecido" tipo="aviso" /> : null}
+                    </View>
+                    <Legenda>{formatCpf(c.cpf)}{c.funcao ? ` · ${c.funcao}` : ''}</Legenda>
+                    <Legenda>{c.setorNome} · {c.eventoNome}</Legenda>
+                  </View>
+                  <Icone nome="ChevronRight" tamanho={16} tom={cor.neutro400} />
+                </Pressable>
+              </View>
+            ))}
+          </Cartao>
+        </>
       ) : null}
 
       {ficha ? (
@@ -395,6 +409,7 @@ const e = StyleSheet.create({
   },
   candidatoTocado: { backgroundColor: cor.neutro50 },
   candidatoTexto: { flex: 1, minWidth: 0 },
+  candidatoTopo: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, flexWrap: 'wrap' },
 
   identidade: { flexDirection: 'row', gap: espaco.m },
   identidadeTexto: { flex: 1, minWidth: 0 },

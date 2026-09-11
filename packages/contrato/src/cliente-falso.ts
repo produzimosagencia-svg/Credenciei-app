@@ -23,10 +23,11 @@
 // falso e real não passa despercebida.
 
 import {
-  avaliarEntradaSaida, conferirHorariosDoEvento, diaBRT, ehMaster, faseAtualDoQR,
-  faseConfere, faseDoDia, formatarBR, formatCpf, gerarCodigoQR, inferirMomentoDoScanner,
-  janelaMeio, lerCodigoDeEvento, lerCodigoQR, podeAcompanhar, podeEscanear,
-  podeGerenciarEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
+  avaliarEntradaSaida, conferirHorariosDoEvento, diaBRT, distanciaEntreCpfs, ehMaster,
+  faseAtualDoQR, faseConfere, faseDoDia, formatarBR, formatCpf, gerarCodigoQR,
+  inferirMomentoDoScanner, janelaMeio, lerCodigoDeEvento, lerCodigoQR, podeAcompanhar,
+  podeEscanear, podeGerenciarEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
+  TOLERANCIA_DE_CPF,
   type RegistroParaInferencia,
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
@@ -1327,6 +1328,24 @@ export class ClienteFalso implements ClienteApi {
       ? porCpf
       : EQUIPE_DE_MENTIRA.filter(p => semAcento(p.nome).includes(semAcento(busca)))
 
+    /*
+     * Rede de segurança para CPF digitado errado NO CADASTRO.
+     *
+     * O documento na mão do operador está certo — a consulta exata é que não
+     * acha uma linha gravada com um algarismo trocado. Só entra quando a
+     * busca exata por CPF completo não achou nada: nunca troca uma resposta
+     * exata por uma aproximada.
+     */
+    if (achados.length === 0 && digitos.length === 11) {
+      const aproximados = EQUIPE_DE_MENTIRA.filter(p => distanciaEntreCpfs(p.cpf, digitos) <= TOLERANCIA_DE_CPF)
+      if (aproximados.length > 0) {
+        // Nunca escolhe sozinho, mesmo com um candidato só: a tela mostra
+        // nome, CPF salvo e setor para o operador confirmar quem está na
+        // frente dele — o CPF aproximado pode ser de outra pessoa.
+        return { candidatos: aproximados.map(p => this.candidato(p, true)) }
+      }
+    }
+
     if (achados.length === 0) {
       return { erro: 'Ninguém encontrado. Confira o CPF, ou tente parte do nome.' }
     }
@@ -1405,7 +1424,7 @@ export class ClienteFalso implements ClienteApi {
     return ORDEM_DAS_ETAPAS.find(e => !feitas.has(e)) ?? null
   }
 
-  private candidato(p: (typeof EQUIPE_DE_MENTIRA)[number]): CandidatoLocalizado {
+  private candidato(p: (typeof EQUIPE_DE_MENTIRA)[number], aproximado = false): CandidatoLocalizado {
     return {
       participacaoId: p.id,
       nome: p.nome,
@@ -1413,6 +1432,7 @@ export class ClienteFalso implements ClienteApi {
       funcao: p.funcao,
       setorNome: p.setor,
       eventoNome: EVENTO.nome,
+      ...(aproximado ? { cpfAproximado: true } : {}),
     }
   }
 
