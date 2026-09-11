@@ -39,7 +39,7 @@ import type {
   ResultadoDaImportacao,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
-  CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento,
+  CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
 } from './tipos.js'
 
 export type OpcoesDoClienteHttp = {
@@ -640,5 +640,28 @@ export class ClienteHttp implements ClienteApi {
   async excluirVeiculo(_veiculoId: string, _eventoId: string): Promise<{ erro?: string }> {
     void _veiculoId; void _eventoId
     throw new AindaNaoNaApi('excluirVeiculo')
+  }
+
+  // ─── Bloquear CPF ─────────────────────────────────────────────────────────
+
+  async eventosParaBloqueio(): Promise<EventoEscaneavel[]> {
+    throw new AindaNaoNaApi('eventosParaBloqueio')
+  }
+
+  async bloqueiosDoEvento(_eventoId: string): Promise<CpfBloqueado[]> {
+    void _eventoId
+    throw new AindaNaoNaApi('bloqueiosDoEvento')
+  }
+
+  async bloquearCpf(
+    _eventoId: string, _cpf: string, _motivo?: string,
+  ): Promise<{ cpf?: string; erro?: string }> {
+    void _eventoId; void _cpf; void _motivo
+    throw new AindaNaoNaApi('bloquearCpf')
+  }
+
+  async desbloquearCpf(_bloqueioId: string, _eventoId: string): Promise<{ erro?: string }> {
+    void _bloqueioId; void _eventoId
+    throw new AindaNaoNaApi('desbloquearCpf')
   }
 }

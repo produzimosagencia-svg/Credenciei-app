@@ -2025,3 +2025,84 @@ test('o supervisor não cadastra nem exclui veículo', async () => {
     /permissão/i,
   )
 })
+
+// ─── Bloquear CPF ───────────────────────────────────────────────────────────
+//
+// Vale para o evento inteiro, e só para este evento. Trazido do site em
+// 11/09.
+
+test('o supervisor entra na lista de quem bloqueia, mas só no evento onde tem setor', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+
+  const eventos = await c.eventosParaBloqueio()
+  assert.equal(eventos.length, 1)
+  assert.equal(eventos[0]?.eventoId, 'ev-2')
+
+  await assert.rejects(() => c.bloqueiosDoEvento('ev-1'), /setor/i)
+  const r = await c.bloqueiosDoEvento('ev-2')
+  assert.ok(Array.isArray(r))
+})
+
+test('o operador de portão não bloqueia — ele lê o QR, não decide quem se cadastra', async () => {
+  const c = new ClienteFalso({
+    sessaoInicial: {
+      token: 'tok-op', expiraEm: new Date(Date.now() + 999_999).toISOString(),
+      renovacao: 'ren-op', papel: 'operador_portao',
+    },
+  })
+  await assert.rejects(() => c.eventosParaBloqueio(), /permissão/i)
+})
+
+test('a lista de bloqueios nasce com o que já foi bloqueado, com motivo e quem bloqueou', async () => {
+  const c = await noPortao()
+  const r = await c.bloqueiosDoEvento('ev-1')
+
+  assert.ok(r.length > 0)
+  assert.ok(r[0]?.motivo)
+  assert.ok(r[0]?.bloqueadoPor)
+})
+
+test('bloquear exige 11 dígitos, e o mesmo CPF duas vezes é recusado', async () => {
+  const c = await noPortao()
+
+  const curto = await c.bloquearCpf('ev-1', '123')
+  assert.match(curto.erro ?? '', /11 dígitos/i)
+
+  const primeiro = await c.bloquearCpf('ev-1', '999.888.777-66')
+  assert.equal(primeiro.erro, undefined)
+  assert.equal(primeiro.cpf, '99988877766')
+
+  const repetido = await c.bloquearCpf('ev-1', '999.888.777-66')
+  assert.match(repetido.erro ?? '', /já está bloqueado/i)
+})
+
+test('bloquear registra quem bloqueou e o motivo — e aparece na lista na hora', async () => {
+  const c = await noPortao()
+  const antes = await c.bloqueiosDoEvento('ev-1')
+
+  await c.bloquearCpf('ev-1', '888.777.666-55', 'Tentou entrar sem crachá')
+
+  const depois = await c.bloqueiosDoEvento('ev-1')
+  assert.equal(depois.length, antes.length + 1)
+  const novo = depois.find(b => b.cpf === '88877766655')!
+  assert.equal(novo.motivo, 'Tentou entrar sem crachá')
+  assert.equal(novo.bloqueadoPor, 'Marina Alves')
+})
+
+test('liberar remove da lista, e um bloqueio de outro evento é recusado', async () => {
+  const c = await noPortao()
+  await c.bloquearCpf('ev-1', '777.666.555-44')
+  const lista = await c.bloqueiosDoEvento('ev-1')
+  const bloqueio = lista.find(b => b.cpf === '77766655544')!
+
+  // Mesmo id, evento errado: não libera bloqueio de outro evento.
+  const errado = await c.desbloquearCpf(bloqueio.id, 'ev-2')
+  assert.ok(errado.erro)
+
+  const certo = await c.desbloquearCpf(bloqueio.id, 'ev-1')
+  assert.equal(certo.erro, undefined)
+
+  const depois = await c.bloqueiosDoEvento('ev-1')
+  assert.equal(depois.some(b => b.id === bloqueio.id), false)
+})

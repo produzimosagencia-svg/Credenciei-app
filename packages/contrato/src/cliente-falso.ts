@@ -27,7 +27,7 @@ import {
   faseAtualDoQR, faseConfere, faseDoDia, formatarBR, formatCpf, gerarCodigoQR,
   inferirMomentoDoScanner, janelaMeio, lerCodigoDeEvento, lerCodigoQR, podeAcompanhar,
   podeEscanear, podeGerenciarEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
-  podeGerenciarVeiculos, TOLERANCIA_DE_CPF,
+  podeGerenciarVeiculos, podeBloquearCpf, TOLERANCIA_DE_CPF,
   type RegistroParaInferencia,
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
@@ -46,7 +46,7 @@ import type {
   ResultadoDeAtribuicao, SetorParaAtribuir, TrabalhoDaPessoa,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, StatusDaEtapa, Sessao, TipoDeAviso, VisaoDeAtividade,
-  CondutorEncontrado, DadosDeVeiculo, Veiculo, VeiculosDoEvento,
+  CondutorEncontrado, DadosDeVeiculo, Veiculo, VeiculosDoEvento, CpfBloqueado,
 } from './tipos.js'
 import { VISOES_DE_ATIVIDADE } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
@@ -378,6 +378,23 @@ const VEICULOS_DE_MENTIRA: Record<string, Veiculo[]> = {
       empresa: 'Estrutura Palco Ltda', observacoes: 'Carga pesada — entra só pela doca',
       condutorNome: 'Rodrigo Menezes Lima', condutorCpf: '21890647355',
       dias: ['2026-09-03', '2026-09-04'], temFoto: true,
+    },
+  ],
+  'ev-2': [],
+  'ev-3': [],
+}
+
+/**
+ * Os CPFs bloqueados de cada evento — quem não pode se cadastrar nele.
+ *
+ * Um já bloqueado em ev-1, pra tela nascer com a lista não-vazia (o motivo
+ * fica registrado, quem bloqueou também).
+ */
+const BLOQUEIOS_DE_MENTIRA: Record<string, CpfBloqueado[]> = {
+  'ev-1': [
+    {
+      id: 'bloq-1', cpf: '11144477735', motivo: 'Tentou entrar sem estar escalado',
+      criadoEm: '2026-09-04T22:10:00-03:00', bloqueadoPor: 'Marina Alves',
     },
   ],
   'ev-2': [],
@@ -2905,6 +2922,82 @@ export class ClienteFalso implements ClienteApi {
     const lista = VEICULOS_DE_MENTIRA[eventoId]
     const i = lista?.findIndex(v => v.id === veiculoId) ?? -1
     if (!lista || i < 0) return { erro: 'Não encontramos este veículo.' }
+
+    lista.splice(i, 1)
+    return {}
+  }
+
+  // ── Bloquear CPF ─────────────────────────────────────────────────────────
+  //
+  // Quem não pode se cadastrar NESTE evento. Vale para o evento inteiro, e só
+  // para este evento. Trazido do site em 11/09/2026.
+
+  /**
+   * O supervisor só bloqueia nos eventos onde tem setor — mesma régua
+   * simplificada de `eventosParaAcompanhar` (só ev-2, no falso).
+   */
+  private exigirAcessoABloqueio(eventoId: string): void {
+    this.exigirSessao()
+    this.exigirPoder(podeBloquearCpf, 'bloquear CPF neste evento')
+    if (this.sessao!.papel === 'supervisor' && eventoId !== 'ev-2') {
+      throw new Error('Você não tem setor neste evento.')
+    }
+  }
+
+  async eventosParaBloqueio(): Promise<EventoEscaneavel[]> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeBloquearCpf, 'bloquear CPF')
+
+    const meus = this.sessao!.papel === 'supervisor'
+      ? EVENTOS_DO_PAINEL.filter(e => e.eventoId === 'ev-2')
+      : ehMaster(this.sessao!.papel)
+        ? EVENTOS_DO_PAINEL
+        : EVENTOS_DO_PAINEL.filter(e => e.organizacaoId === ORGANIZACAO_DO_ADMIN_DE_MENTIRA)
+    return meus.map(e => ({ eventoId: e.eventoId, nome: e.nome }))
+  }
+
+  async bloqueiosDoEvento(eventoId: string): Promise<CpfBloqueado[]> {
+    await this.rede()
+    this.exigirAcessoABloqueio(eventoId)
+    // Cópia, não a referência — mesmo motivo de `veiculosDoEvento`.
+    return [...(BLOQUEIOS_DE_MENTIRA[eventoId] ?? [])]
+  }
+
+  async bloquearCpf(
+    eventoId: string, cpfDigitado: string, motivo?: string,
+  ): Promise<{ cpf?: string; erro?: string }> {
+    await this.rede()
+    this.exigirAcessoABloqueio(eventoId)
+
+    const cpf = (cpfDigitado ?? '').replace(/\D/g, '')
+    if (cpf.length !== 11) return { erro: 'O CPF precisa ter 11 dígitos.' }
+
+    const lista = BLOQUEIOS_DE_MENTIRA[eventoId]
+    if (!lista) return { erro: 'Não encontramos este evento.' }
+    if (lista.some(b => b.cpf === cpf)) return { erro: 'Este CPF já está bloqueado neste evento.' }
+
+    lista.push({
+      id: `bloq-${Math.random().toString(16).slice(2, 8)}`,
+      cpf,
+      motivo: (motivo ?? '').trim() || null,
+      criadoEm: new Date(this.agora()).toISOString(),
+      bloqueadoPor: this.quemEntrou.nome,
+    })
+
+    return { cpf }
+  }
+
+  /** Mesma régua de quem pode bloquear: quem bloqueia pode liberar. */
+  async desbloquearCpf(bloqueioId: string, eventoId: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirAcessoABloqueio(eventoId)
+
+    // O bloqueio tem que ser DESTE evento: sem isto, um id colado na chamada
+    // liberaria o bloqueio de outro evento.
+    const lista = BLOQUEIOS_DE_MENTIRA[eventoId]
+    const i = lista?.findIndex(b => b.id === bloqueioId) ?? -1
+    if (!lista || i < 0) return { erro: 'Bloqueio não encontrado.' }
 
     lista.splice(i, 1)
     return {}

@@ -133,3 +133,17 @@ export const podeAcompanhar = (papel?: string) =>
  */
 export const podeGerenciarVeiculos = (papel?: string) =>
   papel === 'master' || papel === 'admin' || papel === 'suporte'
+
+/**
+ * Pode bloquear/liberar um CPF NESTE evento — supervisor, quem gerencia
+ * eventos, e suporte.
+ *
+ * O supervisor entra porque é ele quem vê a pessoa tentando se cadastrar sem
+ * estar escalada — mas só nos eventos onde tem setor (o escopo mora em quem
+ * chama, não aqui). `operador_portao` fica de fora: ele lê o QR, não decide
+ * quem pode se cadastrar. No site esta régua não é uma capacidade do
+ * catálogo de Configurações — vive só em `exigirAcessoABloqueio`
+ * (lib/actions.ts), local à ação. Trazido em 11/09/2026.
+ */
+export const podeBloquearCpf = (papel?: string) =>
+  podeGerenciarEventos(papel) || papel === 'supervisor' || papel === 'suporte'

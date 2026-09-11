@@ -38,15 +38,15 @@ uma regra só.
 ## O que já está construído
 
 ```
-packages/dominio     a regra de negócio, pura — 68 testes
+packages/dominio     a regra de negócio, pura — 69 testes
 packages/offline     a fila de batidas sem internet — 22 testes
-packages/contrato    o que o app pode pedir + servidor falso — 156 testes
+packages/contrato    o que o app pode pedir + servidor falso — 162 testes
 apps/api             a API HTTP completa — 108 testes
 apps/app             o aplicativo, em React Native + Expo — 85 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**439 testes.** `npm run verificar` roda tipos e testes de
+**446 testes.** `npm run verificar` roda tipos e testes de
 tudo, sem banco e sem rede. Só `npm run teste` NÃO confere tipos — o `tsx` não
 olha para eles.
 

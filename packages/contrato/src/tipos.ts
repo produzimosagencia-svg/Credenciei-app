@@ -1139,3 +1139,24 @@ export type DadosDeVeiculo = {
   dias?: string[]
   fotoBase64?: string | null
 }
+
+// ─── Bloquear CPF ───────────────────────────────────────────────────────────
+//
+// Quem não pode se cadastrar NESTE evento — trazido do site em 11/09/2026.
+// Caso real: alguém tenta entrar sem estar escalado; tirar da equipe resolve
+// o vínculo de hoje, mas a pessoa se cadastra de novo pelo mesmo link cinco
+// minutos depois. O bloqueio fecha essa porta.
+//
+// Vale para o EVENTO INTEIRO, não um setor: barrar só num setor deixaria a
+// pessoa se cadastrar no setor ao lado. E vale SÓ deste evento — ela segue
+// livre para trabalhar em qualquer outro da plataforma; isto é uma decisão
+// operacional de um evento, não um veto permanente ao trabalho de alguém.
+// Bloquear não apaga quem já está cadastrado nem o histórico de batidas.
+
+export type CpfBloqueado = {
+  id: string
+  cpf: string
+  motivo: string | null
+  criadoEm: string
+  bloqueadoPor: string | null
+}

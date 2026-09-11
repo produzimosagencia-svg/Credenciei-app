@@ -9,8 +9,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ehDePainel, ehMaster, ehSuporte, NOME_DO_PAPEL, podeAcompanhar, podeEscanear,
-  podeExcluir, podeGerenciarEventos, podeGerenciarOrganizacoes,
+  ehDePainel, ehMaster, ehSuporte, NOME_DO_PAPEL, podeAcompanhar, podeBloquearCpf,
+  podeEscanear, podeExcluir, podeGerenciarEventos, podeGerenciarOrganizacoes,
   podeGerenciarUsuarios, podeGerenciarVeiculos, veTodosEventos, type Papel,
 } from './permissoes.js'
 
@@ -21,6 +21,7 @@ const TODOS: Papel[] = [
 const PODERES = [
   ehMaster, veTodosEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
   podeGerenciarEventos, podeExcluir, podeEscanear, podeAcompanhar, podeGerenciarVeiculos,
+  podeBloquearCpf,
 ]
 
 test('o colaborador não pode NADA do painel', () => {
@@ -119,6 +120,15 @@ test('veículos: master, admin e suporte gerenciam — o resto não', () => {
     const esperado = papel === 'master' || papel === 'admin' || papel === 'suporte'
     assert.equal(podeGerenciarVeiculos(papel), esperado, `podeGerenciarVeiculos(${papel})`)
   }
+})
+
+test('bloquear CPF: quem gerencia evento, supervisor e suporte — não o operador de portão', () => {
+  // Operador de portão lê o QR, não decide quem pode se cadastrar.
+  for (const papel of TODOS) {
+    const esperado = podeGerenciarEventos(papel) || papel === 'supervisor' || papel === 'suporte'
+    assert.equal(podeBloquearCpf(papel), esperado, `podeBloquearCpf(${papel})`)
+  }
+  assert.equal(podeBloquearCpf('operador_portao'), false)
 })
 
 test('todo papel tem um nome para mostrar na tela', () => {

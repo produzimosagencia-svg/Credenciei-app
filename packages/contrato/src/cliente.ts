@@ -20,7 +20,7 @@ import type {
   ListaDeOrganizacoes, Organizacao, PainelDoWhatsApp, ResultadoDeAtribuicao,
   ResultadoDaImportacao, ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida,
   ResumoParticipacao, SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
-  CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento,
+  CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
 } from './tipos.js'
 
 export interface ClienteApi {
@@ -386,4 +386,24 @@ export interface ClienteApi {
   ): Promise<{ placa?: string; condutor?: string; erro?: string }>
 
   excluirVeiculo(veiculoId: string, eventoId: string): Promise<{ erro?: string }>
+
+  // ── Bloquear CPF ────────────────────────────────────────────────────────
+  //
+  // Quem não pode se cadastrar NESTE evento. Vale para o evento inteiro, não
+  // um setor; e só para este evento — a pessoa segue livre em qualquer
+  // outro. Trazido do site em 11/09/2026.
+
+  /** Os eventos que ESTA pessoa pode bloquear CPF — mesmo alcance de `podeBloquearCpf`. */
+  eventosParaBloqueio(): Promise<EventoEscaneavel[]>
+
+  bloqueiosDoEvento(eventoId: string): Promise<CpfBloqueado[]>
+
+  bloquearCpf(
+    eventoId: string,
+    cpf: string,
+    motivo?: string,
+  ): Promise<{ cpf?: string; erro?: string }>
+
+  /** Mesma régua de quem pode bloquear: quem bloqueia pode liberar. */
+  desbloquearCpf(bloqueioId: string, eventoId: string): Promise<{ erro?: string }>
 }

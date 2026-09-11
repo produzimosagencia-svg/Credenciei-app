@@ -50,6 +50,7 @@ import Radio from 'lucide-react-native/icons/radio'
 import RefreshCw from 'lucide-react-native/icons/refresh-cw'
 import ScanSearch from 'lucide-react-native/icons/search'
 import Send from 'lucide-react-native/icons/send'
+import ShieldBan from 'lucide-react-native/icons/shield-ban'
 import ShieldCheck from 'lucide-react-native/icons/shield-check'
 import SwitchCamera from 'lucide-react-native/icons/switch-camera'
 import TriangleAlert from 'lucide-react-native/icons/triangle-alert'
@@ -105,6 +106,7 @@ const ICONES: Record<string, LucideIcon> = {
   ScanLine,
   Search: ScanSearch,
   Send,
+  ShieldBan,
   ShieldCheck,
   SwitchCamera,
   Truck,

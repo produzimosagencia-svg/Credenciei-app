@@ -17,7 +17,8 @@
 // Painel, e o item levaria para a mesma tela em que a pessoa já está.
 
 import {
-  ehMaster, podeAcompanhar, podeEscanear, podeGerenciarUsuarios, podeGerenciarVeiculos,
+  ehMaster, podeAcompanhar, podeBloquearCpf, podeEscanear, podeGerenciarUsuarios,
+  podeGerenciarVeiculos,
 } from '@credenciei/dominio'
 
 export type ItemDoMenu = {
@@ -77,6 +78,13 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
   // conserta a operação no dia, e veículo é uma das coisas que ele corrige.
   if (podeGerenciarVeiculos(papel)) {
     principal.push({ rota: '/veiculos', rotulo: 'Veículos', icone: 'Truck', pronta: true })
+  }
+
+  // O supervisor entra: é ele quem vê a pessoa tentando se cadastrar sem
+  // estar escalada. O operador de portão fica de fora — lê o QR, não decide
+  // quem pode se cadastrar.
+  if (podeBloquearCpf(papel)) {
+    principal.push({ rota: '/bloquear-cpf', rotulo: 'Bloquear CPF', icone: 'ShieldBan', pronta: true })
   }
 
   grupos.push({ itens: principal })
