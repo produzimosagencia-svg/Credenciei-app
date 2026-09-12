@@ -27,6 +27,7 @@ import type { Dependencias as DepSessao } from './rotas/sessao.js'
 import { entrar, entrarComSenha, pedirCodigo } from './rotas/sessao.js'
 import { registrarBatida } from './rotas/batidas.js'
 import { painelDaEquipe } from './rotas/equipe.js'
+import { painel } from './rotas/painel.js'
 import {
   consultarConvite, entrarNoEvento, meuFinanceiro, meuQr, meusDias,
   minhasParticipacoes, type FonteDeCampos,
@@ -202,6 +203,10 @@ export function criarServidor(amb: Ambiente) {
   // ── Supervisor ──────────────────────────────────────────────────────────
   app.get('/v1/equipe', async c =>
     protegido(c, () => painelDaEquipe(amb.repo, c.get('pessoaId'))))
+
+  // ── Painel ──────────────────────────────────────────────────────────────
+  app.get('/v1/painel', async c =>
+    protegido(c, () => painel(amb.repo, c.get('pessoaId'))))
 
   return app
 }

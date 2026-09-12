@@ -362,7 +362,11 @@ export class ClienteHttp implements ClienteApi {
 
   // ─── Painel ───────────────────────────────────────────────────────────────
 
-  async painel(): Promise<Painel> { throw new AindaNaoNaApi('painel') }
+  async painel(): Promise<Painel> {
+    const r = await this.pedir('/v1/painel')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos montar o painel.'))
+    return r.corpo as unknown as Painel
+  }
 
   // ─── Escanear QR ──────────────────────────────────────────────────────────
 

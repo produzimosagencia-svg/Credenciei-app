@@ -12,7 +12,7 @@ import {
   diaBRT, janelaMeio, faseDoDia, faseAtualDoQR, avaliarEntradaSaida,
   conferirHorariosDoEvento, ehDiaPrincipal, horariosEsperados, periodoDoEvento,
   inferirMomentoDoScanner, type RegistroParaInferencia,
-  HORAS_ATE_MEIO,
+  HORAS_ATE_MEIO, janelaDeOperacaoDoEvento,
 } from './janelas.js'
 
 // ─── O fuso ─────────────────────────────────────────────────────────────────
@@ -194,6 +194,41 @@ test('dia principal é a data de início do evento', () => {
 test('evento sem data de fim vale por um dia só', () => {
   const p = periodoDoEvento({ data_inicio: '2026-08-29T18:00:00-03:00' })
   assert.deepEqual(p, { primeiro: '2026-08-29', ultimo: '2026-08-29' })
+})
+
+// ─── A janela de operação, para o Painel ───────────────────────────────────
+
+test('a janela de operação usa o menor início e o maior fim entre as janelas configuradas', () => {
+  const evento = {
+    nome: 'Henrique e Juliano',
+    janela_entrada_inicio: '2026-09-05T07:00:00-03:00',
+    janela_entrada_fim: '2026-09-05T23:55:00-03:00',
+    janela_fim_inicio: '2026-09-06T01:30:00-03:00',
+    janela_fim_fim: '2026-09-06T08:00:00-03:00',
+  }
+  const j = janelaDeOperacaoDoEvento(evento)
+  assert.equal(j?.de, new Date('2026-09-05T07:00:00-03:00').toISOString())
+  assert.equal(j?.ate, new Date('2026-09-06T08:00:00-03:00').toISOString())
+  assert.equal(j?.nome, 'Henrique e Juliano')
+})
+
+test('sem nenhuma janela configurada, cai para as datas do evento', () => {
+  const j = janelaDeOperacaoDoEvento({
+    nome: 'Evento sem horário',
+    data_inicio: '2026-08-29T18:00:00-03:00',
+    data_fim: '2026-08-30T02:00:00-03:00',
+  })
+  assert.equal(j?.de, new Date('2026-08-29T18:00:00-03:00').toISOString())
+  assert.equal(j?.ate, new Date('2026-08-30T02:00:00-03:00').toISOString())
+})
+
+test('sem evento, ou sem nada para calcular a janela, devolve null', () => {
+  assert.equal(janelaDeOperacaoDoEvento(null), null)
+  assert.equal(janelaDeOperacaoDoEvento({}), null)
+  // Fim antes (ou igual a) do início é dado ruim — não vira janela invertida.
+  assert.equal(janelaDeOperacaoDoEvento({
+    data_inicio: '2026-08-30T18:00:00-03:00', data_fim: '2026-08-29T18:00:00-03:00',
+  }), null)
 })
 
 // ─── Quem pode bater ────────────────────────────────────────────────────────

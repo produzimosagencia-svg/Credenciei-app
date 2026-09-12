@@ -75,6 +75,36 @@ export type Evento = {
   checkin_autonomo: boolean | null
   codigoConvite: string | null
   exigeAprovacao: boolean
+  /** Encerrado não some — só para de aceitar presença nova. Ver o Painel. */
+  ativo: boolean
+}
+
+/** Um evento com o que o Painel precisa contar, sem carregar o resto dele. */
+export type EventoResumido = {
+  id: string
+  nome: string
+  local: string | null
+  dataInicio: string | null
+  organizacaoId: string | null
+  ativo: boolean
+}
+
+export type EventoComContagens = EventoResumido & {
+  setores: number
+  /** Quantas pessoas têm participação neste evento — ativa ou não. */
+  equipe: number
+  /** Quantas já bateram entrada alguma vez neste evento — pessoa distinta. */
+  presentes: number
+}
+
+/** Uma batida do feed "Atividade recente" do Painel. */
+export type AtividadeBruta = {
+  id: string
+  nomePessoa: string
+  /** O nome do setor (fornecedor) de quem bateu — `null` se não achou. */
+  setorNome: string | null
+  tipo: 'entrada' | 'meio' | 'fim'
+  em: string
 }
 
 export type Participacao = {
@@ -129,6 +159,21 @@ export interface Repositorio {
   eventoPorCodigo(codigo: string): Promise<Evento | null>
   eventoPorId(id: string): Promise<Evento | null>
   diasDoEvento(eventoId: string): Promise<DiaDeTrabalho[]>
+
+  /**
+   * Os eventos com setores/equipe/presentes já contados — para o Painel.
+   *
+   * `organizacaoId: null` sem `eventoId` é o master: todas as organizações.
+   * Com `eventoId`, o recorte é UM evento só — o caso do supervisor, que só
+   * enxerga o próprio (ver `equipeDoSupervisor`).
+   */
+  eventosComContagens(opcoes: { organizacaoId?: string | null; eventoId?: string }): Promise<EventoComContagens[]>
+
+  /** Registros de QUALQUER participação do evento, entre dois instantes. */
+  registrosEntrePeriodo(eventoId: string, de: string, ate: string): Promise<{ tipo: 'entrada' | 'meio' | 'fim' }[]>
+
+  /** As últimas batidas dos eventos informados — o pulso da operação. */
+  atividadeRecente(eventoIds: string[], limite: number): Promise<AtividadeBruta[]>
 
   // ── Participação ────────────────────────────────────────────────────────
   participacoesDaPessoa(pessoaId: string): Promise<Participacao[]>

@@ -123,6 +123,42 @@ export function periodoDoEvento(evento: EventoJanelas): { primeiro: string; ulti
 }
 
 /**
+ * A janela de OPERAÇÃO do evento: da primeira etapa que abre até a última que
+ * fecha — para o Painel dizer "de que período falam os números", e contar
+ * quantas batidas caem dentro dele.
+ *
+ * Usa o MENOR início e o MAIOR fim entre as janelas configuradas, e não
+ * `janela_entrada_inicio`/`janela_fim_fim` direto, porque janela em branco é
+ * comum — evento com só entrada configurada, por exemplo. As datas do evento
+ * entram como último recurso; sem nada disso, não há janela a contar.
+ *
+ * Copiado de `app/admin/page.tsx` (`janelaDoEvento`), sem a parte de "casas"
+ * do gráfico — o app não desenha o gráfico por hora, só mostra o total e a
+ * legenda (ver `Painel.legendaDaJanela`).
+ */
+export function janelaDeOperacaoDoEvento(
+  evento: (EventoJanelas & { nome?: string | null }) | null
+): { de: string; ate: string; nome: string } | null {
+  if (!evento) return null
+
+  const instante = (v: string | null | undefined) => {
+    const t = v ? new Date(v).getTime() : NaN
+    return Number.isFinite(t) ? t : null
+  }
+
+  const inicios = [evento.janela_entrada_inicio, evento.janela_meio_inicio, evento.janela_fim_inicio]
+    .map(instante).filter((v): v is number => v != null)
+  const fins = [evento.janela_fim_fim, evento.janela_meio_fim, evento.janela_entrada_fim]
+    .map(instante).filter((v): v is number => v != null)
+
+  const inicio = inicios.length ? Math.min(...inicios) : instante(evento.data_inicio)
+  const fim = fins.length ? Math.max(...fins) : instante(evento.data_fim)
+  if (inicio == null || fim == null || fim <= inicio) return null
+
+  return { de: new Date(inicio).toISOString(), ate: new Date(fim).toISOString(), nome: evento.nome ?? '' }
+}
+
+/**
  * O DIA PRINCIPAL é a data de início do evento.
  *
  * É o dia em que o evento de fato acontece, e o único para o qual o produtor

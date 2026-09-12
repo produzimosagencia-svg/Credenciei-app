@@ -32,7 +32,8 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type {
-  DiaDeTrabalho, Evento, NovoRegistro, Participacao, Perfil, Pessoa, Registro, Repositorio,
+  AtividadeBruta, DiaDeTrabalho, Evento, EventoComContagens, NovoRegistro, Participacao,
+  Perfil, Pessoa, Registro, Repositorio,
 } from './repositorio.js'
 
 const soDigitos = (v: string | null | undefined) => (v ?? '').replace(/\D/g, '')
@@ -219,6 +220,94 @@ export class RepositorioSupabase implements Repositorio {
     }))
   }
 
+  /**
+   * Duas idas ao banco para a página inteira — não uma por evento, que
+   * multiplicaria requisição conforme a lista de eventos cresce. Mesma
+   * receita de `app/admin/page.tsx` no site.
+   *
+   * LIMITE CONHECIDO: cada consulta traz até 1000 linhas (teto do
+   * PostgREST) — um evento com mais de 1000 pessoas ou 1000 entradas sai
+   * subcontado. O site tem `buscarTudo` para isso (pagina em lotes); aqui
+   * ainda não — é trabalho da Epic 13 (Escala), não desta fase. Ver
+   * `docs/backlog.md`.
+   */
+  async eventosComContagens(
+    opcoes: { organizacaoId?: string | null; eventoId?: string },
+  ): Promise<EventoComContagens[]> {
+    let query = this.db.from('eventos').select('id, nome, local, data_inicio, organizacao_id, ativo, fornecedores(count)')
+      .order('data_inicio', { ascending: false })
+
+    if (opcoes.eventoId) query = query.eq('id', opcoes.eventoId)
+    else if (opcoes.organizacaoId !== undefined && opcoes.organizacaoId !== null) {
+      query = query.eq('organizacao_id', opcoes.organizacaoId)
+    }
+
+    const { data: eventos } = await query
+    const idsDosEventos = (eventos ?? []).map(e => e.id as string)
+    if (!idsDosEventos.length) return []
+
+    const [{ data: funcionarios }, { data: entradas }] = await Promise.all([
+      this.db.from('funcionarios').select('id, fornecedores!inner(evento_id)').in('fornecedores.evento_id', idsDosEventos),
+      this.db.from('registros').select('funcionario_id, evento_id').in('evento_id', idsDosEventos).eq('tipo', 'entrada'),
+    ])
+
+    const equipePorEvento = new Map<string, number>()
+    for (const f of funcionarios ?? []) {
+      const eid = (f.fornecedores as unknown as { evento_id: string })?.evento_id
+      if (eid) equipePorEvento.set(eid, (equipePorEvento.get(eid) ?? 0) + 1)
+    }
+    // Um Set por evento: a mesma pessoa pode ter mais de um registro de entrada.
+    const presentesPorEvento = new Map<string, Set<string>>()
+    for (const r of entradas ?? []) {
+      const eid = r.evento_id as string
+      if (!presentesPorEvento.has(eid)) presentesPorEvento.set(eid, new Set())
+      presentesPorEvento.get(eid)!.add(r.funcionario_id as string)
+    }
+
+    return (eventos ?? []).map(e => ({
+      id: e.id as string,
+      nome: e.nome as string,
+      local: (e.local as string | null) ?? null,
+      dataInicio: (e.data_inicio as string | null) ?? null,
+      organizacaoId: (e.organizacao_id as string | null) ?? null,
+      ativo: e.ativo === true,
+      setores: (e.fornecedores as { count: number }[] | null)?.[0]?.count ?? 0,
+      equipe: equipePorEvento.get(e.id as string) ?? 0,
+      presentes: presentesPorEvento.get(e.id as string)?.size ?? 0,
+    }))
+  }
+
+  async registrosEntrePeriodo(eventoId: string, de: string, ate: string) {
+    const { data } = await this.db
+      .from('registros')
+      .select('tipo')
+      .eq('evento_id', eventoId)
+      .gte('created_at', de)
+      .lte('created_at', ate)
+    return (data ?? []).map(r => ({ tipo: r.tipo as 'entrada' | 'meio' | 'fim' }))
+  }
+
+  async atividadeRecente(eventoIds: string[], limite: number): Promise<AtividadeBruta[]> {
+    if (!eventoIds.length) return []
+    const { data } = await this.db
+      .from('registros')
+      .select('id, tipo, created_at, funcionarios(nome, fornecedores(nome))')
+      .in('evento_id', eventoIds)
+      .order('created_at', { ascending: false })
+      .limit(limite)
+
+    return (data ?? []).map(r => {
+      const func = r.funcionarios as unknown as { nome: string; fornecedores: { nome: string } | null } | null
+      return {
+        id: r.id as string,
+        nomePessoa: func?.nome ?? '',
+        setorNome: func?.fornecedores?.nome ?? null,
+        tipo: r.tipo as 'entrada' | 'meio' | 'fim',
+        em: r.created_at as string,
+      }
+    })
+  }
+
   // ── Participação ──────────────────────────────────────────────────────────
 
   async participacoesDaPessoa(pessoaId: string): Promise<Participacao[]> {
@@ -388,7 +477,7 @@ export class RepositorioSupabase implements Repositorio {
 const CAMPOS_EVENTO =
   'id, nome, organizacao_id, local, data_inicio, data_fim, ' +
   'janela_entrada_inicio, janela_entrada_fim, janela_fim_inicio, janela_fim_fim, ' +
-  'batida_livre, checkin_autonomo'
+  'batida_livre, checkin_autonomo, ativo'
 
 const CAMPOS_FUNCIONARIO =
   'id, nome, cpf, telefone, cargo, ativo, descredenciado_em, ' +
@@ -419,6 +508,9 @@ function paraEvento(l: Record<string, unknown>): Evento {
     checkin_autonomo: (l.checkin_autonomo as boolean | null) ?? false,
     codigoConvite: (l.codigo_convite as string | null) ?? null,
     exigeAprovacao: false,
+    // Ausente vira `true`: eventos antigos, de antes da coluna existir, não
+    // podem "desaparecer" do Painel por uma migração que nem mexeu neles.
+    ativo: l.ativo !== false,
   }
 }
 

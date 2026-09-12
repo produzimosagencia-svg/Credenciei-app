@@ -8,7 +8,8 @@
 // desenvolvimento local antes de a implementação sobre o Supabase ficar pronta.
 
 import type {
-  DiaDeTrabalho, Evento, NovoRegistro, Participacao, Perfil, Pessoa, Registro, Repositorio,
+  AtividadeBruta, DiaDeTrabalho, Evento, EventoComContagens, NovoRegistro, Participacao,
+  Perfil, Pessoa, Registro, Repositorio,
 } from './repositorio.js'
 
 let seq = 0
@@ -56,6 +57,73 @@ export class RepositorioEmMemoria implements Repositorio {
 
   async diasDoEvento(eventoId: string) {
     return this.dias.get(eventoId) ?? []
+  }
+
+  async eventosComContagens(
+    opcoes: { organizacaoId?: string | null; eventoId?: string },
+  ): Promise<EventoComContagens[]> {
+    const alvo = opcoes.eventoId
+      ? this.eventos.filter(e => e.id === opcoes.eventoId)
+      : opcoes.organizacaoId === undefined
+        ? this.eventos
+        : this.eventos.filter(e => opcoes.organizacaoId === null || e.organizacaoId === opcoes.organizacaoId)
+
+    return alvo.map(evento => {
+      const equipesDoEvento = this.equipes.filter(eq => eq.eventoId === evento.id)
+      const idsDeEquipe = new Set(equipesDoEvento.map(eq => eq.id))
+      const participacoesDoEvento = this.participacoes.filter(p => idsDeEquipe.has(p.equipeId))
+      const presentes = participacoesDoEvento.filter(
+        p => this.registros.some(r => r.participacaoId === p.id && r.tipo === 'entrada'),
+      ).length
+
+      return {
+        id: evento.id,
+        nome: evento.nome,
+        local: evento.local,
+        dataInicio: evento.dataInicio,
+        organizacaoId: evento.organizacaoId,
+        ativo: evento.ativo,
+        setores: equipesDoEvento.length,
+        equipe: participacoesDoEvento.length,
+        presentes,
+      }
+    })
+  }
+
+  async registrosEntrePeriodo(eventoId: string, de: string, ate: string) {
+    const idsDeEquipe = new Set(this.equipes.filter(eq => eq.eventoId === eventoId).map(eq => eq.id))
+    const idsDeParticipacao = new Set(
+      this.participacoes.filter(p => idsDeEquipe.has(p.equipeId)).map(p => p.id),
+    )
+    return this.registros
+      .filter(r => idsDeParticipacao.has(r.participacaoId) && r.registradoEm >= de && r.registradoEm <= ate)
+      .map(r => ({ tipo: r.tipo }))
+  }
+
+  async atividadeRecente(eventoIds: string[], limite: number): Promise<AtividadeBruta[]> {
+    const idsDeEventoAlvo = new Set(eventoIds)
+    const idsDeEquipe = new Set(
+      this.equipes.filter(eq => idsDeEventoAlvo.has(eq.eventoId)).map(eq => eq.id),
+    )
+    const participacaoPorId = new Map(
+      this.participacoes.filter(p => idsDeEquipe.has(p.equipeId)).map(p => [p.id, p]),
+    )
+
+    return this.registros
+      .filter(r => participacaoPorId.has(r.participacaoId))
+      .sort((a, b) => b.registradoEm.localeCompare(a.registradoEm))
+      .slice(0, limite)
+      .map(r => {
+        const participacao = participacaoPorId.get(r.participacaoId)!
+        const pessoa = this.pessoas.find(p => p.id === participacao.pessoaId)
+        return {
+          id: r.id,
+          nomePessoa: pessoa?.nome ?? '',
+          setorNome: participacao.equipeNome,
+          tipo: r.tipo,
+          em: r.registradoEm,
+        }
+      })
   }
 
   // ── Participação ──────────────────────────────────────────────────────────
@@ -149,6 +217,7 @@ export function cenarioHenriqueEJuliano() {
     checkin_autonomo: false,
     codigoConvite: 'HJK-2026-K7M2',
     exigeAprovacao: false,
+    ativo: true,
   }
   repo.eventos.push(evento)
 

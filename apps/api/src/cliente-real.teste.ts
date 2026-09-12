@@ -279,6 +279,18 @@ test('depois de entrar com senha, /v1/eu responde o papel de painel', async () =
   assert.equal(eu.nome, 'Juan Muzy')
 })
 
+test('o painel vem da API de verdade, com o recorte do admin', async () => {
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(r.sessao, r.erro)
+  m.guardarToken(r.sessao.token)
+
+  const p = await m.cliente.painel()
+  assert.equal(p.eventos.length, 1)
+  assert.equal(p.eventos[0]?.nome, 'Henrique e Juliano — Kleber Andrade')
+  assert.ok(p.indicadores.some(i => i.chave === 'eventos_ativos'))
+})
+
 test('senha errada por HTTP devolve erro, não exceção', async () => {
   const m = montar()
   const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'errada')
@@ -315,7 +327,7 @@ test('o que a API não tem falha dizendo o nome, e não devolve vazio', async ()
   await entrar(m)
 
   for (const chamar of [
-    () => m.cliente.painel(),
+    () => m.cliente.eventosParaAcompanhar(),
     () => m.cliente.eventosParaEscanear(),
     () => m.cliente.atividades('ev-1'),
     () => m.cliente.acessos(),
