@@ -9,7 +9,7 @@
 // dele, e que ele vai querer de volta se voltar. Por isso a lista continua
 // mostrando quem está suspenso, e a ação é reversível com um toque.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { StyleSheet, Text, View } from 'react-native'
 import { formatarBR } from '@credenciei/dominio'
@@ -21,7 +21,8 @@ import {
   TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 const PERIODO: Record<string, string> = {
   mensal: '/mês',
@@ -108,6 +109,9 @@ export default function Organizacoes() {
 function CartaoDaOrganizacao({
   org, ocupado, aoAlternar,
 }: { org: Organizacao; ocupado: boolean; aoAlternar: () => void }) {
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
+
   /*
    * O limite é o número que interessa ao dono da plataforma: é dele que sai a
    * conversa de renovação. Quando está cheio, ele precisa saltar aos olhos.
@@ -205,23 +209,25 @@ function emReais(valor: number): string {
   return `R$ ${comPontos}`
 }
 
-const e = StyleSheet.create({
-  topo: { flexDirection: 'row', alignItems: 'center', gap: espaco.m },
-  suspensa: { opacity: 0.7 },
-  marca: {
-    width: 40,
-    height: 40,
-    borderRadius: raio.peca,
-    backgroundColor: cor.acento50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iniciais: { ...texto.corpoForte, color: cor.acento700 },
-  topoTexto: { flex: 1, minWidth: 0 },
-  linhaDoNome: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, flexWrap: 'wrap' },
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    topo: { flexDirection: 'row', alignItems: 'center', gap: espaco.m },
+    suspensa: { opacity: 0.7 },
+    marca: {
+      width: 40,
+      height: 40,
+      borderRadius: raio.peca,
+      backgroundColor: cor.acento50,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iniciais: { ...texto.corpoForte, color: cor.acento700 },
+    topoTexto: { flex: 1, minWidth: 0 },
+    linhaDoNome: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, flexWrap: 'wrap' },
 
-  linhas: { gap: espaco.xs },
-  linha: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  meta: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, flexShrink: 1 },
-  metaAlerta: { color: cor.aviso700, fontFamily: tipo.semi },
-})
+    linhas: { gap: espaco.xs },
+    linha: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    meta: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, flexShrink: 1 },
+    metaAlerta: { color: cor.aviso700, fontFamily: tipo.semi },
+  })
+}

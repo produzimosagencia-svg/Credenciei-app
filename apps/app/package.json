@@ -15,6 +15,7 @@
     "@credenciei/contrato": "*",
     "@credenciei/dominio": "*",
     "@credenciei/offline": "*",
+    "@expo-google-fonts/archivo": "^0.4.2",
     "@expo-google-fonts/geist": "^0.4.2",
     "@expo-google-fonts/geist-mono": "^0.4.3",
     "@expo-google-fonts/inter": "^0.4.2",

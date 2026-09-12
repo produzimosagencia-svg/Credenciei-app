@@ -16,6 +16,7 @@
 // dígitos. Está anotado nas limitações conhecidas do projeto, e é por isso que
 // o estado do canal é a primeira coisa desta tela.
 
+import { useMemo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import type { TemplateDoWhatsApp } from '@credenciei/contrato'
 import { usePedido } from '../../src/dados/pedido'
@@ -25,7 +26,8 @@ import {
   Separador, Tela, TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 const ICONE: Record<string, string> = {
   enviadas: 'Send',
@@ -51,6 +53,8 @@ const SITUACAO: Record<
 
 export default function WhatsApp() {
   const { cliente } = useSessao()
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
   const { pedido, recarregar } = usePedido(() => cliente.painelDoWhatsApp(), [cliente])
   const dados = pedido.estado === 'pronto' ? pedido.dados : null
 
@@ -206,25 +210,27 @@ function emReais(valor: number): string {
   return `R$ ${comPontos},${resto}`
 }
 
-const e = StyleSheet.create({
-  grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
-  gradeItem: { width: '48%', flexGrow: 1 },
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
+    gradeItem: { width: '48%', flexGrow: 1 },
 
-  tituloComIcone: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, flexWrap: 'wrap' },
-  linha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: espaco.xs,
-  },
+    tituloComIcone: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, flexWrap: 'wrap' },
+    linha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: espaco.xs,
+    },
 
-  fio: { height: 1, backgroundColor: uso.borda },
-  template: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaco.m,
-    paddingVertical: espaco.m,
-  },
-  templateTexto: { flex: 1, minWidth: 0 },
-  templateNome: { ...texto.corpoForte, fontFamily: tipo.media, color: uso.tinta },
-})
+    fio: { height: 1, backgroundColor: uso.borda },
+    template: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.m,
+      paddingVertical: espaco.m,
+    },
+    templateTexto: { flex: 1, minWidth: 0 },
+    templateNome: { ...texto.corpoForte, fontFamily: tipo.media, color: uso.tinta },
+  })
+}

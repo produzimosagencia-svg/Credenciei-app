@@ -19,7 +19,7 @@
 // evento nasce travado por horário, do jeito mais seguro, e quem quiser
 // mudar isso abre a edição logo em seguida.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { Modal, View, StyleSheet } from 'react-native'
 import { conferirHorariosDoEvento, podeGerenciarEventos, type ProblemaDeJanela } from '@credenciei/dominio'
@@ -32,7 +32,8 @@ import {
 } from '../../src/ui/componentes'
 import { CampoDeDataHora } from '../../src/ui/data-hora'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, raio } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 /** Suspensa aparece na lista, marcada — nunca escondida sem explicação. */
 function rotuloDaOrganizacao(o: Organizacao): string {
@@ -97,6 +98,8 @@ function Formulario({
   aoTerminar: (eventoId: string) => void
   aoCancelar: () => void
 }) {
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
   const [organizacaoId, setOrganizacaoId] = useState('')
   const [nome, setNome] = useState('')
   const [descricao, setDescricao] = useState('')
@@ -282,38 +285,40 @@ function Formulario({
   )
 }
 
-const e = StyleSheet.create({
-  multiplasLinhas: { minHeight: 88, paddingTop: espaco.m, textAlignVertical: 'top' },
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    multiplasLinhas: { minHeight: 88, paddingTop: espaco.m, textAlignVertical: 'top' },
 
-  tituloComIcone: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
-  blocoDoIcone: {
-    width: 28,
-    height: 28,
-    borderRadius: raio.campo,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    tituloComIcone: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
+    blocoDoIcone: {
+      width: 28,
+      height: 28,
+      borderRadius: raio.campo,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  fundoDoAviso: {
-    flex: 1,
-    backgroundColor: 'rgba(17,17,19,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: espaco.gg,
-  },
-  caixaDoAviso: {
-    width: '100%',
-    maxWidth: 420,
-    backgroundColor: uso.superficie,
-    borderRadius: raio.folha,
-    padding: espaco.gg,
-  },
-  problema: {
-    backgroundColor: cor.erro50,
-    borderWidth: 1,
-    borderColor: cor.erro200,
-    borderRadius: raio.campo,
-    padding: espaco.m,
-    marginBottom: espaco.s,
-  },
-})
+    fundoDoAviso: {
+      flex: 1,
+      backgroundColor: 'rgba(17,17,19,0.55)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: espaco.gg,
+    },
+    caixaDoAviso: {
+      width: '100%',
+      maxWidth: 420,
+      backgroundColor: uso.superficie,
+      borderRadius: raio.folha,
+      padding: espaco.gg,
+    },
+    problema: {
+      backgroundColor: cor.erro50,
+      borderWidth: 1,
+      borderColor: cor.erro200,
+      borderRadius: raio.campo,
+      padding: espaco.m,
+      marginBottom: espaco.s,
+    },
+  })
+}

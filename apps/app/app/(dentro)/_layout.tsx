@@ -21,7 +21,8 @@ import { useSessao } from '../../src/sessao/contexto'
 import { abasDe } from '../../src/navegacao/menu'
 import { Icone } from '../../src/ui/icone'
 import { BotaoDeVoltar } from '../../src/ui/voltar'
-import { cor, texto, tipo, uso } from '../../src/ui/tema'
+import { texto, tipo } from '../../src/ui/tema'
+import { useTema } from '../../src/ui/tema-contexto'
 
 /**
  * Toda tela desta pasta.
@@ -44,6 +45,7 @@ const TELAS = [
 
 export default function Dentro() {
   const { sessao } = useSessao()
+  const { cor, uso } = useTema()
 
   if (!sessao) return <Redirect href="/entrar" />
 

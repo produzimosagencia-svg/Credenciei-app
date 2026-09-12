@@ -186,13 +186,32 @@ O que já veio e o que ainda falta está na seção "Veio do sistema web" de
 
 ## O visual não é escolha nossa
 
-O app veste o design do sistema que já está no ar: roxo `#6d46ff`, fundo
-`#d9dce3`, fonte Inter, separação por fio de 1px (não por sombra), corpo de
-13px. Os valores foram copiados de `c:\Dev\credenciei\app\globals.css` para
-`apps/app/src/ui/tema.ts`, com o motivo de cada um junto.
+O app veste o design do sistema que já está no ar: o rebranding "Arena"
+(11/09/2026) — laranja `#FF4A0F`, fonte Archivo (peso 800 nos títulos e
+números grandes), separação por fio de 1px (não por sombra), corpo de 13px,
+cantos mais arredondados (raio de 6 a 20). Os valores foram copiados de
+`c:\Dev\credenciei\app\globals.css` para `apps/app/src/ui/tema.ts`, com o
+motivo de cada um junto.
 
 É cópia por VALOR, não por referência: o arquivo de produção não é importado, e
-não pode ser. Quando o roxo mudar lá, alguém muda aqui.
+não pode ser. Quando o laranja mudar lá, alguém muda aqui.
+
+**Claro e escuro, mas claro é o padrão.** No site o escuro ("Arena") é o
+padrão e o claro é a opção; aqui é o contrário — decisão do Juan, 11/09/2026.
+O app abre claro e a pessoa liga o escuro em "Mais → Tema", guardado no
+aparelho. Os dois temas usam o mesmo laranja.
+
+Cada tela lê a cor de dentro do componente, via `useTema()`
+(`apps/app/src/ui/tema-contexto.tsx`) — nunca importando `cor`/`uso`/`sombra`
+como constante do módulo, porque esses três variam com o tema e um
+`StyleSheet.create` de nível de módulo só roda uma vez. O resto
+(`texto`, `tipo`, `espaco`, `raio`, `gradiente`, `corDaEtapa`, `eventoAoVivo`)
+é igual nos dois temas e continua sendo import direto de `tema.ts`. Ver
+`apps/app/src/ui/ficha-da-pessoa.tsx` como referência do padrão em um arquivo
+com vários componentes.
+
+Simplificação conhecida: os painéis "de vidro" do site (gradiente + blur)
+viram superfície de cor sólida aqui — sem tradução barata em React Native.
 
 **Não invente paleta, fonte nem componente.** Antes de desenhar qualquer tela
 nova, abra a equivalente em `c:\Dev\credenciei\app\` — só para LER — e siga

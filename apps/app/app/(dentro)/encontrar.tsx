@@ -21,7 +21,7 @@
 // `base-funcionarios.tsx` virou um redirect pra cá, com `?ver=todos`,
 // exatamente como o site fez com a rota antiga.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatTelefone, formatarBR } from '@credenciei/dominio'
@@ -33,7 +33,8 @@ import {
   Respiro, Selo, Tela, TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 const ICONE: Record<string, string> = {
   encontradas: 'UserSearch',
@@ -52,6 +53,7 @@ const TODA_A_BASE = 'Toda a base'
 export default function EncontrarColaborador() {
   const { ver } = useLocalSearchParams<{ ver?: string }>()
   const { cliente } = useSessao()
+  const e = useEstilos()
   const [modo, setModo] = useState<typeof PRONTAS_PRA_RECRUTAR | typeof TODA_A_BASE>(
     ver === 'todos' ? TODA_A_BASE : PRONTAS_PRA_RECRUTAR,
   )
@@ -212,6 +214,7 @@ export default function EncontrarColaborador() {
 
 function LinhaRegional({ pessoa }: { pessoa: PessoaRegional }) {
   const router = useRouter()
+  const e = useEstilos()
 
   /*
    * Chamar abre o WhatsApp com a conversa já aberta.
@@ -271,6 +274,7 @@ function LinhaRegional({ pessoa }: { pessoa: PessoaRegional }) {
 
 function LinhaDaBase({ pessoa }: { pessoa: PessoaDaBase }) {
   const router = useRouter()
+  const e = useEstilos()
 
   return (
     <View style={e.pessoa}>
@@ -301,6 +305,8 @@ function LinhaDaBase({ pessoa }: { pessoa: PessoaDaBase }) {
 }
 
 function Meta({ icone, texto: valor }: { icone: string; texto: string }) {
+  const { uso } = useTema()
+  const e = useEstilos()
   return (
     <View style={e.meta}>
       <Icone nome={icone} tamanho={11} tom={uso.tintaFraca} />
@@ -309,32 +315,39 @@ function Meta({ icone, texto: valor }: { icone: string; texto: string }) {
   )
 }
 
-const e = StyleSheet.create({
-  grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
-  gradeItem: { width: '48%', flexGrow: 1 },
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
+    gradeItem: { width: '48%', flexGrow: 1 },
 
-  rotulo: { ...texto.etiqueta, color: uso.tintaFraca },
-  cidades: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
-  cidade: {
-    minHeight: 36,
-    paddingHorizontal: espaco.m,
-    borderRadius: raio.pilula,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    backgroundColor: uso.superficie,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cidadeAtiva: { backgroundColor: cor.acento500, borderColor: cor.acento600 },
-  cidadeTexto: { ...texto.xs, fontFamily: tipo.semi, color: uso.tintaMedia },
-  cidadeTextoAtivo: { color: '#ffffff' },
+    rotulo: { ...texto.etiqueta, color: uso.tintaFraca },
+    cidades: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
+    cidade: {
+      minHeight: 36,
+      paddingHorizontal: espaco.m,
+      borderRadius: raio.pilula,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      backgroundColor: uso.superficie,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cidadeAtiva: { backgroundColor: cor.acento500, borderColor: cor.acento600 },
+    cidadeTexto: { ...texto.xs, fontFamily: tipo.semi, color: uso.tintaMedia },
+    cidadeTextoAtivo: { color: '#ffffff' },
 
-  fio: { height: 1, backgroundColor: uso.borda },
-  pessoa: { padding: espaco.g },
-  linhaDoNome: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, flexWrap: 'wrap' },
-  metas: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m, marginTop: espaco.s },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' },
-  metaTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, flexShrink: 1 },
-  selos: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s, marginTop: espaco.xs },
-  rodape: { ...texto.xxs, fontFamily: tipo.regular, color: uso.tintaFraca, marginTop: espaco.xs },
-})
+    fio: { height: 1, backgroundColor: uso.borda },
+    pessoa: { padding: espaco.g },
+    linhaDoNome: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, flexWrap: 'wrap' },
+    metas: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m, marginTop: espaco.s },
+    meta: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' },
+    metaTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, flexShrink: 1 },
+    selos: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s, marginTop: espaco.xs },
+    rodape: { ...texto.xxs, fontFamily: tipo.regular, color: uso.tintaFraca, marginTop: espaco.xs },
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

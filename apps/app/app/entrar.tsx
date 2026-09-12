@@ -31,7 +31,17 @@ import { DEMONSTRACAO } from '../src/dados/cliente'
 import { useSessao } from '../src/sessao/contexto'
 import { Marca } from '../src/ui/marca'
 import { Botao, Campo, CodigoSegmentado } from '../src/ui/componentes'
-import { cor, espaco, raio, texto, tipo } from '../src/ui/tema'
+import { espaco, PALETAS, raio, texto, tipo } from '../src/ui/tema'
+import { TemaFixo } from '../src/ui/tema-contexto'
+
+/*
+ * Sempre a cor do tema ESCURO, nunca a do alternador — igual no site: quem
+ * chega aqui ainda não tem conta, então não faz sentido nenhuma preferência
+ * de tema valer. `<TemaFixo modo="escuro">`, logo abaixo, faz o mesmo valer
+ * para `Botao`/`Campo`/`CodigoSegmentado`, que são compartilhados com o resto
+ * do app e por padrão seguiriam o alternador.
+ */
+const cor = PALETAS.escuro.cor
 import { CONTAS_DE_DEMONSTRACAO, SENHA_DE_DEMONSTRACAO } from '@credenciei/contrato'
 import type { ContaDeDemonstracao } from '@credenciei/contrato'
 import { NOME_DO_PAPEL } from '@credenciei/dominio'
@@ -106,6 +116,7 @@ export default function Entrar() {
   })
 
   return (
+    <TemaFixo modo="escuro">
     <View
       style={[
         e.fora,
@@ -228,6 +239,7 @@ export default function Entrar() {
 
       <Text style={e.rodape}>Credenciei © {new Date().getFullYear()} — Produzimos</Text>
     </View>
+    </TemaFixo>
   )
 }
 

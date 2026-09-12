@@ -11,7 +11,7 @@
 // O histórico é a segunda pergunta — aparece quando alguém contesta um dia ou
 // confere o fechamento.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatTelefone, formatarBR, NOME_DA_FASE } from '@credenciei/dominio'
 import type { FichaDaPessoa, TipoBatida } from '@credenciei/contrato'
@@ -23,9 +23,131 @@ import {
   Separador, TituloDeCartao,
 } from './componentes'
 import { Icone } from './icone'
-import { cor, corDaEtapa, espaco, raio, texto, tipo, uso } from './tema'
+import { corDaEtapa, espaco, raio, texto, tipo } from './tema'
+import { useTema, type Tokens } from './tema-contexto'
 
 const ROTULO: Record<TipoBatida, string> = { entrada: 'Entrada', meio: 'Meio', fim: 'Fim' }
+
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    fora: { flex: 1, backgroundColor: cor.fundo },
+
+    topo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.m,
+      padding: espaco.g,
+      paddingTop: espaco.ggg,
+      backgroundColor: uso.superficie,
+      borderBottomWidth: 1,
+      borderBottomColor: uso.borda,
+    },
+    identidade: { flexDirection: 'row', alignItems: 'center', gap: espaco.m, flex: 1, minWidth: 0 },
+    retrato: {
+      width: 44,
+      height: 44,
+      borderRadius: 999,
+      backgroundColor: cor.neutro100,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iniciais: { ...texto.corpoForte, color: uso.tintaMedia },
+    identidadeTexto: { flex: 1, minWidth: 0 },
+    fechar: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+
+    abas: {
+      flexDirection: 'row',
+      backgroundColor: uso.superficie,
+      borderBottomWidth: 1,
+      borderBottomColor: uso.borda,
+      paddingHorizontal: espaco.g,
+    },
+    aba: { paddingVertical: espaco.m, marginRight: espaco.g, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+    abaAtiva: { borderBottomColor: cor.acento500 },
+    abaTexto: { ...texto.corpoForte, color: uso.tintaFraca },
+    abaTextoAtivo: { color: cor.acento700 },
+
+    conteudo: { padding: espaco.g, paddingBottom: espaco.gggg },
+
+    parDeDados: { flexDirection: 'row', gap: espaco.g },
+    dado: { flex: 1, minWidth: 0 },
+    dadoRotulo: { ...texto.xs, color: uso.tintaFraca },
+
+    secao: { ...texto.etiqueta, color: uso.tintaFraca },
+    linhaDoTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espaco.m },
+
+    opcoes: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
+    opcao: {
+      minHeight: 44,
+      paddingHorizontal: espaco.g,
+      borderRadius: raio.campo,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      backgroundColor: uso.superficie,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    opcaoMarcada: { borderColor: cor.acento500, backgroundColor: cor.acento50 },
+    opcaoTexto: { ...texto.corpo, color: uso.tintaMedia },
+    opcaoTextoMarcado: { color: cor.acento700, fontFamily: tipo.semi },
+
+    presenca: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: uso.superficie,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      borderRadius: raio.campo,
+      paddingHorizontal: espaco.m,
+      paddingVertical: espaco.m,
+      marginBottom: espaco.s,
+    },
+    presencaNome: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
+    ponto: { width: 7, height: 7, borderRadius: 999 },
+
+    grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
+    gradeItem: { width: '48%', flexGrow: 1 },
+
+    contagens: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.g },
+    contagem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    contagemTexto: { ...texto.corpo, color: uso.tintaMedia },
+    contagemNumero: { fontFamily: tipo.semi, color: uso.tinta },
+
+    diaDoHistorico: {
+      backgroundColor: uso.superficie,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      borderRadius: raio.cartao,
+      padding: espaco.g,
+      marginBottom: espaco.s,
+    },
+    diaTopo: { flexDirection: 'row', alignItems: 'center', gap: espaco.m },
+    diaTexto: { flex: 1, minWidth: 0 },
+    diaEtapas: { flexDirection: 'row', gap: espaco.s, marginTop: espaco.m },
+    celula: {
+      flex: 1,
+      borderRadius: raio.campoPequeno,
+      backgroundColor: cor.neutro25,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      paddingVertical: espaco.s,
+      alignItems: 'center',
+      gap: 2,
+    },
+    celulaRotulo: { ...texto.xxs, fontSize: 9, color: uso.tintaFraca },
+    celulaValor: { ...texto.corpoForte, color: uso.tinta },
+    celulaQuieta: { ...texto.corpoForte, color: cor.neutro300 },
+    celulaFalta: { ...texto.xxs, fontFamily: tipo.semi, color: cor.erro600 },
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}
 
 export function FichaDaPessoaModal({
   participacaoId, aoFechar, aoMudar,
@@ -36,6 +158,8 @@ export function FichaDaPessoaModal({
   aoMudar: () => void
 }) {
   const { cliente } = useSessao()
+  const { uso } = useTema()
+  const e = useEstilos()
   const [aba, setAba] = useState<'dados' | 'historico'>('dados')
   const [versao, setVersao] = useState(0)
 
@@ -106,6 +230,7 @@ export function FichaDaPessoaModal({
 
 function AbaDeDados({ ficha, aoMudar }: { ficha: FichaDaPessoa; aoMudar: () => void }) {
   const { cliente } = useSessao()
+  const e = useEstilos()
   const [erro, setErro] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [destino, setDestino] = useState<string | null>(null)
@@ -324,6 +449,7 @@ function AbaDeDados({ ficha, aoMudar }: { ficha: FichaDaPessoa; aoMudar: () => v
  * embaixo é para quando a resposta não basta e alguém quer ver dia a dia.
  */
 function AbaDeHistorico({ ficha }: { ficha: FichaDaPessoa }) {
+  const e = useEstilos()
   const resumo = resumoDoHistorico(ficha.dias)
 
   return (
@@ -417,6 +543,7 @@ function AbaDeHistorico({ ficha }: { ficha: FichaDaPessoa }) {
 function CelulaDoDia({
   etapa, em, silencioso,
 }: { etapa: TipoBatida; em: string | null; silencioso: boolean }) {
+  const e = useEstilos()
   return (
     <View style={e.celula}>
       <Text style={e.celulaRotulo}>{ROTULO[etapa].toUpperCase()}</Text>
@@ -434,6 +561,7 @@ function CelulaDoDia({
 function Contagem({
   etapa, quantas, rotulo,
 }: { etapa: TipoBatida; quantas: number; rotulo: string }) {
+  const e = useEstilos()
   return (
     <View style={e.contagem}>
       <View style={[e.ponto, { backgroundColor: corDaEtapa[etapa] }]} />
@@ -445,6 +573,7 @@ function Contagem({
 }
 
 function Dado({ rotulo, valor }: { rotulo: string; valor: string }) {
+  const e = useEstilos()
   return (
     <View style={e.dado}>
       <Text style={e.dadoRotulo}>{rotulo}</Text>
@@ -464,116 +593,3 @@ function iniciaisDe(nome: string): string {
 
 const primeiroNome = (nome: string) => nome.trim().split(/\s+/)[0] ?? nome
 
-const e = StyleSheet.create({
-  fora: { flex: 1, backgroundColor: cor.fundo },
-
-  topo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaco.m,
-    padding: espaco.g,
-    paddingTop: espaco.ggg,
-    backgroundColor: uso.superficie,
-    borderBottomWidth: 1,
-    borderBottomColor: uso.borda,
-  },
-  identidade: { flexDirection: 'row', alignItems: 'center', gap: espaco.m, flex: 1, minWidth: 0 },
-  retrato: {
-    width: 44,
-    height: 44,
-    borderRadius: 999,
-    backgroundColor: cor.neutro100,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iniciais: { ...texto.corpoForte, color: cor.neutro600 },
-  identidadeTexto: { flex: 1, minWidth: 0 },
-  fechar: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-
-  abas: {
-    flexDirection: 'row',
-    backgroundColor: uso.superficie,
-    borderBottomWidth: 1,
-    borderBottomColor: uso.borda,
-    paddingHorizontal: espaco.g,
-  },
-  aba: { paddingVertical: espaco.m, marginRight: espaco.g, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  abaAtiva: { borderBottomColor: cor.acento500 },
-  abaTexto: { ...texto.corpoForte, color: uso.tintaFraca },
-  abaTextoAtivo: { color: cor.acento700 },
-
-  conteudo: { padding: espaco.g, paddingBottom: espaco.gggg },
-
-  parDeDados: { flexDirection: 'row', gap: espaco.g },
-  dado: { flex: 1, minWidth: 0 },
-  dadoRotulo: { ...texto.xs, color: uso.tintaFraca },
-
-  secao: { ...texto.etiqueta, color: uso.tintaFraca },
-  linhaDoTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espaco.m },
-
-  opcoes: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
-  opcao: {
-    minHeight: 44,
-    paddingHorizontal: espaco.g,
-    borderRadius: raio.campo,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    backgroundColor: uso.superficie,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  opcaoMarcada: { borderColor: cor.acento500, backgroundColor: cor.acento50 },
-  opcaoTexto: { ...texto.corpo, color: uso.tintaMedia },
-  opcaoTextoMarcado: { color: cor.acento700, fontFamily: tipo.semi },
-
-  presenca: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: uso.superficie,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    borderRadius: raio.campo,
-    paddingHorizontal: espaco.m,
-    paddingVertical: espaco.m,
-    marginBottom: espaco.s,
-  },
-  presencaNome: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
-  ponto: { width: 7, height: 7, borderRadius: 999 },
-
-  grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
-  gradeItem: { width: '48%', flexGrow: 1 },
-
-  contagens: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.g },
-  contagem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  contagemTexto: { ...texto.corpo, color: uso.tintaMedia },
-  contagemNumero: { fontFamily: tipo.semi, color: uso.tinta },
-
-  diaDoHistorico: {
-    backgroundColor: uso.superficie,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    borderRadius: raio.cartao,
-    padding: espaco.g,
-    marginBottom: espaco.s,
-  },
-  diaTopo: { flexDirection: 'row', alignItems: 'center', gap: espaco.m },
-  diaTexto: { flex: 1, minWidth: 0 },
-  diaEtapas: { flexDirection: 'row', gap: espaco.s, marginTop: espaco.m },
-  celula: {
-    flex: 1,
-    borderRadius: raio.campoPequeno,
-    backgroundColor: cor.neutro25,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    paddingVertical: espaco.s,
-    alignItems: 'center',
-    gap: 2,
-  },
-  celulaRotulo: { ...texto.xxs, fontSize: 9, color: uso.tintaFraca },
-  celulaValor: { ...texto.corpoForte, color: uso.tinta },
-  celulaQuieta: { ...texto.corpoForte, color: cor.neutro300 },
-  celulaFalta: { ...texto.xxs, fontFamily: tipo.semi, color: cor.erro600 },
-})

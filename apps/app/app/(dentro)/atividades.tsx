@@ -15,7 +15,7 @@
 // se já passou a hora, é o que fazia esta tela dizer "587 não chegaram" num
 // dia em que a maioria nem estava escalada.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatarBR } from '@credenciei/dominio'
 import type { AtividadesDoEvento, EventoEscaneavel, VisaoDeAtividade } from '@credenciei/contrato'
@@ -28,7 +28,8 @@ import {
   Respiro, Selo, Tela, TituloDaTela,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 const ICONE_DO_NUMERO: Record<string, string> = {
   presentes: 'UserCheck',
@@ -54,6 +55,7 @@ const VISAO_DO_NUMERO: Record<string, VisaoDeAtividade> = {
 
 export default function Atividades() {
   const { cliente } = useSessao()
+  const e = useEstilos()
 
   const [eventos, setEventos] = useState<EventoEscaneavel[]>([])
   const [eventoId, setEventoId] = useState('')
@@ -187,6 +189,7 @@ function SeletorDeEvento({
   escolhido: string
   aoEscolher: (id: string) => void
 }) {
+  const e = useEstilos()
   return (
     <Cartao semPadding>
       {eventos.map((ev, i) => {
@@ -223,6 +226,8 @@ function SeletorDeEvento({
 function SeletorDeVisao({
   atual, aoTrocar,
 }: { atual: VisaoDeAtividade; aoTrocar: (v: VisaoDeAtividade) => void }) {
+  const { uso } = useTema()
+  const e = useEstilos()
   const visoes = Object.keys(VISOES_DE_ATIVIDADE) as VisaoDeAtividade[]
 
   return (
@@ -268,6 +273,7 @@ function SeletorDeDia({
   hoje: string
   aoEscolher: (d: string) => void
 }) {
+  const e = useEstilos()
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={e.dias}>
       {dias.map(d => {
@@ -293,6 +299,7 @@ function SeletorDeDia({
 function LinhaDaTabela({
   linha, colunaHora,
 }: { linha: AtividadesDoEvento['linhas'][number]; colunaHora: string }) {
+  const e = useEstilos()
   return (
     <View style={e.linha}>
       <View style={e.linhaTexto}>
@@ -315,7 +322,8 @@ function LinhaDaTabela({
   )
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
   gradeItem: { width: '48%', flexGrow: 1 },
 
@@ -386,4 +394,10 @@ const e = StyleSheet.create({
   horario: { alignItems: 'flex-end' },
   horarioRotulo: { ...texto.xxs, color: uso.tintaFraca },
   horarioValor: { ...texto.corpoForte, fontFamily: tipo.semi, color: uso.tinta },
-})
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

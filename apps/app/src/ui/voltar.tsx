@@ -11,13 +11,17 @@
 // Isso é o tipo de defeito que não aparece em teste nenhum e trava a pessoa na
 // primeira vez que ela usa. Toda tela que não é aba passa a receber este botão.
 
+import { useMemo } from 'react'
 import { Pressable, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Icone } from './icone'
-import { cor, espaco, raio } from './tema'
+import { espaco, raio } from './tema'
+import { useTema } from './tema-contexto'
 
 export function BotaoDeVoltar() {
   const router = useRouter()
+  const { cor } = useTema()
+  const e = useMemo(() => criarEstilos(cor), [cor])
 
   return (
     <Pressable
@@ -42,14 +46,16 @@ export function BotaoDeVoltar() {
   )
 }
 
-const e = StyleSheet.create({
-  botao: {
-    width: 36,
-    height: 36,
-    marginLeft: espaco.s,
-    borderRadius: raio.campo,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tocado: { backgroundColor: cor.neutro100 },
-})
+function criarEstilos(cor: ReturnType<typeof useTema>['cor']) {
+  return StyleSheet.create({
+    botao: {
+      width: 36,
+      height: 36,
+      marginLeft: espaco.s,
+      borderRadius: raio.campo,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    tocado: { backgroundColor: cor.neutro100 },
+  })
+}

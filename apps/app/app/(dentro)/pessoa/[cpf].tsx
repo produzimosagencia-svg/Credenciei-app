@@ -25,7 +25,8 @@ import {
   Respiro, Selo, Separador, Tela, TituloDaTela, TituloDeCartao,
 } from '../../../src/ui/componentes'
 import { Icone } from '../../../src/ui/icone'
-import { cor, espaco, texto, tipo, uso } from '../../../src/ui/tema'
+import { espaco, texto, tipo } from '../../../src/ui/tema'
+import { useTema, type Tokens } from '../../../src/ui/tema-contexto'
 
 const ICONE: Record<string, string> = {
   eventos: 'CalendarDays',
@@ -40,6 +41,8 @@ export default function TelaDaFichaDaPessoa() {
   const { cpf } = useLocalSearchParams<{ cpf: string }>()
   const router = useRouter()
   const { cliente } = useSessao()
+  const { cor } = useTema()
+  const e = useEstilos()
   const [versao, setVersao] = useState(0)
 
   const { pedido, recarregar } = usePedido(() => cliente.fichaDaPessoaNaBase(cpf), [cliente, cpf, versao])
@@ -172,6 +175,8 @@ function AtribuirAEvento({
   aoAtribuir: () => void
 }) {
   const { cliente } = useSessao()
+  const { cor } = useTema()
+  const e = useEstilos()
   const [eventoId, setEventoId] = useState('')
   const [setorId, setSetorId] = useState('')
   const [erro, setErro] = useState<string | null>(null)
@@ -280,6 +285,7 @@ function AtribuirAEvento({
 }
 
 function LinhaDoTrabalho({ trabalho: t, aoAbrir }: { trabalho: TrabalhoDaPessoa; aoAbrir?: () => void }) {
+  const e = useEstilos()
   return (
     <View style={e.pessoa}>
       <View style={e.linhaDoNome}>
@@ -305,6 +311,7 @@ function LinhaDoTrabalho({ trabalho: t, aoAbrir }: { trabalho: TrabalhoDaPessoa;
 }
 
 function Dado({ rotulo, valor }: { rotulo: string; valor: string }) {
+  const e = useEstilos()
   return (
     <View style={e.dado}>
       <Text style={e.dadoRotulo}>{rotulo}</Text>
@@ -313,28 +320,35 @@ function Dado({ rotulo, valor }: { rotulo: string; valor: string }) {
   )
 }
 
-const e = StyleSheet.create({
-  grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
-  gradeItem: { width: '48%', flexGrow: 1 },
+function criarEstilos(uso: Tokens['uso']) {
+  return StyleSheet.create({
+    grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
+    gradeItem: { width: '48%', flexGrow: 1 },
 
-  tituloComIcone: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
-  tituloDoHistorico: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: espaco.g, paddingTop: espaco.g,
-  },
+    tituloComIcone: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
+    tituloDoHistorico: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: espaco.g, paddingTop: espaco.g,
+    },
 
-  rotulo: { ...texto.etiqueta, color: uso.tintaFraca },
+    rotulo: { ...texto.etiqueta, color: uso.tintaFraca },
 
-  linhaComIcone: { flexDirection: 'row', alignItems: 'flex-start', gap: espaco.s },
+    linhaComIcone: { flexDirection: 'row', alignItems: 'flex-start', gap: espaco.s },
 
-  dado: { paddingVertical: espaco.xs },
-  dadoRotulo: { ...texto.xxs, fontFamily: tipo.regular, color: uso.tintaFraca },
-  dadoValor: { ...texto.corpo, fontFamily: tipo.media, color: uso.tinta, marginTop: 2 },
+    dado: { paddingVertical: espaco.xs },
+    dadoRotulo: { ...texto.xxs, fontFamily: tipo.regular, color: uso.tintaFraca },
+    dadoValor: { ...texto.corpo, fontFamily: tipo.media, color: uso.tinta, marginTop: 2 },
 
-  fio: { height: 1, backgroundColor: uso.borda },
-  pessoa: { padding: espaco.g },
-  linhaDoNome: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-  eventoTexto: { ...texto.corpoForte, fontFamily: tipo.media, color: uso.tinta, flexShrink: 1 },
-  selos: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s, marginTop: espaco.xs },
-  metaTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, marginTop: 2 },
-})
+    fio: { height: 1, backgroundColor: uso.borda },
+    pessoa: { padding: espaco.g },
+    linhaDoNome: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+    eventoTexto: { ...texto.corpoForte, fontFamily: tipo.media, color: uso.tinta, flexShrink: 1 },
+    selos: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s, marginTop: espaco.xs },
+    metaTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, marginTop: 2 },
+  })
+}
+
+function useEstilos() {
+  const { uso } = useTema()
+  return useMemo(() => criarEstilos(uso), [uso])
+}

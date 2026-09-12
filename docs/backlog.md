@@ -1,6 +1,6 @@
 # Backlog
 
-**332 tasks · 211 no MVP · 172 concluídas (52%)**
+**332 tasks · 211 no MVP · 173 concluídas (52%)**
 
 **Só o MVP: 141 de 211 (67%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -81,7 +81,7 @@ nada do resto importa ainda.
 | 2 | Fundação | 8 | 13 | ✓ | `operador_portao` e `suporte` no domínio; falta só `produtor` (módulo Gastos) |
 | 3 | API v1 | 27 | 32 | ✓ | Login de painel real; faltam painel, escanear, ponto, atividades, acessos, evento e Plataforma |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
-| 5 | App base | 14 | 15 | ✓ | Navegação com voltar, campos e data/hora; falta o redesign "Arena" (laranja/escuro) |
+| 5 | App base | 15 | 15 | ✓ | Navegação com voltar, campos, data/hora e o redesign "Arena" (laranja/escuro) |
 | 6 | QR | 9 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
 | 7 | Offline | 13 | 19 | ✓ | Fila ligada ao app; falta o envio da foto ao storage |
 | 8 | Ponto no app | 4 | 13 | ✓ | O meio com selfie; falta o resto do ciclo |
@@ -349,7 +349,7 @@ countable, cada linha já dentro do total da tabela acima.
 | QR de evento que vira a noite (`faseAtualDoQR`) | 6 | ✅ **Trazido e corrigido** — `meuQr`, `painelDaEquipe` e o servidor falso todo |
 | Sair e volta no mesmo dia reabre o turno (`inferirMomentoDoScanner`) | 6 | ✅ **Trazido e corrigido** — inclusive a tela Escanear, que perdeu o seletor manual |
 | Papéis `produtor`, `operador_portao` e `suporte` no domínio | 2 | ⚠️ **Parcial** — `operador_portao` e `suporte` trazidos, com `podeEscanear`/`podeAcompanhar`; `produtor` fica de fora (é o módulo Gastos, que o app não tem) |
-| Identidade visual "Arena" (laranja `#FF4A0F`, tema escuro) | 5 | Falta — troca `tema.ts` inteiro, toda tela é afetada |
+| Identidade visual "Arena" (laranja `#FF4A0F`, tema escuro) | 5 | ✅ **Trazido** — decisão do Juan, 11/09/2026: o app troca para o laranja da marca nos dois temas, mas continua abrindo CLARO por padrão (diferente do site) — o escuro entra como opção, em "Mais → Tema", guardada no aparelho. Toda tela convertida para reagir ao toggle; painéis "de vidro" do site viram superfície sólida aqui (RN não tem uma tradução barata para isso) |
 | Registrar ponto: operador escolhe a etapa (pré-marcada, livre pra trocar) | 17 | ✅ **Trazido** — sobrescrever uma etapa já feita é correção, não duplicata |
 | Registrar ponto: busca de CPF tolera até 2 dígitos errados | 17 | ✅ **Trazido** — `distanciaEntreCpfs` no domínio, candidatos marcados "CPF parecido" na tela |
 | Base de funcionários funde com Encontre colaborador (um toggle, não duas telas) | 17 | ✅ **Trazido** — `/encontrar` ganhou o toggle, `/base-funcionarios` virou redirect |

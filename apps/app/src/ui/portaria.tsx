@@ -17,7 +17,7 @@
 // tela para conferência — e, no aperto, dá para apontar a câmera de outro
 // aparelho direto para ele.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native'
 import QRCode from 'react-native-qrcode-svg'
 import * as Clipboard from 'expo-clipboard'
@@ -26,7 +26,64 @@ import {
   Aviso, Botao, Cartao, Corpo, Legenda, Respiro, TituloDeCartao,
 } from './componentes'
 import { Icone } from './icone'
-import { cor, espaco, raio, texto, tipo, uso } from './tema'
+import { espaco, raio, texto, tipo } from './tema'
+import { useTema, type Tokens } from './tema-contexto'
+
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    topo: { flexDirection: 'row', alignItems: 'flex-start', gap: espaco.m },
+    topoTexto: { flex: 1, minWidth: 0 },
+    titulo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+
+    chave: { alignItems: 'center', gap: 4 },
+    trilho: {
+      width: 40,
+      height: 24,
+      borderRadius: 999,
+      backgroundColor: uso.bordaForte,
+      padding: 3,
+      justifyContent: 'center',
+    },
+    trilhoAberto: { backgroundColor: cor.sucesso600 },
+    bolinha: { width: 18, height: 18, borderRadius: 999, backgroundColor: '#ffffff' },
+    bolinhaAberta: { alignSelf: 'flex-end' },
+    chaveTexto: { ...texto.xxs, fontFamily: tipo.semi, color: uso.tintaFraca },
+    chaveTextoAberto: { color: cor.sucesso700 },
+
+    cracha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.m,
+      backgroundColor: cor.neutro50,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      borderRadius: raio.campo,
+      padding: espaco.m,
+    },
+    qr: { backgroundColor: '#ffffff', borderRadius: raio.campoPequeno, padding: 6 },
+    enderecoTexto: { flex: 1, minWidth: 0 },
+    rotulo: { ...texto.etiqueta, color: uso.tintaFraca },
+    endereco: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaMedia, marginTop: 2 },
+
+    contagem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    contagemTexto: { ...texto.corpo, color: uso.tintaMedia },
+    contagemNumero: { fontFamily: tipo.semi, color: uso.tinta },
+
+    rodape: {
+      marginTop: espaco.m,
+      paddingTop: espaco.m,
+      borderTopWidth: 1,
+      borderTopColor: uso.borda,
+    },
+    linkDiscreto: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: espaco.xs },
+    linkDiscretoTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca },
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return { e: useMemo(() => criarEstilos(cor, uso), [cor, uso]), cor, uso }
+}
 
 export function CartaoDaPortaria({
   portaria, ocupado, aoAlternar, aoTrocarQr,
@@ -36,6 +93,7 @@ export function CartaoDaPortaria({
   aoAlternar: (aberta: boolean) => void
   aoTrocarQr: () => void
 }) {
+  const { e, cor, uso } = useEstilos()
   const [copiado, setCopiado] = useState(false)
   const [confirmandoTroca, setConfirmandoTroca] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -174,6 +232,7 @@ export function CartaoDaPortaria({
 function Chave({
   aberta, ocupado, aoAlternar,
 }: { aberta: boolean; ocupado: boolean; aoAlternar: (a: boolean) => void }) {
+  const { e } = useEstilos()
   return (
     <Pressable
       onPress={() => aoAlternar(!aberta)}
@@ -192,51 +251,3 @@ function Chave({
   )
 }
 
-const e = StyleSheet.create({
-  topo: { flexDirection: 'row', alignItems: 'flex-start', gap: espaco.m },
-  topoTexto: { flex: 1, minWidth: 0 },
-  titulo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-
-  chave: { alignItems: 'center', gap: 4 },
-  trilho: {
-    width: 40,
-    height: 24,
-    borderRadius: 999,
-    backgroundColor: cor.neutro300,
-    padding: 3,
-    justifyContent: 'center',
-  },
-  trilhoAberto: { backgroundColor: cor.sucesso600 },
-  bolinha: { width: 18, height: 18, borderRadius: 999, backgroundColor: '#ffffff' },
-  bolinhaAberta: { alignSelf: 'flex-end' },
-  chaveTexto: { ...texto.xxs, fontFamily: tipo.semi, color: uso.tintaFraca },
-  chaveTextoAberto: { color: cor.sucesso700 },
-
-  cracha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaco.m,
-    backgroundColor: cor.neutro50,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    borderRadius: raio.campo,
-    padding: espaco.m,
-  },
-  qr: { backgroundColor: '#ffffff', borderRadius: raio.campoPequeno, padding: 6 },
-  enderecoTexto: { flex: 1, minWidth: 0 },
-  rotulo: { ...texto.etiqueta, color: uso.tintaFraca },
-  endereco: { ...texto.xs, fontFamily: tipo.regular, color: cor.neutro700, marginTop: 2 },
-
-  contagem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  contagemTexto: { ...texto.corpo, color: uso.tintaMedia },
-  contagemNumero: { fontFamily: tipo.semi, color: uso.tinta },
-
-  rodape: {
-    marginTop: espaco.m,
-    paddingTop: espaco.m,
-    borderTopWidth: 1,
-    borderTopColor: uso.borda,
-  },
-  linkDiscreto: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: espaco.xs },
-  linkDiscretoTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca },
-})

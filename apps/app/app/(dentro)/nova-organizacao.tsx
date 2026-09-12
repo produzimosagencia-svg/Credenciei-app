@@ -26,7 +26,8 @@ import {
 } from '../../src/ui/componentes'
 import { CampoDeDataHora } from '../../src/ui/data-hora'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco } from '../../src/ui/tema'
+import { espaco } from '../../src/ui/tema'
+import { useTema } from '../../src/ui/tema-contexto'
 
 const PERIODOS = ['Mensal', 'Anual', 'Por evento'] as const
 const CHAVE_DO_PERIODO: Record<(typeof PERIODOS)[number], 'mensal' | 'anual' | 'por_evento'> = {
@@ -38,6 +39,7 @@ const CHAVE_DO_PERIODO: Record<(typeof PERIODOS)[number], 'mensal' | 'anual' | '
 export default function NovaOrganizacao() {
   const router = useRouter()
   const { cliente } = useSessao()
+  const { cor } = useTema()
 
   const [nome, setNome] = useState('')
   const [documento, setDocumento] = useState('')

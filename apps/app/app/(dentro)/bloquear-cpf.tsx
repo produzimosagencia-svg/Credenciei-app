@@ -19,7 +19,7 @@
 // equipe, tire ela do setor primeiro. Os pontos que ela bateu continuam no
 // histórico.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatarBR } from '@credenciei/dominio'
 import type { CpfBloqueado, EventoEscaneavel } from '@credenciei/contrato'
@@ -30,10 +30,13 @@ import {
   TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 export default function BloquearCpf() {
   const { cliente } = useSessao()
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
 
   const [eventos, setEventos] = useState<EventoEscaneavel[] | null>(null)
   const [eventoId, setEventoId] = useState('')
@@ -214,6 +217,8 @@ export default function BloquearCpf() {
 }
 
 function Explicacao() {
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
   return (
     <Cartao>
       <View style={e.explicacaoTitulo}>
@@ -246,7 +251,8 @@ function Explicacao() {
   )
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   fio: { height: 1, backgroundColor: uso.borda },
   opcao: {
     flexDirection: 'row',
@@ -272,4 +278,5 @@ const e = StyleSheet.create({
   explicacaoTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaMedia, lineHeight: 18 },
   explicacaoTextoFraco: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, lineHeight: 18 },
   negrito: { fontFamily: tipo.semi, color: uso.tinta },
-})
+  })
+}

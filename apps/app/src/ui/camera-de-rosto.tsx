@@ -11,13 +11,14 @@
 // devolve a imagem já reduzida — a foto vai junto com a batida por uma rede de
 // evento, e uma foto de quatro megabytes não sobe.
 
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { CameraView, useCameraPermissions, type CameraType } from 'expo-camera'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Botao, Corpo, TituloDeCartao } from './componentes'
 import { Icone } from './icone'
-import { cor, espaco, raio, texto, tipo } from './tema'
+import { espaco, raio, texto, tipo } from './tema'
+import { useTema, type Tokens } from './tema-contexto'
 
 /**
  * Quanto a foto é comprimida antes de subir.
@@ -41,6 +42,8 @@ export function CameraDeRosto({
   const [tirando, setTirando] = useState(false)
   const camera = useRef<CameraView>(null)
   const insets = useSafeAreaInsets()
+  const { cor } = useTema()
+  const e = useMemo(() => criarEstilos(cor), [cor])
 
   async function tirar() {
     if (tirando) return
@@ -111,18 +114,19 @@ export function CameraDeRosto({
   )
 }
 
-const e = StyleSheet.create({
-  fora: { flex: 1, backgroundColor: '#000000' },
-  camera: { flex: 1 },
+function criarEstilos(cor: Tokens['cor']) {
+  return StyleSheet.create({
+    fora: { flex: 1, backgroundColor: '#000000' },
+    camera: { flex: 1 },
 
-  aviso: {
-    flex: 1,
-    backgroundColor: cor.fundo,
-    padding: espaco.gg,
-    gap: espaco.m,
-    justifyContent: 'center',
-  },
-  acoesDoAviso: { gap: espaco.s, marginTop: espaco.m },
+    aviso: {
+      flex: 1,
+      backgroundColor: cor.fundo,
+      padding: espaco.gg,
+      gap: espaco.m,
+      justifyContent: 'center',
+    },
+    acoesDoAviso: { gap: espaco.s, marginTop: espaco.m },
 
   topo: {
     position: 'absolute',
@@ -166,4 +170,5 @@ const e = StyleSheet.create({
   disparoTocado: { transform: [{ scale: 0.94 }] },
   disparoTravado: { opacity: 0.5 },
   disparoMiolo: { width: 58, height: 58, borderRadius: 999, backgroundColor: '#ffffff' },
-})
+  })
+}

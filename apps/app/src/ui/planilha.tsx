@@ -19,7 +19,7 @@
 //   importar          escolhe o arquivo pelo seletor do aparelho (incluindo o
 //                     que veio anexado numa conversa) e manda para o servidor.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native'
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system'
@@ -31,12 +31,72 @@ import {
   TituloDeCartao,
 } from './componentes'
 import { Icone } from './icone'
-import { cor, espaco, raio, texto, tipo, uso } from './tema'
+import { espaco, raio, texto, tipo } from './tema'
+import { useTema, type Tokens } from './tema-contexto'
+
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    botao: {
+      minHeight: 44,
+      paddingHorizontal: espaco.m,
+      borderRadius: raio.campo,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      backgroundColor: uso.superficie,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    botaoTocado: { backgroundColor: cor.neutro50, borderColor: uso.bordaForte },
+    botaoTexto: { ...texto.corpoForte, color: uso.tintaMedia },
+
+    fora: { flex: 1, backgroundColor: cor.fundo },
+    conteudo: { padding: espaco.g, paddingTop: espaco.ggg, paddingBottom: espaco.gggg },
+
+    opcao: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.m,
+      backgroundColor: uso.superficie,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      borderRadius: raio.cartao,
+      padding: espaco.g,
+      marginBottom: espaco.m,
+    },
+    opcaoTocada: { backgroundColor: cor.neutro50 },
+    opcaoTravada: { opacity: 0.45 },
+    opcaoIcone: {
+      width: 40,
+      height: 40,
+      borderRadius: raio.campo,
+      backgroundColor: '#E8F3ED',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    opcaoTexto: { flex: 1, minWidth: 0 },
+
+    linha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: espaco.xs,
+    },
+    erroDeLinha: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaMedia, marginTop: 4 },
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}
 
 /** O verde do Excel. É o que faz o botão ser reconhecido sem escrever nada. */
 const VERDE_DA_PLANILHA = '#217346'
 
 export function BotaoDePlanilha({ setorId, aoImportar }: { setorId: string; aoImportar?: () => void }) {
+  const e = useEstilos()
   const [aberto, setAberto] = useState(false)
 
   return (
@@ -70,6 +130,7 @@ function ModalDePlanilha({
   aoImportar?: () => void
 }) {
   const { cliente } = useSessao()
+  const e = useEstilos()
   const [ocupado, setOcupado] = useState<'modelo' | 'exportar' | 'importar' | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [importacao, setImportacao] = useState<ResultadoDaImportacao | null>(null)
@@ -226,6 +287,8 @@ function Opcao({
   desabilitado: boolean
   aoTocar: () => void
 }) {
+  const e = useEstilos()
+  const { uso } = useTema()
   return (
     <Pressable
       onPress={aoTocar}
@@ -250,6 +313,7 @@ function Opcao({
 }
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: number }) {
+  const e = useEstilos()
   return (
     <View style={e.linha}>
       <Corpo>{rotulo}</Corpo>
@@ -257,54 +321,3 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: number }) {
     </View>
   )
 }
-
-const e = StyleSheet.create({
-  botao: {
-    minHeight: 44,
-    paddingHorizontal: espaco.m,
-    borderRadius: raio.campo,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    backgroundColor: uso.superficie,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  botaoTocado: { backgroundColor: cor.neutro50, borderColor: cor.neutro300 },
-  botaoTexto: { ...texto.corpoForte, color: cor.neutro700 },
-
-  fora: { flex: 1, backgroundColor: cor.fundo },
-  conteudo: { padding: espaco.g, paddingTop: espaco.ggg, paddingBottom: espaco.gggg },
-
-  opcao: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaco.m,
-    backgroundColor: uso.superficie,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    borderRadius: raio.cartao,
-    padding: espaco.g,
-    marginBottom: espaco.m,
-  },
-  opcaoTocada: { backgroundColor: cor.neutro50 },
-  opcaoTravada: { opacity: 0.45 },
-  opcaoIcone: {
-    width: 40,
-    height: 40,
-    borderRadius: raio.campo,
-    backgroundColor: '#E8F3ED',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  opcaoTexto: { flex: 1, minWidth: 0 },
-
-  linha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: espaco.xs,
-  },
-  erroDeLinha: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaMedia, marginTop: 4 },
-})

@@ -10,7 +10,7 @@
 // Sem supervisor aqui de propósito: ele já tem a própria equipe na tela do
 // setor — o atalho existe pra quem enxerga o evento inteiro.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatCpf } from '@credenciei/dominio'
 import type { BuscaDeColaboradores, ColaboradorDoEvento, EventoEscaneavel } from '@credenciei/contrato'
@@ -22,12 +22,15 @@ import {
 } from '../../src/ui/componentes'
 import { FichaDaPessoaModal } from '../../src/ui/ficha-da-pessoa'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, texto, uso } from '../../src/ui/tema'
+import { espaco, texto } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 const MINIMO_PARA_BUSCAR = 2
 
 export default function EditarColaborador() {
   const { cliente } = useSessao()
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
 
   const [eventos, setEventos] = useState<EventoEscaneavel[] | null>(null)
   const [eventoId, setEventoId] = useState('')
@@ -164,6 +167,8 @@ export default function EditarColaborador() {
 function LinhaDoColaborador({
   colaborador: p, onAbrir,
 }: { colaborador: ColaboradorDoEvento; onAbrir: () => void }) {
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
   return (
     <Pressable
       onPress={onAbrir}
@@ -181,25 +186,27 @@ function LinhaDoColaborador({
   )
 }
 
-const e = StyleSheet.create({
-  fio: { height: 1, backgroundColor: uso.borda },
-  opcao: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaco.m,
-    paddingHorizontal: espaco.g,
-    minHeight: 52,
-  },
-  opcaoTocada: { backgroundColor: cor.neutro50 },
-  opcaoTexto: { ...texto.corpo, color: uso.tinta, flex: 1 },
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    fio: { height: 1, backgroundColor: uso.borda },
+    opcao: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.m,
+      paddingHorizontal: espaco.g,
+      minHeight: 52,
+    },
+    opcaoTocada: { backgroundColor: cor.neutro50 },
+    opcaoTexto: { ...texto.corpo, color: uso.tinta, flex: 1 },
 
-  pessoaLinha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaco.s,
-    paddingHorizontal: espaco.g,
-    paddingVertical: espaco.m,
-  },
-  pessoaTexto: { flex: 1, minWidth: 0, gap: 2 },
-  pessoaTopo: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, flexWrap: 'wrap' },
-})
+    pessoaLinha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.s,
+      paddingHorizontal: espaco.g,
+      paddingVertical: espaco.m,
+    },
+    pessoaTexto: { flex: 1, minWidth: 0, gap: 2 },
+    pessoaTopo: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, flexWrap: 'wrap' },
+  })
+}

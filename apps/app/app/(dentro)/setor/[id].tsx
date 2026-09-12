@@ -17,7 +17,7 @@
 // Quem calcula é o servidor, e não esta tela: o status depende da janela do
 // evento, do dia e — no caso do meio — da entrada de CADA pessoa.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatTelefone, formatarBR, podeBloquearCpf } from '@credenciei/dominio'
@@ -34,7 +34,8 @@ import {
 import { Icone } from '../../../src/ui/icone'
 import { FichaDaPessoaModal } from '../../../src/ui/ficha-da-pessoa'
 import { BotaoDePlanilha } from '../../../src/ui/planilha'
-import { cor, corDaEtapa, espaco, raio, texto, tipo, uso } from '../../../src/ui/tema'
+import { corDaEtapa, espaco, raio, texto, tipo } from '../../../src/ui/tema'
+import { useTema, type Tokens } from '../../../src/ui/tema-contexto'
 
 const FILTROS: FiltroDaEquipe[] = ['todos', 'pendencias', 'presentes', 'ausentes', 'nao_ativados']
 
@@ -54,6 +55,8 @@ export default function EquipeDoSetor() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { cliente, sessao } = useSessao()
+  const { cor } = useTema()
+  const e = useEstilos()
 
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState<FiltroDaEquipe>('todos')
@@ -223,6 +226,8 @@ export default function EquipeDoSetor() {
 function LinhaDaPessoa({
   pessoa, aoTocar,
 }: { pessoa: PessoaDoSetor; aoTocar: () => void }) {
+  const { uso } = useTema()
+  const e = useEstilos()
   return (
     <Pressable
       onPress={aoTocar}
@@ -267,6 +272,8 @@ function LinhaDaPessoa({
 function Bolinha({
   etapa, em, status,
 }: { etapa: TipoBatida; em: string | null; status: PessoaDoSetor['statusEntrada'] }) {
+  const { cor } = useTema()
+  const e = useEstilos()
   const tom = {
     feito: corDaEtapa[etapa],
     aberto: cor.aviso600,
@@ -287,6 +294,7 @@ function Bolinha({
 function BarraDaEtapa({
   etapa, feitos, total,
 }: { etapa: TipoBatida; feitos: number; total: number }) {
+  const e = useEstilos()
   const pct = total > 0 ? Math.round((feitos / total) * 100) : 0
   return (
     <View style={e.barraFora}>
@@ -329,7 +337,8 @@ function emReais(valor: number): string {
   return `R$ ${comPontos},${resto}`
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   acoes: { flexDirection: 'row', gap: espaco.s },
   acaoLarga: { flex: 1 },
 
@@ -400,4 +409,10 @@ const e = StyleSheet.create({
   ponto: { width: 7, height: 7, borderRadius: 999 },
   etapaTexto: { ...texto.xxs, color: uso.tintaFraca },
   etapaAtrasada: { color: cor.erro700, fontFamily: tipo.semi },
-})
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

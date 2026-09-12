@@ -9,6 +9,7 @@
 // só o dono da plataforma enxerga.
 
 import { useRouter } from 'expo-router'
+import { useMemo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { NOME_DO_PAPEL } from '@credenciei/dominio'
 import { usePedido } from '../../src/dados/pedido'
@@ -18,12 +19,15 @@ import { Icone } from '../../src/ui/icone'
 import {
   Botao, Cartao, Etiqueta, Legenda, Respiro, Selo, Separador, Tela, TituloDaTela,
 } from '../../src/ui/componentes'
-import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 export default function Mais() {
   const router = useRouter()
   const { cliente, sessao, sair } = useSessao()
   const { pedido } = usePedido(() => cliente.eu(), [cliente])
+  const { cor, uso, modo, alternar } = useTema()
+  const e = useEstilos()
 
   const grupos = menuDe(sessao?.papel ?? 'colaborador')
 
@@ -75,6 +79,28 @@ export default function Mais() {
       ))}
 
       <Separador />
+
+      {/*
+        O tema Arena (escuro) chegou no rebranding de 11/09/2026. O app
+        continua abrindo claro — decisão do Juan, diferente do site — e o
+        escuro fica aqui, como escolha da pessoa, guardada no aparelho.
+      */}
+      <Cartao semPadding>
+        <Pressable
+          onPress={alternar}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: modo === 'escuro' }}
+          style={({ pressed }) => [e.linha, pressed && e.linhaTocada]}
+        >
+          <View style={e.blocoDoIcone}>
+            <Icone nome={modo === 'escuro' ? 'Moon' : 'Sun'} tamanho={18} tom={cor.neutro600} />
+          </View>
+          <Text style={e.rotulo}>{modo === 'escuro' ? 'Tema escuro' : 'Tema claro'}</Text>
+          <Selo texto={modo === 'escuro' ? 'Arena' : 'Padrão'} tipo="info" />
+        </Pressable>
+      </Cartao>
+
+      <Respiro altura={espaco.m} />
       <Botao titulo="Sair da conta" onPress={() => { void sair() }} tipo="secundario" />
 
       <Respiro />
@@ -92,6 +118,8 @@ export default function Mais() {
  * se ela fez algo errado.
  */
 function LinhaDoMenu({ item, aoTocar }: { item: ItemDoMenu; aoTocar: () => void }) {
+  const { cor } = useTema()
+  const e = useEstilos()
   return (
     <Pressable
       onPress={aoTocar}
@@ -120,29 +148,36 @@ function iniciaisDe(nome: string): string {
   return letras.toUpperCase()
 }
 
-const e = StyleSheet.create({
-  pessoa: { flexDirection: 'row', alignItems: 'center', gap: espaco.m },
-  iniciais: {
-    width: 44,
-    height: 44,
-    borderRadius: raio.peca,
-    backgroundColor: cor.acento50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iniciaisTexto: { ...texto.corpoForte, color: cor.acento700 },
-  pessoaTexto: { flex: 1, minWidth: 0 },
-  nome: { ...texto.tituloCartao, color: uso.tinta },
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    pessoa: { flexDirection: 'row', alignItems: 'center', gap: espaco.m },
+    iniciais: {
+      width: 44,
+      height: 44,
+      borderRadius: raio.peca,
+      backgroundColor: cor.acento50,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iniciaisTexto: { ...texto.corpoForte, color: cor.acento700 },
+    pessoaTexto: { flex: 1, minWidth: 0 },
+    nome: { ...texto.tituloCartao, color: uso.tinta },
 
-  linha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaco.m,
-    paddingHorizontal: espaco.g,
-    minHeight: 56,
-  },
-  linhaTocada: { backgroundColor: cor.neutro50 },
-  fio: { height: 1, backgroundColor: uso.borda, marginLeft: 60 },
-  blocoDoIcone: { width: 28, alignItems: 'center' },
-  rotulo: { ...texto.base, fontFamily: tipo.media, color: uso.tinta, flex: 1 },
-})
+    linha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.m,
+      paddingHorizontal: espaco.g,
+      minHeight: 56,
+    },
+    linhaTocada: { backgroundColor: cor.neutro50 },
+    fio: { height: 1, backgroundColor: uso.borda, marginLeft: 60 },
+    blocoDoIcone: { width: 28, alignItems: 'center' },
+    rotulo: { ...texto.base, fontFamily: tipo.media, color: uso.tinta, flex: 1 },
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

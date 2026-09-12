@@ -13,7 +13,7 @@
 // são dois controles diferentes — trocar o dia move a data da batida junto,
 // mas ela continua livre pra apontar pro dia seguinte.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatarBR } from '@credenciei/dominio'
 import type { DadosParaLancarPonto, EventoEscaneavel, PessoaParaLancamento, TipoBatida } from '@credenciei/contrato'
@@ -25,7 +25,8 @@ import {
   Tela, TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 const MINIMO_PARA_BUSCAR = 2
 
@@ -55,6 +56,8 @@ function paraISODeData(dataDigitada: string): string | null {
 
 export default function LancarPonto() {
   const { cliente } = useSessao()
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
 
   const [eventos, setEventos] = useState<EventoEscaneavel[] | null>(null)
   const [eventoId, setEventoId] = useState('')
@@ -377,7 +380,8 @@ export default function LancarPonto() {
   )
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   fio: { height: 1, backgroundColor: uso.borda },
   opcao: {
     flexDirection: 'row',
@@ -425,4 +429,5 @@ const e = StyleSheet.create({
   dataHora: { flexDirection: 'row', gap: espaco.m },
   dataCampo: { flex: 2 },
   horaCampo: { flex: 1 },
-})
+  })
+}

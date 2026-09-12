@@ -18,11 +18,15 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { useFonts } from 'expo-font'
 import * as SplashScreen from 'expo-splash-screen'
 import {
-  Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
-} from '@expo-google-fonts/inter'
+  Archivo_400Regular, Archivo_500Medium, Archivo_600SemiBold, Archivo_700Bold, Archivo_800ExtraBold,
+} from '@expo-google-fonts/archivo'
 import { ProvedorDeSessao } from '../src/sessao/contexto'
 import { ProvedorDaFila } from '../src/fila/contexto'
-import { cor, LARGURA_MAXIMA, sombra, tipo, uso } from '../src/ui/tema'
+// `cor`/`sombra` aqui são o valor ESTÁTICO (claro) — a moldura cinza atrás do
+// app na versão web é chrome de navegador, não tela do app, e não precisa
+// mudar com o toggle.
+import { cor, LARGURA_MAXIMA, sombra } from '../src/ui/tema'
+import { ProvedorDeTema, useTema } from '../src/ui/tema-contexto'
 
 // A tela de abertura fica no ar até a fonte estar carregada. Sem isto, o app
 // aparece com a fonte do sistema e troca sozinho meio segundo depois — o
@@ -30,12 +34,14 @@ import { cor, LARGURA_MAXIMA, sombra, tipo, uso } from '../src/ui/tema'
 void SplashScreen.preventAutoHideAsync()
 
 export default function Raiz() {
-  // Inter, a mesma do sistema web. É ela que faz o app parecer o mesmo produto.
+  // Archivo, a mesma do sistema web desde o rebranding "Arena". É ela que faz
+  // o app parecer o mesmo produto — 800 incluso, o peso dos títulos.
   const [fontesProntas] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    Archivo_400Regular,
+    Archivo_500Medium,
+    Archivo_600SemiBold,
+    Archivo_700Bold,
+    Archivo_800ExtraBold,
   })
 
   useEffect(() => {
@@ -46,31 +52,45 @@ export default function Raiz() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
-      <Coluna>
-        <ProvedorDeSessao>
-          {/*
-            A fila mora acima das telas de propósito: a pessoa registra o meio,
-            guarda o celular e vai trabalhar. Se ela morresse junto com a tela
-            da credencial, a batida ficaria parada até alguém voltar lá.
-          */}
-          <ProvedorDaFila>
-            <Stack
-              screenOptions={{
-                headerStyle: { backgroundColor: uso.superficie },
-                headerTintColor: cor.neutro800,
-                headerTitleStyle: { fontFamily: tipo.semi, fontSize: 16, color: cor.neutro800 },
-                headerShadowVisible: false,
-                contentStyle: { backgroundColor: cor.fundo },
-              }}
-            >
-              <Stack.Screen name="entrar" options={{ headerShown: false }} />
-              <Stack.Screen name="(dentro)" options={{ headerShown: false }} />
-            </Stack>
-          </ProvedorDaFila>
-        </ProvedorDeSessao>
-      </Coluna>
+      <ProvedorDeTema>
+        <Coluna>
+          <ProvedorDeSessao>
+            {/*
+              A fila mora acima das telas de propósito: a pessoa registra o meio,
+              guarda o celular e vai trabalhar. Se ela morresse junto com a tela
+              da credencial, a batida ficaria parada até alguém voltar lá.
+            */}
+            <ProvedorDaFila>
+              <Navegacao />
+            </ProvedorDaFila>
+          </ProvedorDeSessao>
+        </Coluna>
+      </ProvedorDeTema>
     </SafeAreaProvider>
+  )
+}
+
+/** Separado de `Raiz` só para poder chamar `useTema()` — que exige estar dentro do provedor. */
+function Navegacao() {
+  const { modo, cor, uso, tipo } = useTema()
+
+  return (
+    <>
+      {/* Barra do sistema: conteúdo claro sobre fundo escuro, e vice-versa. */}
+      <StatusBar style={modo === 'escuro' ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: uso.superficie },
+          headerTintColor: cor.neutro800,
+          headerTitleStyle: { fontFamily: tipo.forte, fontSize: 16, color: cor.neutro800 },
+          headerShadowVisible: false,
+          contentStyle: { backgroundColor: cor.fundo },
+        }}
+      >
+        <Stack.Screen name="entrar" options={{ headerShown: false }} />
+        <Stack.Screen name="(dentro)" options={{ headerShown: false }} />
+      </Stack>
+    </>
   )
 }
 

@@ -1,4 +1,4 @@
-// O sistema visual — o MESMO do Credenciei que já está no ar.
+// O sistema visual — o MESMO do Credenciei que já está no ar: o tema "Arena".
 //
 // ─── DE ONDE ISTO VEIO ──────────────────────────────────────────────────────
 //
@@ -8,100 +8,214 @@
 // tem que reconhecer que são a mesma coisa.
 //
 // Isso é cópia por VALOR, não por referência — o arquivo de produção não é
-// importado, e não pode ser. Quando o roxo mudar lá, alguém muda aqui. É o
+// importado, e não pode ser. Quando a marca mudar lá, alguém muda aqui. É o
 // preço de manter os dois repositórios separados, e está escrito para não
 // virar surpresa.
 //
-// ─── O QUE ESTE SISTEMA DECIDE, E QUE É DIFERENTE DO ÓBVIO ──────────────────
+// ─── O REBRANDING "ARENA" (portado em 11/09/2026) ───────────────────────────
 //
-//   a separação vem da BORDA, não da sombra. A sombra existe, mas é quase
-//   imperceptível — um fio de 1px separa melhor e não suja o canto;
+// O site trocou de identidade: roxo → laranja (#FF4A0F), fundo quase-preto
+// como PADRÃO (o claro virou a opção), fonte Inter → Archivo, cantos mais
+// arredondados. O app traz os dois temas — claro continua sendo o padrão
+// AQUI (decisão distinta da do site, ver `docs/decisoes/`), mas os dois usam
+// a marca nova.
 //
-//   o fundo é cinza de verdade (#d9dce3), não quase-branco. Com fundo
-//   quase-branco o cartão branco não tem de onde se destacar;
+// Simplificação deliberada: os painéis "de vidro" do site (gradiente sutil +
+// blur) viram superfície de cor sólida aqui — React Native não tem uma
+// tradução direta e barata para isso, e a MESMA cor sólida que o site usa por
+// baixo do vidro (`--vidro-solido`) já entrega o essencial: superfície um tom
+// acima do fundo, com borda de 1px. Ver `docs/decisoes/`.
 //
-//   o número do indicador é branco sobre gradiente escuro. Os tons foram
-//   escolhidos pelo CONTRASTE: laranja-600 dá 3.5:1 com texto branco de 12px e
-//   some no sol — por isso o laranja aqui é #c2410c, que dá 4.6:1.
+// `gradiente`, `eventoAoVivo` e `corDaEtapa` ficam FORA do par claro/escuro
+// de propósito: no site eles já são os blocos que continuam escuros mesmo no
+// tema claro ("os únicos blocos escuros da tela", diz o comentário de lá) —
+// então aqui eles têm um valor só, que não muda com o toggle.
 
-// ─── Cor ────────────────────────────────────────────────────────────────────
+// ─── Os dois temas ──────────────────────────────────────────────────────────
 
-export const cor = {
-  /** O fundo da aplicação. Cinza de verdade: é o que faz o cartão branco subir. */
-  fundo: '#d9dce3',
+export type Modo = 'claro' | 'escuro'
 
-  neutro0: '#ffffff',
-  neutro25: '#fcfcfd',
-  neutro50: '#f7f7f8',
-  neutro100: '#eeeef0',
-  neutro200: '#e4e4e8',
-  neutro300: '#d0d0d8',
-  neutro400: '#9394a1',
-  neutro500: '#60646c',
-  neutro600: '#4a4e56',
-  neutro700: '#33373d',
-  neutro800: '#1f2124',
-  neutro900: '#111113',
-  neutro950: '#08080a',
+type Cor = {
+  fundo: string
+  neutro0: string; neutro25: string; neutro50: string; neutro100: string
+  neutro200: string; neutro300: string; neutro400: string; neutro500: string
+  neutro600: string; neutro700: string; neutro800: string; neutro900: string; neutro950: string
+  acento50: string; acento100: string; acento200: string
+  acento500: string; acento600: string; acento700: string
+  marca: string
+  sucesso50: string; sucesso200: string; sucesso600: string; sucesso700: string
+  aviso50: string; aviso200: string; aviso600: string; aviso700: string
+  erro50: string; erro200: string; erro600: string; erro700: string
+  info50: string; info200: string; info600: string; info700: string
+  /** Sempre branco — texto sobre botão colorido, nos dois temas. */
+  sobreEscuro: string
+  /** O fundo da tela de entrar, que é sempre escura — ver `entrar.tsx`. */
+  fundoEscuro: string
+}
 
-  /** O roxo. É acento e é marca — uma cor só, em vez de duas brigando. */
-  acento50: '#f4f2ff',
-  acento100: '#ebe7fe',
-  acento200: '#ded5fd',
-  acento500: '#6d46ff',
-  acento600: '#5c33ee',
-  acento700: '#4b27d0',
-  /** O roxo do ícone do app. */
-  marca: '#4940df',
+type Uso = {
+  superficie: string
+  superficieFraca: string
+  borda: string
+  bordaForte: string
+  tinta: string
+  tintaMedia: string
+  tintaFraca: string
+  desabilitado: string
+}
 
-  sucesso50: '#f0fdf4',
-  sucesso200: '#bbf7d0',
-  sucesso600: '#16a34a',
-  sucesso700: '#15803d',
+type Sombra = { xs: { boxShadow: string }; sm: { boxShadow: string }; lg: { boxShadow: string } }
 
-  aviso50: '#fffbeb',
-  aviso200: '#fde68a',
-  aviso600: '#d97706',
-  aviso700: '#b45309',
+const CLARO: { cor: Cor; uso: Uso; sombra: Sombra } = {
+  cor: {
+    fundo: '#f3f2f2',
+    neutro0: '#ffffff',
+    neutro25: '#fbfafa',
+    neutro50: 'rgba(32, 30, 29, 0.04)',
+    neutro100: 'rgba(32, 30, 29, 0.07)',
+    neutro200: 'rgba(32, 30, 29, 0.12)',
+    neutro300: 'rgba(32, 30, 29, 0.20)',
+    neutro400: 'rgba(32, 30, 29, 0.45)',
+    neutro500: 'rgba(32, 30, 29, 0.60)',
+    neutro600: 'rgba(32, 30, 29, 0.72)',
+    neutro700: 'rgba(32, 30, 29, 0.85)',
+    neutro800: '#201e1d',
+    neutro900: '#111010',
+    neutro950: '#000000',
 
-  erro50: '#fef2f2',
-  erro200: '#fecaca',
-  erro600: '#dc2626',
-  erro700: '#b91c1c',
+    acento50: 'rgba(255, 74, 15, 0.10)',
+    acento100: 'rgba(255, 74, 15, 0.16)',
+    acento200: 'rgba(255, 74, 15, 0.35)',
+    acento500: '#FF4A0F',
+    acento600: '#E33C06',
+    /** Mais fechado que no escuro — texto laranja precisa de mais contraste sobre branco. */
+    acento700: '#7c1405',
+    marca: '#FF4A0F',
 
-  /** Azul não é status: é o "neutro com cor", para o que só conta coisa. */
-  info50: '#eff6ff',
-  info200: '#bfdbfe',
-  info600: '#2563eb',
-  info700: '#1d4ed8',
+    sucesso50: 'rgba(34, 197, 94, 0.12)',
+    sucesso200: 'rgba(34, 197, 94, 0.35)',
+    sucesso600: '#16a34a',
+    sucesso700: '#15803d',
 
-  sobreEscuro: '#ffffff',
-  /** O fundo da tela de entrar do sistema web. Quase-preto arroxeado. */
-  fundoEscuro: '#0a0918',
-} as const
+    aviso50: 'rgba(245, 158, 11, 0.12)',
+    aviso200: 'rgba(245, 158, 11, 0.35)',
+    aviso600: '#d97706',
+    aviso700: '#b45309',
 
-/** Apelidos por função, para a tela dizer o que quer e não que tom de cinza. */
-export const uso = {
-  superficie: cor.neutro0,
-  superficieFraca: cor.neutro50,
-  borda: cor.neutro200,
-  bordaForte: cor.neutro300,
-  tinta: cor.neutro800,
-  tintaMedia: cor.neutro500,
-  tintaFraca: cor.neutro400,
-  desabilitado: cor.neutro300,
-} as const
+    erro50: 'rgba(239, 68, 68, 0.12)',
+    erro200: 'rgba(239, 68, 68, 0.35)',
+    erro600: '#dc2626',
+    erro700: '#b91c1c',
+
+    info50: 'rgba(59, 130, 246, 0.12)',
+    info200: 'rgba(59, 130, 246, 0.35)',
+    info600: '#2563eb',
+    info700: '#1d4ed8',
+
+    sobreEscuro: '#ffffff',
+    fundoEscuro: '#0d0c0c',
+  },
+  uso: {
+    superficie: '#ffffff',
+    superficieFraca: 'rgba(32, 30, 29, 0.04)',
+    borda: 'rgba(32, 30, 29, 0.12)',
+    bordaForte: 'rgba(32, 30, 29, 0.20)',
+    tinta: '#201e1d',
+    tintaMedia: 'rgba(32, 30, 29, 0.60)',
+    tintaFraca: 'rgba(32, 30, 29, 0.45)',
+    desabilitado: 'rgba(32, 30, 29, 0.20)',
+  },
+  sombra: {
+    xs: { boxShadow: '0 1px 2px rgba(32, 30, 29, 0.05)' },
+    sm: { boxShadow: '0 1px 3px rgba(32, 30, 29, 0.08)' },
+    lg: { boxShadow: '0 12px 32px rgba(32, 30, 29, 0.14)' },
+  },
+}
+
+const ESCURO: { cor: Cor; uso: Uso; sombra: Sombra } = {
+  cor: {
+    fundo: '#0d0c0c',
+    neutro0: '#0d0c0c',
+    neutro25: '#111010',
+    neutro50: 'rgba(255, 255, 255, 0.04)',
+    neutro100: 'rgba(255, 255, 255, 0.07)',
+    neutro200: 'rgba(255, 255, 255, 0.10)',
+    neutro300: 'rgba(255, 255, 255, 0.18)',
+    neutro400: 'rgba(243, 242, 242, 0.45)',
+    neutro500: 'rgba(243, 242, 242, 0.60)',
+    neutro600: 'rgba(243, 242, 242, 0.72)',
+    neutro700: 'rgba(243, 242, 242, 0.85)',
+    neutro800: '#f3f2f2',
+    neutro900: '#ffffff',
+    neutro950: '#ffffff',
+
+    acento50: 'rgba(255, 74, 15, 0.10)',
+    acento100: 'rgba(255, 74, 15, 0.16)',
+    acento200: 'rgba(255, 74, 15, 0.35)',
+    acento500: '#FF4A0F',
+    acento600: '#E33C06',
+    acento700: '#A31B05',
+    marca: '#FF4A0F',
+
+    sucesso50: 'rgba(34, 197, 94, 0.12)',
+    sucesso200: 'rgba(34, 197, 94, 0.35)',
+    sucesso600: '#22c55e',
+    sucesso700: '#7ee2a8',
+
+    aviso50: 'rgba(245, 158, 11, 0.12)',
+    aviso200: 'rgba(245, 158, 11, 0.35)',
+    aviso600: '#f59e0b',
+    aviso700: '#fcd27a',
+
+    erro50: 'rgba(239, 68, 68, 0.12)',
+    erro200: 'rgba(239, 68, 68, 0.35)',
+    erro600: '#f05252',
+    erro700: '#fca5a5',
+
+    info50: 'rgba(59, 130, 246, 0.12)',
+    info200: 'rgba(59, 130, 246, 0.35)',
+    info600: '#60a5fa',
+    info700: '#93c5fd',
+
+    sobreEscuro: '#ffffff',
+    fundoEscuro: '#0d0c0c',
+  },
+  uso: {
+    superficie: '#161515',
+    superficieFraca: 'rgba(255, 255, 255, 0.04)',
+    borda: 'rgba(255, 255, 255, 0.10)',
+    bordaForte: 'rgba(255, 255, 255, 0.18)',
+    tinta: '#f3f2f2',
+    tintaMedia: 'rgba(243, 242, 242, 0.60)',
+    tintaFraca: 'rgba(243, 242, 242, 0.45)',
+    desabilitado: 'rgba(255, 255, 255, 0.18)',
+  },
+  sombra: {
+    xs: { boxShadow: '0 1px 3px rgba(0, 0, 0, 0.35)' },
+    sm: { boxShadow: '0 2px 6px rgba(0, 0, 0, 0.35)' },
+    lg: { boxShadow: '0 12px 32px rgba(0, 0, 0, 0.45)' },
+  },
+}
+
+export const PALETAS: Record<Modo, { cor: Cor; uso: Uso; sombra: Sombra }> = { claro: CLARO, escuro: ESCURO }
+
+/** Fallback pré-hidratação e valor de quem não passa por dentro do provedor. */
+export const cor = CLARO.cor
+export const uso = CLARO.uso
+export const sombra = CLARO.sombra
 
 /**
  * Os degradês dos indicadores, copiados um a um.
  *
- * Cada par é `[de, até]` num degradê de 135°. Os tons são escuros de propósito:
- * o rótulo branco de 12px precisa de 4.5:1 para ser lido no sol do evento, e é
- * onde esta tela é usada.
+ * Ficam FORA do par claro/escuro: no site o indicador continua com o mesmo
+ * fundo escuro nos dois temas — só borda e sombra ao redor mudam, e essas o
+ * app resolve com a `sombra` do modo atual. Cada par é `[de, até]` num
+ * degradê de 135°. Os tons são escuros de propósito: o rótulo branco de 12px
+ * precisa de 4.5:1 para ser lido no sol do evento, e é onde esta tela é usada.
  */
 export const gradiente = {
-  neutro: [cor.neutro700, cor.neutro900],
-  acento: ['#6d46ff', '#4b27d0'],
+  neutro: ['#292626', '#111010'],
+  acento: ['#A31B05', '#FF4A0F'],
   info: ['#2563eb', '#1e3a8a'],
   sucesso: ['#15803d', '#14532d'],
   aviso: ['#c2410c', '#7c2d12'],
@@ -115,28 +229,31 @@ export type TomDeIndicador = keyof typeof gradiente
  *
  * Verde, azul e âmbar — e NÃO verde-amarelo-vermelho: as três etapas não são
  * bom, mais ou menos e ruim. São momentos diferentes do mesmo dia, e pintar de
- * semáforo faria a saída parecer um problema.
+ * semáforo faria a saída parecer um problema. Fora do par claro/escuro pelo
+ * mesmo motivo do `gradiente`.
  */
 export const corDaEtapa = {
-  entrada: '#16a34a',
-  meio: '#2563eb',
-  fim: '#d97706',
+  entrada: '#22c55e',
+  meio: '#60a5fa',
+  fim: '#f59e0b',
 } as const
 
 /**
  * O cartão do evento que está acontecendo agora.
  *
- * Escuro e grande de propósito: é a única coisa da tela que exige ação NESTE
- * momento, e precisa disputar atenção com quatro indicadores coloridos logo
- * acima. Valores copiados de `.evento-vivo`.
+ * Escuro e grande de propósito, nos dois temas: é a única coisa da tela que
+ * exige ação NESTE momento, e precisa disputar atenção com quatro indicadores
+ * coloridos logo acima. Valores copiados de `.evento-vivo` e da luz de fundo
+ * `--fundo-luz` do tema escuro (a versão mais forte — é a que combina com um
+ * cartão que já nasce escuro).
  */
 export const eventoAoVivo = {
-  degrade: ['#2c2456', '#1b1830', '#131120'],
+  degrade: ['#2a1810', '#1c120c', '#120b08'],
   posicoes: [0, 0.55, 1],
-  borda: '#3a3168',
-  brilho: 'rgba(139, 109, 255, 0.16)',
-  sombra: { boxShadow: '0 8px 24px rgba(28, 20, 64, 0.24)' },
-  /** Verde claro, para o rótulo "AO VIVO" ser legível sobre o roxo escuro. */
+  borda: 'rgba(255, 74, 15, 0.35)',
+  brilho: 'rgba(255, 74, 15, 0.18)',
+  sombra: { boxShadow: '0 8px 24px rgba(20, 10, 4, 0.35)' },
+  /** Verde claro, para o rótulo "AO VIVO" ser legível sobre o laranja escuro. */
   vivo: '#7ee2a8',
   ponto: '#22c55e',
   barra: ['#22c55e', '#16a34a'],
@@ -148,43 +265,43 @@ export const eventoAoVivo = {
 // ─── Tipografia ─────────────────────────────────────────────────────────────
 
 /**
- * Inter, a mesma do sistema web.
+ * Archivo, a mesma do sistema web — trazida no rebranding "Arena".
  *
  * No celular o `fontWeight` é ignorado quando a fonte vem de arquivo: cada peso
- * é uma família própria. Por isso o peso está no nome.
- *
- * O que NÃO vem junto: `cv11` e `ss03`, os ajustes de desenho da letra que o
- * site aplica (o "a" de cauda reta, a cedilha e o til melhores em português).
- * Eles dependem de recursos OpenType que a fonte estática do celular não expõe.
- * A diferença é sutil e só aparece lado a lado.
+ * é uma família própria. Por isso o peso está no nome. `extra` (800) é o peso
+ * que dá a cara de painel de arena — sem ele Archivo vira só mais uma
+ * grotesca, e por isso os títulos e os números grandes usam ele.
  */
 export const tipo = {
-  regular: 'Inter_400Regular',
-  media: 'Inter_500Medium',
-  semi: 'Inter_600SemiBold',
-  forte: 'Inter_700Bold',
+  regular: 'Archivo_400Regular',
+  media: 'Archivo_500Medium',
+  semi: 'Archivo_600SemiBold',
+  forte: 'Archivo_700Bold',
+  extra: 'Archivo_800ExtraBold',
 } as const
 
 /**
- * A escala, igual à do sistema web — inclusive o corpo de 13px.
+ * A escala, igual à do sistema web — inclusive o corpo miúdo.
  *
  * Treze é menor do que se costuma usar em aplicativo, e é de propósito: esta é
  * uma interface de painel, densa, onde cabe muita linha na tela. O que sobe de
  * tamanho é o NÚMERO, que é o conteúdo de verdade.
  *
- * O espaçamento negativo entre letras não é enfeite: em Inter, texto grande sem
- * isso fica frouxo. É o detalhe mais visível em Linear e Vercel.
+ * Sem letterSpacing manual: Archivo não pede a compensação que Inter pedia —
+ * inventar um valor de tracking sem ver a fonte lado a lado com o site seria
+ * "não invente", e aqui não tem de onde copiar por valor (o site não declara
+ * tracking manual para o corpo do texto).
  */
 export const texto = {
-  metrica: { fontSize: 28, lineHeight: 32, letterSpacing: -0.56, fontFamily: tipo.forte },
-  tituloTela: { fontSize: 22, lineHeight: 28, letterSpacing: -0.46, fontFamily: tipo.forte },
-  xl: { fontSize: 18, lineHeight: 26, letterSpacing: -0.38, fontFamily: tipo.semi },
-  tituloCartao: { fontSize: 16, lineHeight: 24, letterSpacing: -0.34, fontFamily: tipo.semi },
-  base: { fontSize: 14, lineHeight: 22, letterSpacing: -0.15, fontFamily: tipo.regular },
-  corpo: { fontSize: 13, lineHeight: 20, letterSpacing: -0.14, fontFamily: tipo.regular },
-  corpoForte: { fontSize: 13, lineHeight: 20, letterSpacing: -0.14, fontFamily: tipo.semi },
-  xs: { fontSize: 12, lineHeight: 18, letterSpacing: -0.13, fontFamily: tipo.media },
-  xxs: { fontSize: 11, lineHeight: 16, letterSpacing: 0, fontFamily: tipo.media },
+  metrica: { fontSize: 36, lineHeight: 40, fontFamily: tipo.extra },
+  tituloTela: { fontSize: 22, lineHeight: 28, fontFamily: tipo.extra },
+  xl: { fontSize: 18, lineHeight: 26, fontFamily: tipo.semi },
+  tituloCartao: { fontSize: 16, lineHeight: 24, fontFamily: tipo.forte },
+  base: { fontSize: 14, lineHeight: 22, fontFamily: tipo.regular },
+  corpo: { fontSize: 13, lineHeight: 20, fontFamily: tipo.regular },
+  corpoForte: { fontSize: 13, lineHeight: 20, fontFamily: tipo.semi },
+  xs: { fontSize: 12, lineHeight: 18, fontFamily: tipo.media },
+  xxs: { fontSize: 11, lineHeight: 16, fontFamily: tipo.media },
   /** Etiqueta de grupo do menu: maiúscula, pequena, espaçada. */
   etiqueta: { fontSize: 11, lineHeight: 16, letterSpacing: 0.6, fontFamily: tipo.semi },
 } as const
@@ -202,37 +319,19 @@ export const espaco = {
 } as const
 
 /**
- * 4/6/8/10/12/14 — os mesmos do site.
+ * 6/8/10/12/16/20 — os mesmos do site, no rebranding "Arena" (era 4–14).
  *
  * O cartão é claramente mais arredondado que o controle que mora dentro dele.
  * Tudo com o mesmo raio é a assinatura de interface montada às pressas.
  */
 export const raio = {
-  selo: 4,
-  campoPequeno: 6,
-  campo: 8,
-  peca: 10,
-  cartao: 12,
-  folha: 14,
+  selo: 6,
+  campoPequeno: 8,
+  campo: 10,
+  peca: 12,
+  cartao: 16,
+  folha: 20,
   pilula: 999,
-} as const
-
-/**
- * Sombra quase imperceptível, como no site: uma camada só.
- *
- * Ela não é o que separa as superfícies — quem faz isso é a borda de 1px. A
- * sombra só tira o cartão de cima do fundo.
- */
-export const sombra = {
-  /*
-   * Escritas como `boxShadow`, no formato do CSS — os mesmos valores do
-   * `--shadow-*` de produção, sem tradução no meio. As propriedades antigas
-   * (`shadowColor`, `shadowOpacity`…) estão descontinuadas no React Native
-   * atual e avisam no console a cada tela.
-   */
-  xs: { boxShadow: '0 1px 2px rgba(17, 17, 19, 0.04)' },
-  sm: { boxShadow: '0 1px 2px rgba(17, 17, 19, 0.05)' },
-  lg: { boxShadow: '0 4px 12px rgba(17, 17, 19, 0.08)' },
 } as const
 
 /**

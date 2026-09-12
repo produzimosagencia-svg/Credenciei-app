@@ -11,7 +11,7 @@
 // evento avulso limita a só aquele. Os dois cabem juntos no mesmo acesso, e
 // sem nenhum marcado o acesso não teria onde atuar.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatTelefone, formatarBR } from '@credenciei/dominio'
 import type {
@@ -26,7 +26,8 @@ import {
   Selo, Tela, TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 /** "2026-09-30" → "30/09/2026". */
 function paraExibicao(iso: string): string {
@@ -43,6 +44,7 @@ function paraISO(dataDigitada: string): string | null {
 
 export default function Suporte() {
   const { cliente } = useSessao()
+  const e = useEstilos()
   const [versao, setVersao] = useState(0)
   const [criando, setCriando] = useState(false)
   const [editando, setEditando] = useState<SuporteAcesso | null>(null)
@@ -117,6 +119,8 @@ export default function Suporte() {
 }
 
 function LinhaDeSuporte({ suporte: s, onEditar }: { suporte: SuporteAcesso; onEditar: () => void }) {
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
   const escopoTexto = [
     ...s.escopoOrganizacoes.map(o => o.nome),
     ...s.escopoEventos.map(ev => ev.nome),
@@ -149,6 +153,8 @@ function FormularioDeSuporte({
   aoSalvar: () => void
 }) {
   const { cliente } = useSessao()
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
   const editando = !!suporte
 
   const [nome, setNome] = useState(suporte?.nome ?? '')
@@ -344,6 +350,7 @@ function FormularioDeSuporte({
 function ChecklistLinha({
   rotulo, marcado, onPress,
 }: { rotulo: string; marcado: boolean; onPress: () => void }) {
+  const e = useEstilos()
   return (
     <Pressable
       onPress={onPress}
@@ -359,7 +366,8 @@ function ChecklistLinha({
   )
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   fio: { height: 1, backgroundColor: uso.borda },
 
   linha: {
@@ -399,4 +407,10 @@ const e = StyleSheet.create({
     justifyContent: 'center',
   },
   checkboxMarcado: { backgroundColor: cor.acento500, borderColor: cor.acento500 },
-})
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

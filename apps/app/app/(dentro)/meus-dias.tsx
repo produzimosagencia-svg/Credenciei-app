@@ -13,6 +13,7 @@
 //
 // A regra está em `src/historico.ts`, com teste, porque é regra e não desenho.
 
+import { useMemo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { formatarBR, NOME_DA_FASE } from '@credenciei/dominio'
 import type { DiaDaParticipacao, TipoBatida } from '@credenciei/contrato'
@@ -25,10 +26,12 @@ import {
   Aviso, Botao, Carregando, Cartao, Corpo, Legenda, Respiro, Selo, Separador,
   Tela, TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
-import { cor, corDaEtapa, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { corDaEtapa, espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 export default function MeusDias() {
   const { cliente } = useSessao()
+  const e = useEstilos()
 
   const { pedido, recarregar } = usePedido(async () => {
     const participacoes = await cliente.minhasParticipacoes()
@@ -101,6 +104,7 @@ export default function MeusDias() {
 }
 
 function CartaoDoDia({ dia }: { dia: DiaDaParticipacao }) {
+  const e = useEstilos()
   const status = statusDoDia(dia)
   const silencioso = celulaSilenciosa(dia)
   const tom = { presente: 'sucesso', incompleto: 'aviso', ausente: 'erro' } as const
@@ -149,6 +153,7 @@ function Celula({
   silencioso: boolean
   atrasoMin?: number | null
 }) {
+  const e = useEstilos()
   const rotulo = { entrada: 'Entrada', meio: 'Meio', fim: 'Saída' }[tipo]
 
   return (
@@ -176,6 +181,7 @@ function Celula({
 function Numero({
   valor, rotulo, destaque,
 }: { valor: string | number; rotulo: string; destaque?: boolean }) {
+  const e = useEstilos()
   return (
     <View style={e.numero}>
       <Text style={[e.numeroValor, destaque && e.numeroValorDestaque]}>{valor}</Text>
@@ -185,6 +191,7 @@ function Numero({
 }
 
 function Contagem({ tipo, quantas }: { tipo: TipoBatida; quantas: number }) {
+  const e = useEstilos()
   const rotulo = { entrada: 'entradas', meio: 'meios', fim: 'saídas' }[tipo]
   return (
     <View style={e.contagem}>
@@ -196,7 +203,8 @@ function Contagem({ tipo, quantas }: { tipo: TipoBatida; quantas: number }) {
   )
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   numeros: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.g },
   numero: { minWidth: '44%', flexGrow: 1 },
   numeroValor: { ...texto.metrica, fontSize: 22, lineHeight: 26, color: uso.tinta },
@@ -229,4 +237,10 @@ const e = StyleSheet.create({
   /* O traço quieto do dia inteiro ausente. */
   celulaQuieta: { ...texto.corpoForte, color: cor.neutro300 },
   celulaFalta: { ...texto.xxs, fontFamily: tipo.semi, color: cor.erro600, letterSpacing: 0.4 },
-})
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

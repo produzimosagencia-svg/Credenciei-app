@@ -45,6 +45,7 @@ import LogIn from 'lucide-react-native/icons/log-in'
 import LogOut from 'lucide-react-native/icons/log-out'
 import MapPin from 'lucide-react-native/icons/map-pin'
 import MessageCircle from 'lucide-react-native/icons/message-circle'
+import Moon from 'lucide-react-native/icons/moon'
 import Plus from 'lucide-react-native/icons/plus'
 import QrCode from 'lucide-react-native/icons/qr-code'
 import Radio from 'lucide-react-native/icons/radio'
@@ -53,6 +54,7 @@ import ScanSearch from 'lucide-react-native/icons/search'
 import Send from 'lucide-react-native/icons/send'
 import ShieldBan from 'lucide-react-native/icons/shield-ban'
 import ShieldCheck from 'lucide-react-native/icons/shield-check'
+import Sun from 'lucide-react-native/icons/sun'
 import SwitchCamera from 'lucide-react-native/icons/switch-camera'
 import Trash2 from 'lucide-react-native/icons/trash-2'
 import TriangleAlert from 'lucide-react-native/icons/triangle-alert'
@@ -66,7 +68,7 @@ import UserX from 'lucide-react-native/icons/user-x'
 import Users from 'lucide-react-native/icons/users'
 import Wallet from 'lucide-react-native/icons/wallet'
 import X from 'lucide-react-native/icons/x'
-import { cor } from './tema'
+import { useTema } from './tema-contexto'
 
 /**
  * O inventário de ícones do app.
@@ -102,6 +104,7 @@ const ICONES: Record<string, LucideIcon> = {
   LogOut,
   MapPin,
   MessageCircle,
+  Moon,
   MoreHorizontal: Ellipsis,
   Plus,
   QrCode,
@@ -112,6 +115,7 @@ const ICONES: Record<string, LucideIcon> = {
   Send,
   ShieldBan,
   ShieldCheck,
+  Sun,
   SwitchCamera,
   Trash2,
   Truck,
@@ -126,22 +130,24 @@ const ICONES: Record<string, LucideIcon> = {
 }
 
 export function Icone({
-  nome, tamanho = 20, tom = cor.neutro500, espessura = 2,
+  nome, tamanho = 20, tom, espessura = 2,
 }: {
   nome: string
   tamanho?: number
   /**
    * `ColorValue` e não `string` porque a barra de abas entrega a cor já
    * resolvida — pode ser um valor opaco da plataforma, e não um texto como
-   * '#6d46ff'.
+   * '#FF4A0F'. Sem `tom`, usa o neutro médio do tema ATUAL — por isso o
+   * componente chama `useTema()` mesmo quando quem chamou já escolheu a cor.
    */
   tom?: ColorValue
   espessura?: number
 }) {
+  const { cor } = useTema()
   // Ícone desconhecido vira um relógio em vez de derrubar a tela: um nome
   // escrito errado no menu não pode apagar o app inteiro.
   const Desenho = ICONES[nome] ?? Clock
-  return <Desenho size={tamanho} color={tom as string} strokeWidth={espessura} />
+  return <Desenho size={tamanho} color={(tom ?? cor.neutro500) as string} strokeWidth={espessura} />
 }
 
 export const NOMES_DE_ICONE = Object.keys(ICONES)

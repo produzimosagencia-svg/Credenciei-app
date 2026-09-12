@@ -25,7 +25,7 @@
 // Junto com a batida ficam o nome de quem registrou, o horário, a localização e
 // o aparelho. Nada disso pode ser alterado depois.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import * as Location from 'expo-location'
 import { formatCpf, formatarBR } from '@credenciei/dominio'
@@ -39,12 +39,15 @@ import {
   TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 type Sucesso = { nome: string; etapa: string }
 
 export default function RegistrarPonto() {
   const { cliente } = useSessao()
+  const { cor } = useTema()
+  const e = useEstilos()
 
   const [termo, setTermo] = useState('')
   const [candidatos, setCandidatos] = useState<CandidatoLocalizado[] | null>(null)
@@ -352,6 +355,7 @@ export default function RegistrarPonto() {
  * etapa.
  */
 function FichaDaPessoa({ ficha }: { ficha: FichaLocalizada }) {
+  const e = useEstilos()
   return (
     <Cartao>
       <View style={e.identidade}>
@@ -398,6 +402,8 @@ function FichaDaPessoa({ ficha }: { ficha: FichaLocalizada }) {
 }
 
 function Dado({ icone, rotulo, valor }: { icone: string; rotulo: string; valor: string }) {
+  const { uso } = useTema()
+  const e = useEstilos()
   return (
     <View style={e.dado}>
       <View style={e.dadoRotulo}>
@@ -411,6 +417,7 @@ function Dado({ icone, rotulo, valor }: { icone: string; rotulo: string; valor: 
 
 /** As iniciais, no lugar da foto que a maioria dos cadastros não tem. */
 function Iniciais({ nome, grande }: { nome: string; grande?: boolean }) {
+  const e = useEstilos()
   const partes = nome.trim().split(/\s+/).filter(Boolean)
   const letras = partes.length > 1
     ? (partes[0]?.[0] ?? '') + (partes[partes.length - 1]?.[0] ?? '')
@@ -446,7 +453,8 @@ async function ondeEstamos(): Promise<{ lat: number; lng: number } | null> {
   }
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   sucesso: { alignItems: 'center', gap: espaco.s, paddingVertical: espaco.g },
 
   etapas: { flexDirection: 'row', gap: espaco.s },
@@ -544,4 +552,10 @@ const e = StyleSheet.create({
   fotoTexto: { flex: 1, minWidth: 0 },
   tirarDeNovo: { paddingHorizontal: espaco.s, paddingVertical: espaco.s },
   tirarDeNovoTexto: { ...texto.xs, fontFamily: tipo.semi, color: cor.erro600 },
-})
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

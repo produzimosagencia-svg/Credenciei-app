@@ -10,7 +10,7 @@
 // em…"; depois, continua aberta — confirmar tarde ainda é melhor que não
 // confirmar.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLocalSearchParams } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatarBR } from '@credenciei/dominio'
@@ -21,11 +21,14 @@ import {
   TituloDaTela, TituloDeCartao,
 } from '../../../src/ui/componentes'
 import { Icone } from '../../../src/ui/icone'
-import { cor, espaco, texto, tipo, uso } from '../../../src/ui/tema'
+import { espaco, texto, tipo } from '../../../src/ui/tema'
+import { useTema, type Tokens } from '../../../src/ui/tema-contexto'
 
 export default function ConferenciaDeEquipe() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { cliente } = useSessao()
+  const { cor, uso } = useTema()
+  const e = useEstilos()
 
   const [versao, setVersao] = useState(0)
   const [erro, setErro] = useState<string | null>(null)
@@ -171,6 +174,8 @@ export default function ConferenciaDeEquipe() {
 function LinhaDoMembro({
   membro: m, ocupado, onRemover,
 }: { membro: { id: string; nome: string; cpf: string; cargo: string | null }; ocupado: boolean; onRemover: () => void }) {
+  const { cor } = useTema()
+  const e = useEstilos()
   const [confirmando, setConfirmando] = useState(false)
 
   return (
@@ -199,43 +204,50 @@ function LinhaDoMembro({
   )
 }
 
-const e = StyleSheet.create({
-  aindaFechada: { alignItems: 'center', paddingVertical: espaco.g },
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    aindaFechada: { alignItems: 'center', paddingVertical: espaco.g },
 
-  cabecalhoLista: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: espaco.g,
-    paddingVertical: espaco.m,
-    borderBottomWidth: 1,
-    borderBottomColor: uso.borda,
-    backgroundColor: cor.neutro50,
-  },
-  cabecalhoTexto: { ...texto.xs, fontFamily: tipo.semi, color: uso.tintaMedia },
-  vazio: { paddingVertical: espaco.g, alignItems: 'center' },
+    cabecalhoLista: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: espaco.g,
+      paddingVertical: espaco.m,
+      borderBottomWidth: 1,
+      borderBottomColor: uso.borda,
+      backgroundColor: cor.neutro50,
+    },
+    cabecalhoTexto: { ...texto.xs, fontFamily: tipo.semi, color: uso.tintaMedia },
+    vazio: { paddingVertical: espaco.g, alignItems: 'center' },
 
-  fio: { height: 1, backgroundColor: uso.borda },
-  linha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaco.s,
-    paddingHorizontal: espaco.g,
-    paddingVertical: espaco.m,
-  },
-  linhaTexto: { flex: 1, minWidth: 0 },
+    fio: { height: 1, backgroundColor: uso.borda },
+    linha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.s,
+      paddingHorizontal: espaco.g,
+      paddingVertical: espaco.m,
+    },
+    linhaTexto: { flex: 1, minWidth: 0 },
 
-  tirar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    minHeight: 36,
-    paddingHorizontal: espaco.m,
-    borderRadius: 999,
-    backgroundColor: cor.erro50,
-  },
-  tirarTocado: { backgroundColor: cor.erro200 },
-  tirarTexto: { ...texto.xs, fontFamily: tipo.semi, color: cor.erro600 },
+    tirar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      minHeight: 36,
+      paddingHorizontal: espaco.m,
+      borderRadius: 999,
+      backgroundColor: cor.erro50,
+    },
+    tirarTocado: { backgroundColor: cor.erro200 },
+    tirarTexto: { ...texto.xs, fontFamily: tipo.semi, color: cor.erro600 },
 
-  confirmacao: { flexDirection: 'row', gap: espaco.s },
-})
+    confirmacao: { flexDirection: 'row', gap: espaco.s },
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

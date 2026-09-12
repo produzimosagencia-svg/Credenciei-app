@@ -23,7 +23,7 @@
 // meio dela devolveria o operador ao escuro, sem saber o que fazer com quem
 // está ali.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -37,7 +37,8 @@ import { useSessao } from '../../src/sessao/contexto'
 import { ConferenciaPorCpf } from '../../src/ui/conferencia-cpf'
 import { Botao, Corpo } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 /**
  * Quanto tempo o resultado fica na tela antes de voltar a ler.
@@ -50,6 +51,7 @@ const TEMPO_DO_AVISO = 2500
 export default function Escanear() {
   const insets = useSafeAreaInsets()
   const { cliente } = useSessao()
+  const e = useEstilos()
 
   const [eventos, setEventos] = useState<EventoEscaneavel[]>([])
   const [eventoId, setEventoId] = useState('')
@@ -165,6 +167,8 @@ function SeletorDeEvento({
   aoEscolher: (id: string) => void
   erro: string | null
 }) {
+  const e = useEstilos()
+
   if (erro) {
     return (
       <View style={e.bloco}>
@@ -224,6 +228,8 @@ function Visor({
   aoLer: (codigo: string) => void
   podeLer: boolean
 }) {
+  const { cor } = useTema()
+  const e = useMemo(() => criarEstilos(cor), [cor])
   const [permissao, pedirPermissao] = useCameraPermissions()
 
   if (!permissao) {
@@ -278,6 +284,8 @@ function AvisoDaLeitura({
   aoConferirCpf: () => void
   aoVoltarALer: () => void
 }) {
+  const { cor } = useTema()
+  const e = useMemo(() => criarEstilos(cor), [cor])
   const registrado = resultado.situacao === 'registrado'
   const duplicado = resultado.situacao === 'duplicado'
   // Saiu e voltou no mesmo dia: nem entrada normal, nem erro — o operador
@@ -345,6 +353,7 @@ function AvisoDaLeitura({
 function CrachasDeDemonstracao({
   aoEscolher, desabilitado,
 }: { aoEscolher: (codigo: string) => void; desabilitado: boolean }) {
+  const e = useEstilos()
   const [crachas] = useState<CredencialDeDemonstracao[]>(() => credenciaisDeDemonstracao())
 
   return (
@@ -380,7 +389,8 @@ function CrachasDeDemonstracao({
 
 const ESCURO = '#0d1117'
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor']) {
+  return StyleSheet.create({
   fora: { flex: 1, backgroundColor: ESCURO },
   conteudo: { padding: espaco.g, gap: espaco.g, paddingBottom: espaco.gggg },
 
@@ -507,4 +517,10 @@ const e = StyleSheet.create({
     backgroundColor: 'rgba(217,119,6,0.18)',
   },
   crachaSeloTexto: { ...texto.xxs, fontFamily: tipo.semi, color: '#fbbf24' },
-})
+  })
+}
+
+function useEstilos() {
+  const { cor } = useTema()
+  return useMemo(() => criarEstilos(cor), [cor])
+}

@@ -22,7 +22,7 @@
 //    referência. Colocada depois, o produtor preencheria acreditando que
 //    aqueles horários recusam alguém, e só então descobriria que não.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { conferirHorariosDoEvento, type ProblemaDeJanela } from '@credenciei/dominio'
@@ -38,7 +38,8 @@ import {
 } from '../../../../src/ui/componentes'
 import { CampoDeDataHora } from '../../../../src/ui/data-hora'
 import { Icone } from '../../../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../../../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../../../src/ui/tema'
+import { useTema, type Tokens } from '../../../../src/ui/tema-contexto'
 
 /** Quantos dias antes e depois do evento aparecem na grade. */
 const DIAS_ANTES = 14
@@ -109,6 +110,8 @@ function Formulario({
   const [saidaInicio, setSaidaInicio] = useState(inicial.janelaFimInicio)
   const [saidaFim, setSaidaFim] = useState(inicial.janelaFimFim)
 
+  const { cor } = useTema()
+  const e = useEstilos()
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [feito, setFeito] = useState<string | null>(null)
@@ -340,6 +343,8 @@ function ConfiguracaoDoMeioBloco({
   eventoId, inicial,
 }: { eventoId: string; inicial: ConfiguracaoDoMeio }) {
   const { cliente } = useSessao()
+  const { cor } = useTema()
+  const e = useEstilos()
   const [setores, setSetores] = useState<Set<string>>(
     () => new Set(inicial.setores.filter(s => s.exigeMeio).map(s => s.setorId)),
   )
@@ -487,6 +492,8 @@ function ConfiguracaoDoMeioBloco({
 function AvisoDeBloqueio({
   problemas, aoFechar,
 }: { problemas: ProblemaDeJanela[]; aoFechar: () => void }) {
+  const { cor } = useTema()
+  const e = useEstilos()
   return (
     <Modal visible transparent animationType="fade" onRequestClose={aoFechar}>
       <View style={e.fundoDoAviso}>
@@ -538,6 +545,8 @@ function DiasDeTrabalho({
   dias: DiaDeTrabalho[]
   aoSalvar: (dias: string[]) => Promise<{ resultado?: ResultadoDosDias; erro?: string }>
 }) {
+  const { cor, uso } = useTema()
+  const e = useEstilos()
   const travados = new Set(
     dias.filter(d => d.temBatidas && d.tipo !== 'principal').map(d => d.data),
   )
@@ -710,7 +719,8 @@ function rotuloDoDia(dia: string) {
   }
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   multiplasLinhas: { minHeight: 88, paddingTop: espaco.m, textAlignVertical: 'top' },
 
   linhaDaChave: { flexDirection: 'row', gap: espaco.m },
@@ -801,4 +811,10 @@ const e = StyleSheet.create({
     padding: espaco.m,
     marginBottom: espaco.s,
   },
-})
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

@@ -20,13 +20,14 @@
 // Aqui o valor sobe por `aoMudar` a cada alteração, e quem valida lê o estado
 // atual no instante da decisão. Não existe campo escondido, nem cache.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { deISO, mascararDataBR, mascararHora, paraISO } from '../data'
 import { Campo } from './componentes'
 import { Icone } from './icone'
-import { cor, espaco, raio, texto, tipo, uso } from './tema'
+import { espaco, raio, texto, tipo } from './tema'
+import { useTema, type Tokens } from './tema-contexto'
 
 export function CampoDeDataHora({
   rotulo, valor, aoMudar, ajuda,
@@ -37,6 +38,8 @@ export function CampoDeDataHora({
   aoMudar: (iso: string | null) => void
   ajuda?: string
 }) {
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
   const atual = deISO(valor)
   const [data, setData] = useState(atual.data)
   const [hora, setHora] = useState(atual.hora)
@@ -125,24 +128,26 @@ export function CampoDeDataHora({
   )
 }
 
-const e = StyleSheet.create({
-  fora: { marginBottom: espaco.g },
-  rotulo: { ...texto.xs, fontFamily: tipo.semi, color: cor.neutro600, marginBottom: 6 },
-  linha: { flexDirection: 'row', gap: espaco.s },
-  metade: { flex: 1 },
-  botao: {
-    flex: 1,
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaco.s,
-    paddingHorizontal: espaco.m,
-    borderRadius: raio.campo,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    backgroundColor: uso.superficie,
-  },
-  botaoTexto: { ...texto.base, fontFamily: tipo.media, color: cor.neutro900 },
-  vazio: { color: cor.neutro400 },
-  ajuda: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, marginTop: 6 },
-})
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    fora: { marginBottom: espaco.g },
+    rotulo: { ...texto.xs, fontFamily: tipo.semi, color: uso.tintaMedia, marginBottom: 6 },
+    linha: { flexDirection: 'row', gap: espaco.s },
+    metade: { flex: 1 },
+    botao: {
+      flex: 1,
+      minHeight: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.s,
+      paddingHorizontal: espaco.m,
+      borderRadius: raio.campo,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      backgroundColor: uso.superficie,
+    },
+    botaoTexto: { ...texto.base, fontFamily: tipo.media, color: uso.tinta },
+    vazio: { color: cor.neutro400 },
+    ajuda: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, marginTop: 6 },
+  })
+}

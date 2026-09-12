@@ -11,7 +11,7 @@
 // confusões clássicas de leitura — porque quem digita está com o celular numa
 // mão e uma caixa na outra.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { View, StyleSheet } from 'react-native'
 import { formatarBR, mascararCodigo } from '@credenciei/dominio'
@@ -23,7 +23,8 @@ import {
   Aviso, Botao, Campo, Cartao, Corpo, Escolha, Legenda, Respiro, Tela,
   TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
-import { cor, espaco, texto, tipo } from '../../src/ui/tema'
+import { espaco, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 /**
  * Quantos caracteres o código tem sem os traços: sigla (3) + ano (4) + sorteio
@@ -35,6 +36,7 @@ const TAMANHO_DO_CODIGO = 11
 export default function NovoEvento() {
   const router = useRouter()
   const { cliente } = useSessao()
+  const e = useEstilos()
 
   const [codigo, setCodigo] = useState('')
   const [convite, setConvite] = useState<ConviteDoEvento | null>(null)
@@ -197,6 +199,7 @@ function CampoDoEvento({
   faltando: boolean
   aoResponder: (v: string) => void
 }) {
+  const e = useEstilos()
   const erro = faltando ? 'Precisa ser preenchido.' : undefined
 
   if (campo.tipo === 'escolha') {
@@ -235,13 +238,20 @@ function CampoDoEvento({
   )
 }
 
-const e = StyleSheet.create({
-  codigo: {
-    ...texto.tituloTela,
-    fontFamily: tipo.forte,
-    letterSpacing: 2,
-    textAlign: 'center',
-    color: cor.acento700,
-  },
-  grupo: { marginBottom: espaco.g },
-})
+function criarEstilos(cor: Tokens['cor']) {
+  return StyleSheet.create({
+    codigo: {
+      ...texto.tituloTela,
+      fontFamily: tipo.forte,
+      letterSpacing: 2,
+      textAlign: 'center',
+      color: cor.acento700,
+    },
+    grupo: { marginBottom: espaco.g },
+  })
+}
+
+function useEstilos() {
+  const { cor } = useTema()
+  return useMemo(() => criarEstilos(cor), [cor])
+}

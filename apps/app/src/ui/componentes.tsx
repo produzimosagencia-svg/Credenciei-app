@@ -8,27 +8,223 @@
 //
 //   a separação vem da BORDA     um fio de 1px, não uma sombra. A sombra
 //                                existe, mas é quase imperceptível;
-//   cor é exceção                a interface é de neutros. Roxo marca a AÇÃO
-//                                principal, e é por isso que ela é achada;
+//   cor é exceção                a interface é de neutros. O laranja marca a
+//                                AÇÃO principal, e é por isso que ela é achada;
 //   toque afunda                 `scale(0.98)`, o mesmo `.btn-press` do site.
 //
 // A única medida em que o app se afasta do site é a ALTURA DO ALVO: lá os
 // controles têm 34–38px, medida de mouse. Aqui têm 52, porque quem toca está
 // em pé, no portão, com pressa.
+//
+// ─── POR QUE `StyleSheet.create` VIROU UMA FUNÇÃO ───────────────────────────
+//
+// Ele roda uma vez só, na primeira vez que o módulo carrega — não de novo a
+// cada render. Com dois temas, os valores de cor precisam ser recalculados
+// quando a pessoa troca — por isso viraram parâmetro de `criarEstilos`,
+// chamada de dentro de `useEstilos()` (memoizada pelo tema atual). Todo
+// componente deste arquivo chama esse hook em vez de ler um `StyleSheet`
+// fixo. É o mesmo padrão que toda tela do app segue.
 
-import { forwardRef, useRef, type ReactNode } from 'react'
+import { forwardRef, useMemo, useRef, type ReactNode } from 'react'
 import {
   ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput,
   View, type StyleProp, type TextInputProps, type ViewStyle,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import {
-  ALVO_MINIMO, cor, espaco, gradiente, raio, sombra, texto, tipo, uso,
-  type TomDeIndicador,
-} from './tema'
+import { gradiente, type TomDeIndicador } from './tema'
+import { useTema, type Tokens } from './tema-contexto'
 
 /** A web dá também o estado de "mouse em cima"; o celular, só o de toque. */
 type EstadoDeToque = { pressed: boolean; hovered?: boolean }
+
+export type TipoDeAviso = 'erro' | 'aviso' | 'sucesso' | 'info'
+
+function criarEstilos({ cor, uso, texto, tipo, espaco, raio, sombra, ALVO_MINIMO }: Tokens) {
+  const PALETA: Record<TipoDeAviso, { fundo: string; borda: string; tinta: string }> = {
+    erro: { fundo: cor.erro50, borda: cor.erro200, tinta: cor.erro700 },
+    aviso: { fundo: cor.aviso50, borda: cor.aviso200, tinta: cor.aviso700 },
+    sucesso: { fundo: cor.sucesso50, borda: cor.sucesso200, tinta: cor.sucesso700 },
+    info: { fundo: cor.info50, borda: cor.info200, tinta: cor.info700 },
+  }
+
+  const e = StyleSheet.create({
+    tela: { flex: 1, backgroundColor: cor.fundo },
+    telaConteudo: { padding: espaco.g, paddingBottom: espaco.gggg },
+
+    cartao: {
+      backgroundColor: uso.superficie,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      borderRadius: raio.cartao,
+      padding: espaco.g,
+      marginBottom: espaco.m,
+      ...sombra.xs,
+    },
+    cartaoSemPadding: { padding: 0, overflow: 'hidden' },
+    cartaoSobre: { borderColor: uso.bordaForte },
+    afunda: { transform: [{ scale: 0.98 }] },
+
+    separador: { height: 1, backgroundColor: uso.borda, marginVertical: espaco.g },
+
+    tituloTela: { ...texto.tituloTela, color: uso.tinta },
+    tituloCartao: { ...texto.tituloCartao, color: uso.tinta },
+    corpo: { ...texto.corpo, color: uso.tintaMedia },
+    corpoForte: { ...texto.corpoForte, color: uso.tinta },
+    legenda: { ...texto.xs, color: uso.tintaFraca },
+    etiqueta: { ...texto.etiqueta, color: uso.tintaFraca },
+    nota: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, lineHeight: 18 },
+
+    indicador: {
+      borderRadius: raio.cartao,
+      paddingTop: 14,
+      paddingHorizontal: espaco.g,
+      paddingBottom: espaco.g,
+      overflow: 'hidden',
+      ...sombra.sm,
+    },
+    indicadorBrilho: {
+      // No estilo, e não como propriedade: `props.pointerEvents` está
+      // descontinuado no React Native atual e avisa no console a cada tela.
+      pointerEvents: 'none',
+      position: 'absolute',
+      top: '-55%',
+      right: '-25%',
+      width: '75%',
+      height: '160%',
+      borderRadius: 999,
+      backgroundColor: 'rgba(255,255,255,0.13)',
+    },
+    indicadorLinha: { flexDirection: 'row', alignItems: 'flex-start', gap: espaco.m },
+    indicadorTexto: { flex: 1, minWidth: 0 },
+    indicadorRotulo: { ...texto.xs, color: 'rgba(255,255,255,0.85)' },
+    indicadorValor: { ...texto.metrica, color: '#ffffff', marginTop: 6 },
+    indicadorSub: { ...texto.xs, fontFamily: tipo.regular, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
+    indicadorIcone: {
+      width: 32,
+      height: 32,
+      borderRadius: raio.campo,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.18)',
+    },
+
+    botao: {
+      minHeight: ALVO_MINIMO,
+      borderRadius: raio.campo,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: espaco.m,
+      flexDirection: 'row',
+      gap: 6,
+    },
+    botao_primario: { backgroundColor: cor.acento500, borderColor: cor.acento600 },
+    botaoSobre_primario: { backgroundColor: cor.acento600, borderColor: cor.acento700 },
+    botao_secundario: { backgroundColor: uso.superficie, borderColor: uso.borda },
+    botaoSobre_secundario: { backgroundColor: cor.neutro50, borderColor: uso.bordaForte },
+    botao_acento: { backgroundColor: uso.superficie, borderColor: cor.acento200 },
+    botaoSobre_acento: { backgroundColor: cor.acento50, borderColor: cor.acento500 },
+    botao_fantasma: { backgroundColor: 'transparent', borderColor: 'transparent', minHeight: 44 },
+    botaoSobre_fantasma: { backgroundColor: cor.neutro100 },
+    botao_perigo: { backgroundColor: cor.erro600, borderColor: cor.erro600 },
+    botaoSobre_perigo: { backgroundColor: cor.erro700, borderColor: cor.erro700 },
+    /* O site usa opacidade 0.45 no desabilitado — o mesmo aqui. */
+    botaoTravado: { opacity: 0.45 },
+    botaoRotulo: { ...texto.base, fontFamily: tipo.semi },
+
+    campo: { marginBottom: espaco.g },
+    campoRotulo: { ...texto.xs, fontFamily: tipo.semi, color: uso.tintaMedia, marginBottom: 6 },
+    campoEntrada: {
+      minHeight: ALVO_MINIMO,
+      backgroundColor: uso.superficie,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      borderRadius: raio.campo,
+      paddingHorizontal: espaco.m,
+      ...texto.base,
+      fontFamily: tipo.media,
+      color: uso.tinta,
+    },
+    campoRotuloEscuro: { color: cor.neutro300 },
+    campoEntradaEscuro: {
+      backgroundColor: cor.neutro50,
+      borderColor: 'transparent',
+      borderRadius: raio.folha,
+    },
+    campoComErro: { borderColor: cor.erro600 },
+    campoAjuda: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, marginTop: 6 },
+    campoErro: { ...texto.xs, fontFamily: tipo.semi, color: cor.erro700, marginTop: 6 },
+
+    codigoFora: { flexDirection: 'row', gap: espaco.s, marginBottom: espaco.g },
+    codigoCasa: {
+      flex: 1,
+      height: 58,
+      borderRadius: raio.campo,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      backgroundColor: uso.superficie,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    codigoCasaCheia: { borderColor: uso.bordaForte },
+    /* O anel do `.input:focus` do site, traduzido para o que dá no celular. */
+    codigoCasaEsperando: { borderColor: cor.acento500, backgroundColor: cor.acento50 },
+    codigoDigito: { ...texto.metrica, fontSize: 24, color: uso.tinta },
+    codigoInvisivel: {
+      position: 'absolute',
+      top: 0, left: 0, right: 0, bottom: 0,
+      opacity: 0,
+      ...(({ outlineStyle: 'none' } as unknown) as object),
+    },
+
+    escolha: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
+    escolhaItem: {
+      minHeight: ALVO_MINIMO - 6,
+      minWidth: 60,
+      paddingHorizontal: espaco.g,
+      borderRadius: raio.campo,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      backgroundColor: uso.superficie,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    escolhaItemMarcado: { borderColor: cor.acento600, backgroundColor: cor.acento500 },
+    escolhaItemSobre: { borderColor: uso.bordaForte, backgroundColor: cor.neutro50 },
+    escolhaRotulo: { ...texto.base, fontFamily: tipo.semi, color: uso.tintaMedia },
+    escolhaRotuloMarcado: { color: cor.sobreEscuro },
+
+    aviso: {
+      borderRadius: raio.campo,
+      borderWidth: 1,
+      padding: espaco.m,
+      marginBottom: espaco.m,
+    },
+    avisoTexto: { ...texto.corpo, fontFamily: tipo.media },
+
+    selo: {
+      alignSelf: 'flex-start',
+      borderRadius: raio.pilula,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    seloTexto: { ...texto.xxs, fontFamily: tipo.semi },
+
+    pontoAoVivo: { width: 6, height: 6, borderRadius: 3 },
+
+    carregando: { paddingVertical: espaco.gggg, alignItems: 'center', gap: espaco.m },
+    carregandoTexto: { ...texto.corpo, color: uso.tintaMedia },
+  })
+
+  return { e, PALETA }
+}
+
+/** Os estilos e a cor crua do tema ATUAL — recalculado só quando o tema muda. */
+function useEstilos() {
+  const t = useTema()
+  const { e, PALETA } = useMemo(() => criarEstilos(t), [t])
+  return { e, PALETA, cor: t.cor }
+}
 
 // ─── Estrutura ──────────────────────────────────────────────────────────────
 
@@ -36,6 +232,7 @@ type EstadoDeToque = { pressed: boolean; hovered?: boolean }
 export function Tela({
   children, estilo,
 }: { children: ReactNode; estilo?: StyleProp<ViewStyle> }) {
+  const { e } = useEstilos()
   return (
     <ScrollView
       style={e.tela}
@@ -51,13 +248,14 @@ export function Tela({
 /**
  * Um bloco de conteúdo.
  *
- * Branco, fio de 1px, canto de 12. A sombra é quase invisível de propósito: no
- * sistema web quem separa as superfícies é a borda, e sombra forte por cima de
- * borda deixa o canto sujo.
+ * Superfície do tema, fio de 1px, canto de 16. A sombra é quase invisível de
+ * propósito: no sistema web quem separa as superfícies é a borda, e sombra
+ * forte por cima de borda deixa o canto sujo.
  */
 export function Cartao({
   children, onPress, semPadding,
 }: { children: ReactNode; onPress?: () => void; semPadding?: boolean }) {
+  const { e } = useEstilos()
   const base = [e.cartao, semPadding && e.cartaoSemPadding]
   if (!onPress) return <View style={base}>{children}</View>
 
@@ -74,39 +272,47 @@ export function Cartao({
   )
 }
 
-export function Respiro({ altura = espaco.g }: { altura?: number }) {
-  return <View style={{ height: altura }} />
+export function Respiro({ altura }: { altura?: number }) {
+  const { espaco } = useTema()
+  return <View style={{ height: altura ?? espaco.g }} />
 }
 
 export function Separador() {
+  const { e } = useEstilos()
   return <View style={e.separador} />
 }
 
 // ─── Texto ──────────────────────────────────────────────────────────────────
 
 export function TituloDaTela({ children }: { children: ReactNode }) {
+  const { e } = useEstilos()
   return <Text style={e.tituloTela}>{children}</Text>
 }
 
 export function TituloDeCartao({ children }: { children: ReactNode }) {
+  const { e } = useEstilos()
   return <Text style={e.tituloCartao}>{children}</Text>
 }
 
 export function Corpo({ children, forte }: { children: ReactNode; forte?: boolean }) {
+  const { e } = useEstilos()
   return <Text style={forte ? e.corpoForte : e.corpo}>{children}</Text>
 }
 
 export function Legenda({ children }: { children: ReactNode }) {
+  const { e } = useEstilos()
   return <Text style={e.legenda}>{children}</Text>
 }
 
 /** Etiqueta de seção: pequena, maiúscula, espaçada. Igual à do menu do site. */
 export function Etiqueta({ children }: { children: ReactNode }) {
+  const { e } = useEstilos()
   return <Text style={e.etiqueta}>{String(children).toUpperCase()}</Text>
 }
 
 /** Recado de rodapé: presente, sem competir com o conteúdo. */
 export function Nota({ children }: { children: ReactNode }) {
+  const { e } = useEstilos()
   return <Text style={e.nota}>{children}</Text>
 }
 
@@ -119,9 +325,9 @@ export function Nota({ children }: { children: ReactNode }) {
  * do número — o que precisa de atenção é laranja, o que está bem é verde, o que
  * só conta coisa é azul — nunca da posição na fileira.
  *
- * Os tons são escuros porque foram escolhidos pelo contraste: laranja-600 com
- * rótulo branco de 12px dá 3.5:1 e some no sol do evento, que é exatamente
- * onde esta tela é usada. O #c2410c daqui dá 4.6:1.
+ * Os tons ficam fora do par claro/escuro (ver `tema.ts`): são sempre escuros,
+ * escolhidos pelo contraste — o rótulo branco de 12px precisa de 4.5:1 para
+ * ser lido no sol do evento, que é exatamente onde esta tela é usada.
  */
 export function Indicador({
   rotulo, valor, sub, tom = 'neutro', icone,
@@ -132,6 +338,7 @@ export function Indicador({
   tom?: TomDeIndicador
   icone?: ReactNode
 }) {
+  const { e } = useEstilos()
   const [de, ate] = gradiente[tom]
 
   return (
@@ -162,9 +369,9 @@ export type BotaoProps = {
   titulo: string
   onPress: () => void
   /**
-   * `primario` roxo é a ação da tela — uma por tela, senão nenhuma é achada.
-   * `acento` é roxo vazado: apoio que ainda é do sistema, sem brigar com o
-   * primário. `fantasma` é o caminho alternativo, discreto.
+   * `primario` laranja é a ação da tela — uma por tela, senão nenhuma é
+   * achada. `acento` é laranja vazado: apoio que ainda é do sistema, sem
+   * brigar com o primário. `fantasma` é o caminho alternativo, discreto.
    */
   tipo?: 'primario' | 'secundario' | 'acento' | 'fantasma' | 'perigo'
   ocupado?: boolean
@@ -182,6 +389,7 @@ export type BotaoProps = {
 export function Botao({
   titulo, onPress, tipo: variante = 'primario', ocupado, desabilitado,
 }: BotaoProps) {
+  const { e, cor } = useEstilos()
   const travado = !!(ocupado || desabilitado)
 
   const corDoTexto = {
@@ -236,6 +444,7 @@ export type CampoProps = TextInputProps & {
 export const Campo = forwardRef<TextInput, CampoProps>(function Campo(
   { rotulo, ajuda, erro, escuro, style, ...resto }, ref,
 ) {
+  const { e, cor } = useEstilos()
   return (
     <View style={e.campo}>
       {rotulo ? <Text style={[e.campoRotulo, escuro && e.campoRotuloEscuro]}>{rotulo}</Text> : null}
@@ -268,6 +477,7 @@ export function CodigoSegmentado({
   casas?: number
   autoFoco?: boolean
 }) {
+  const { e } = useEstilos()
   const entrada = useRef<TextInput>(null)
   const digitos = valor.split('')
 
@@ -307,6 +517,7 @@ export function CodigoSegmentado({
 export function Escolha({
   opcoes, valor, aoEscolher,
 }: { opcoes: string[]; valor: string | null; aoEscolher: (v: string) => void }) {
+  const { e } = useEstilos()
   return (
     <View style={e.escolha}>
       {opcoes.map(o => {
@@ -337,15 +548,6 @@ export function Escolha({
 
 // ─── Recados ────────────────────────────────────────────────────────────────
 
-export type TipoDeAviso = 'erro' | 'aviso' | 'sucesso' | 'info'
-
-const PALETA: Record<TipoDeAviso, { fundo: string; borda: string; tinta: string }> = {
-  erro: { fundo: cor.erro50, borda: cor.erro200, tinta: cor.erro700 },
-  aviso: { fundo: cor.aviso50, borda: cor.aviso200, tinta: cor.aviso700 },
-  sucesso: { fundo: cor.sucesso50, borda: cor.sucesso200, tinta: cor.sucesso700 },
-  info: { fundo: cor.info50, borda: cor.info200, tinta: cor.info700 },
-}
-
 /**
  * Um recado para a pessoa ler.
  *
@@ -360,6 +562,7 @@ const PALETA: Record<TipoDeAviso, { fundo: string; borda: string; tinta: string 
 export function Aviso({
   tipo: variante = 'info', children,
 }: { tipo?: TipoDeAviso; children: ReactNode }) {
+  const { e, PALETA } = useEstilos()
   const paleta = PALETA[variante]
   return (
     <View style={[e.aviso, { backgroundColor: paleta.fundo, borderColor: paleta.borda }]}>
@@ -372,6 +575,7 @@ export function Aviso({
 export function Selo({
   texto: rotulo, tipo: variante = 'info',
 }: { texto: string; tipo?: TipoDeAviso }) {
+  const { e, PALETA } = useEstilos()
   const paleta = PALETA[variante]
   return (
     <View style={[e.selo, { backgroundColor: paleta.fundo }]}>
@@ -381,11 +585,13 @@ export function Selo({
 }
 
 /** O ponto verde de "ao vivo", igual ao dos cartões de evento do painel. */
-export function PontoAoVivo({ cor: tom = cor.sucesso600 }: { cor?: string }) {
-  return <View style={[e.pontoAoVivo, { backgroundColor: tom }]} />
+export function PontoAoVivo({ cor: tom }: { cor?: string }) {
+  const { e, cor } = useEstilos()
+  return <View style={[e.pontoAoVivo, { backgroundColor: tom ?? cor.sucesso600 }]} />
 }
 
 export function Carregando({ texto: recado }: { texto?: string }) {
+  const { e, cor } = useEstilos()
   return (
     <View style={e.carregando}>
       <ActivityIndicator size="large" color={cor.acento500} />
@@ -393,172 +599,3 @@ export function Carregando({ texto: recado }: { texto?: string }) {
     </View>
   )
 }
-
-const e = StyleSheet.create({
-  tela: { flex: 1, backgroundColor: cor.fundo },
-  telaConteudo: { padding: espaco.g, paddingBottom: espaco.gggg },
-
-  cartao: {
-    backgroundColor: uso.superficie,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    borderRadius: raio.cartao,
-    padding: espaco.g,
-    marginBottom: espaco.m,
-    ...sombra.xs,
-  },
-  cartaoSemPadding: { padding: 0, overflow: 'hidden' },
-  cartaoSobre: { borderColor: cor.neutro300 },
-  afunda: { transform: [{ scale: 0.98 }] },
-
-  separador: { height: 1, backgroundColor: uso.borda, marginVertical: espaco.g },
-
-  tituloTela: { ...texto.tituloTela, color: uso.tinta },
-  tituloCartao: { ...texto.tituloCartao, color: uso.tinta },
-  corpo: { ...texto.corpo, color: uso.tintaMedia },
-  corpoForte: { ...texto.corpoForte, color: uso.tinta },
-  legenda: { ...texto.xs, color: uso.tintaFraca },
-  etiqueta: { ...texto.etiqueta, color: uso.tintaFraca },
-  nota: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, lineHeight: 18 },
-
-  indicador: {
-    borderRadius: raio.cartao,
-    paddingTop: 14,
-    paddingHorizontal: espaco.g,
-    paddingBottom: espaco.g,
-    overflow: 'hidden',
-    ...sombra.sm,
-  },
-  indicadorBrilho: {
-    // No estilo, e não como propriedade: `props.pointerEvents` está
-    // descontinuado no React Native atual e avisa no console a cada tela.
-    pointerEvents: 'none',
-    position: 'absolute',
-    top: '-55%',
-    right: '-25%',
-    width: '75%',
-    height: '160%',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.13)',
-  },
-  indicadorLinha: { flexDirection: 'row', alignItems: 'flex-start', gap: espaco.m },
-  indicadorTexto: { flex: 1, minWidth: 0 },
-  indicadorRotulo: { ...texto.xs, color: 'rgba(255,255,255,0.85)' },
-  indicadorValor: { ...texto.metrica, color: '#ffffff', marginTop: 6 },
-  indicadorSub: { ...texto.xs, fontFamily: tipo.regular, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
-  indicadorIcone: {
-    width: 32,
-    height: 32,
-    borderRadius: raio.campo,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-
-  botao: {
-    minHeight: ALVO_MINIMO,
-    borderRadius: raio.campo,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: espaco.m,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  botao_primario: { backgroundColor: cor.acento500, borderColor: cor.acento600 },
-  botaoSobre_primario: { backgroundColor: cor.acento600, borderColor: cor.acento700 },
-  botao_secundario: { backgroundColor: uso.superficie, borderColor: uso.borda },
-  botaoSobre_secundario: { backgroundColor: cor.neutro50, borderColor: cor.neutro300 },
-  botao_acento: { backgroundColor: uso.superficie, borderColor: cor.acento200 },
-  botaoSobre_acento: { backgroundColor: cor.acento50, borderColor: cor.acento500 },
-  botao_fantasma: { backgroundColor: 'transparent', borderColor: 'transparent', minHeight: 44 },
-  botaoSobre_fantasma: { backgroundColor: cor.neutro100 },
-  botao_perigo: { backgroundColor: cor.erro600, borderColor: cor.erro600 },
-  botaoSobre_perigo: { backgroundColor: cor.erro700, borderColor: cor.erro700 },
-  /* O site usa opacidade 0.45 no desabilitado — o mesmo aqui. */
-  botaoTravado: { opacity: 0.45 },
-  botaoRotulo: { ...texto.base, fontFamily: tipo.semi },
-
-  campo: { marginBottom: espaco.g },
-  campoRotulo: { ...texto.xs, fontFamily: tipo.semi, color: cor.neutro600, marginBottom: 6 },
-  campoEntrada: {
-    minHeight: ALVO_MINIMO,
-    backgroundColor: uso.superficie,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    borderRadius: raio.campo,
-    paddingHorizontal: espaco.m,
-    ...texto.base,
-    fontFamily: tipo.media,
-    color: cor.neutro900,
-  },
-  campoRotuloEscuro: { color: cor.neutro300 },
-  campoEntradaEscuro: {
-    backgroundColor: cor.neutro50,
-    borderColor: 'transparent',
-    borderRadius: raio.folha,
-  },
-  campoComErro: { borderColor: cor.erro600 },
-  campoAjuda: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, marginTop: 6 },
-  campoErro: { ...texto.xs, fontFamily: tipo.semi, color: cor.erro700, marginTop: 6 },
-
-  codigoFora: { flexDirection: 'row', gap: espaco.s, marginBottom: espaco.g },
-  codigoCasa: {
-    flex: 1,
-    height: 58,
-    borderRadius: raio.campo,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    backgroundColor: uso.superficie,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  codigoCasaCheia: { borderColor: cor.neutro300 },
-  /* O anel roxo do `.input:focus` do site, traduzido para o que dá no celular. */
-  codigoCasaEsperando: { borderColor: cor.acento500, backgroundColor: cor.acento50 },
-  codigoDigito: { ...texto.metrica, fontSize: 24, color: cor.neutro900 },
-  codigoInvisivel: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    opacity: 0,
-    ...(({ outlineStyle: 'none' } as unknown) as object),
-  },
-
-  escolha: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
-  escolhaItem: {
-    minHeight: ALVO_MINIMO - 6,
-    minWidth: 60,
-    paddingHorizontal: espaco.g,
-    borderRadius: raio.campo,
-    borderWidth: 1,
-    borderColor: uso.borda,
-    backgroundColor: uso.superficie,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  escolhaItemMarcado: { borderColor: cor.acento600, backgroundColor: cor.acento500 },
-  escolhaItemSobre: { borderColor: cor.neutro300, backgroundColor: cor.neutro50 },
-  escolhaRotulo: { ...texto.base, fontFamily: tipo.semi, color: cor.neutro700 },
-  escolhaRotuloMarcado: { color: cor.sobreEscuro },
-
-  aviso: {
-    borderRadius: raio.campo,
-    borderWidth: 1,
-    padding: espaco.m,
-    marginBottom: espaco.m,
-  },
-  avisoTexto: { ...texto.corpo, fontFamily: tipo.media },
-
-  selo: {
-    alignSelf: 'flex-start',
-    borderRadius: raio.pilula,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  seloTexto: { ...texto.xxs, fontFamily: tipo.semi },
-
-  pontoAoVivo: { width: 6, height: 6, borderRadius: 3 },
-
-  carregando: { paddingVertical: espaco.gggg, alignItems: 'center', gap: espaco.m },
-  carregandoTexto: { ...texto.corpo, color: uso.tintaMedia },
-})

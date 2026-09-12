@@ -18,7 +18,7 @@
 // também, mas a tela nem oferece.
 
 import { useRouter } from 'expo-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatarBR, NOME_DO_PAPEL } from '@credenciei/dominio'
 import type { Acesso } from '@credenciei/contrato'
@@ -30,13 +30,15 @@ import {
   TituloDaTela,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 type Situacao = 'todos' | 'ativos' | 'inativos'
 
 export default function Acessos() {
   const router = useRouter()
   const { cliente } = useSessao()
+  const e = useEstilos()
 
   const [situacao, setSituacao] = useState<Situacao>('todos')
   const [busca, setBusca] = useState('')
@@ -150,6 +152,7 @@ function Abas({
   aoTrocar: (s: Situacao) => void
   contadores: Record<Situacao, number>
 }) {
+  const e = useEstilos()
   const abas: { chave: Situacao; rotulo: string }[] = [
     { chave: 'todos', rotulo: 'Todos' },
     { chave: 'ativos', rotulo: 'Ativos' },
@@ -188,6 +191,8 @@ function LinhaDeAcesso({
   ocupado: boolean
   aoMudarSituacao: () => void
 }) {
+  const { cor, uso } = useTema()
+  const e = useEstilos()
   /*
    * Só DOIS tons de selo para o papel: quem tem mais poder ganha cor, o resto é
    * neutro. Antes eram cinco cores diferentes — com cinco pessoas na tela,
@@ -266,7 +271,8 @@ function iniciaisDe(nome: string): string {
   return letras.toUpperCase()
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   fio: { height: 1, backgroundColor: uso.borda, marginLeft: 60 },
 
   abas: { flexDirection: 'row', gap: espaco.s },
@@ -347,4 +353,10 @@ const e = StyleSheet.create({
   acaoTravada: { opacity: 0.45 },
   acaoTexto: { ...texto.xs, fontFamily: tipo.semi, color: cor.sucesso700 },
   acaoTextoBloquear: { color: cor.erro700 },
-})
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

@@ -9,14 +9,15 @@
 // O CPF responde a pergunta que interessa — "esta pessoa está na lista deste
 // evento?" — sem depender do celular dela, que é justamente o que falhou.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { ConferenciaPorCpf as Resultado } from '@credenciei/contrato'
 import { formatCpf } from '@credenciei/dominio'
 import { mensagemDoErro } from '../dados/pedido'
 import { useSessao } from '../sessao/contexto'
 import { Aviso, Botao, Campo, Corpo, Legenda, Respiro, Selo, TituloDaTela } from './componentes'
-import { cor, espaco, texto, tipo } from './tema'
+import { espaco, texto, tipo } from './tema'
+import { useTema, type Tokens } from './tema-contexto'
 
 const ROTULO: Record<string, string> = { entrada: 'Entrada', meio: 'Meio', fim: 'Saída' }
 
@@ -29,6 +30,8 @@ export function ConferenciaPorCpf({
   aoFechar: () => void
 }) {
   const { cliente } = useSessao()
+  const { cor } = useTema()
+  const e = useMemo(() => criarEstilos(cor), [cor])
   const [cpf, setCpf] = useState('')
   const [ocupado, setOcupado] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -126,16 +129,18 @@ export function ConferenciaPorCpf({
   )
 }
 
-const e = StyleSheet.create({
-  fora: { flex: 1, backgroundColor: cor.fundo },
-  conteudo: { padding: espaco.g, paddingTop: espaco.ggg, paddingBottom: espaco.gggg },
+function criarEstilos(cor: Tokens['cor']) {
+  return StyleSheet.create({
+    fora: { flex: 1, backgroundColor: cor.fundo },
+    conteudo: { padding: espaco.g, paddingTop: espaco.ggg, paddingBottom: espaco.gggg },
 
-  veredito: { borderRadius: 12, borderWidth: 1, padding: espaco.g, alignItems: 'center' },
-  vereditoOk: { backgroundColor: cor.sucesso50, borderColor: cor.sucesso200 },
-  vereditoNao: { backgroundColor: cor.erro50, borderColor: cor.erro200 },
-  vereditoTexto: { ...texto.xl, color: cor.neutro800 },
+    veredito: { borderRadius: 12, borderWidth: 1, padding: espaco.g, alignItems: 'center' },
+    vereditoOk: { backgroundColor: cor.sucesso50, borderColor: cor.sucesso200 },
+    vereditoNao: { backgroundColor: cor.erro50, borderColor: cor.erro200 },
+    vereditoTexto: { ...texto.xl, color: cor.neutro800 },
 
-  etapas: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
+    etapas: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
 
-  nota: { ...texto.xs, fontFamily: tipo.regular, color: cor.neutro400, lineHeight: 18 },
-})
+    nota: { ...texto.xs, fontFamily: tipo.regular, color: cor.neutro400, lineHeight: 18 },
+  })
+}

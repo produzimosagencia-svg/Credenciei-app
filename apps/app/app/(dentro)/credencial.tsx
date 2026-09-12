@@ -25,7 +25,7 @@
 // rede: a pessoa está parada esperando a confirmação, igual ao site — sem
 // fila, sem reenvio tardio para proteger.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import QRCode from 'react-native-qrcode-svg'
 import * as Location from 'expo-location'
@@ -41,7 +41,8 @@ import {
   TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, corDaEtapa, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { corDaEtapa, espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 const ROTULO: Record<TipoBatida, string> = { entrada: 'Entrada', meio: 'Meio', fim: 'Saída' }
 
@@ -229,6 +230,8 @@ export default function Credencial() {
  * está sendo lido, e quem credencia vê na hora se confere com a pessoa à frente.
  */
 function CartaoDoQr({ codigo, etapa }: { codigo: string; etapa: string }) {
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
   const [oculto, setOculto] = useState(false)
 
   useEffect(() => {
@@ -391,6 +394,7 @@ function EtapaDoMeio({
 function Cabecalho({
   tipo, feitoEm, naFila,
 }: { tipo: TipoBatida; feitoEm: string | null; naFila?: BatidaPendente }) {
+  const e = useEstilos()
   return (
     <View style={e.cabecalho}>
       <View style={[e.pontoDaEtapa, { backgroundColor: corDaEtapa[tipo] }]} />
@@ -419,6 +423,8 @@ function Cabecalho({
 function EstadoNaFila({
   batida, aoDescartar,
 }: { batida: BatidaPendente; aoDescartar?: (id: string) => void }) {
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
   if (batida.estado === 'recusada') {
     return (
       <>
@@ -457,7 +463,8 @@ async function ondeEstamos(): Promise<{ lat: number; lng: number } | null> {
   }
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   qrFora: { alignItems: 'center' },
   qrMoldura: {
     width: 196 + espaco.g * 2,
@@ -510,4 +517,10 @@ const e = StyleSheet.create({
     padding: espaco.m,
   },
   naFilaTexto: { ...texto.corpo, color: cor.aviso700, flex: 1 },
-})
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

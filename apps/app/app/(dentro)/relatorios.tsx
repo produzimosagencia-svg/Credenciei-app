@@ -13,7 +13,7 @@
 // compartilha. É assim que a planilha chega no WhatsApp do cliente sem
 // passar por um computador.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native'
 import { formatarBR } from '@credenciei/dominio'
 import type { EventoEscaneavel, Periodo, QuemNoRelatorio, ResumoDeRelatorios } from '@credenciei/contrato'
@@ -25,7 +25,8 @@ import {
   Separador, Tela, TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 const CREDENCIADOS = 'Quem credenciou'
 const AUSENTES = 'Quem NÃO credenciou'
@@ -45,6 +46,8 @@ function paraISO(dataDigitada: string): string | null {
 
 export default function Relatorios() {
   const { cliente } = useSessao()
+  const { cor, uso } = useTema()
+  const e = useEstilos()
 
   const [eventos, setEventos] = useState<EventoEscaneavel[] | null>(null)
   const [eventoId, setEventoId] = useState('')
@@ -304,6 +307,8 @@ export default function Relatorios() {
 }
 
 function Metadado({ icone, texto: valor }: { icone: string; texto: string }) {
+  const { uso } = useTema()
+  const e = useEstilos()
   return (
     <View style={e.metaItem}>
       <Icone nome={icone} tamanho={14} tom={uso.tintaFraca} />
@@ -312,24 +317,31 @@ function Metadado({ icone, texto: valor }: { icone: string; texto: string }) {
   )
 }
 
-const e = StyleSheet.create({
-  fio: { height: 1, backgroundColor: uso.borda },
-  opcao: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaco.m,
-    paddingHorizontal: espaco.g,
-    minHeight: 52,
-  },
-  opcaoTocada: { backgroundColor: cor.neutro50 },
-  opcaoTexto: { ...texto.corpo, color: uso.tinta, flex: 1 },
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    fio: { height: 1, backgroundColor: uso.borda },
+    opcao: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.m,
+      paddingHorizontal: espaco.g,
+      minHeight: 52,
+    },
+    opcaoTocada: { backgroundColor: cor.neutro50 },
+    opcaoTexto: { ...texto.corpo, color: uso.tinta, flex: 1 },
 
-  periodo: { flexDirection: 'row', gap: espaco.m },
-  periodoCampo: { flex: 1 },
+    periodo: { flexDirection: 'row', gap: espaco.m },
+    periodoCampo: { flex: 1 },
 
-  rotulo: { ...texto.etiqueta, color: uso.tintaFraca },
+    rotulo: { ...texto.etiqueta, color: uso.tintaFraca },
 
-  stats: { flexDirection: 'row', gap: espaco.m },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  metaTexto: { ...texto.corpo, fontFamily: tipo.regular, color: uso.tintaMedia },
-})
+    stats: { flexDirection: 'row', gap: espaco.m },
+    metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    metaTexto: { ...texto.corpo, fontFamily: tipo.regular, color: uso.tintaMedia },
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

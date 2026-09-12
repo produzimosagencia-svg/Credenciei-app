@@ -31,7 +31,7 @@
 // montar o menu ou travar uma rota (só o padrão do papel roda). Ligar isso
 // fica para uma tela de Configurações que o app também não tem ainda.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { capacidadesDoPapel, formatCpf, formatTelefone, titleCaseNome } from '@credenciei/dominio'
@@ -44,7 +44,8 @@ import {
   Tela, TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 const FUNCOES: {
   valor: FuncaoDeAcesso
@@ -77,6 +78,8 @@ function paraISO(dataDigitada: string): string | null {
 export default function NovoAcesso() {
   const router = useRouter()
   const { cliente } = useSessao()
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
 
   const [eventos, setEventos] = useState<EventoComSetores[] | null>(null)
   const [funcao, setFuncao] = useState<FuncaoDeAcesso>('supervisor')
@@ -394,7 +397,8 @@ export default function NovoAcesso() {
   )
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   sucesso: { alignItems: 'center', gap: espaco.s, paddingVertical: espaco.g },
 
   rotulo: { ...texto.etiqueta, color: uso.tintaFraca },
@@ -453,4 +457,5 @@ const e = StyleSheet.create({
     justifyContent: 'center',
   },
   marcadorAtivo: { backgroundColor: cor.acento500, borderColor: cor.acento500 },
-})
+  })
+}

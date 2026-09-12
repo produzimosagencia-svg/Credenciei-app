@@ -14,6 +14,7 @@
 // do acerto — a pessoa lembraria do número, não da condição. Dizer "previsto"
 // e mostrar de onde ele vem é o que transforma a surpresa em conferência.
 
+import { useMemo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { formatarBR } from '@credenciei/dominio'
 import type { FinanceiroDaParticipacao } from '@credenciei/contrato'
@@ -25,7 +26,8 @@ import {
   Tela, TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 const SITUACAO: Record<
   FinanceiroDaParticipacao['situacao'],
@@ -50,6 +52,8 @@ const SITUACAO: Record<
 
 export default function MeuPagamento() {
   const { cliente } = useSessao()
+  const { uso } = useTema()
+  const e = useEstilos()
 
   const { pedido, recarregar } = usePedido(async () => {
     const participacoes = await cliente.minhasParticipacoes()
@@ -164,6 +168,7 @@ export default function MeuPagamento() {
 }
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
+  const e = useEstilos()
   return (
     <View style={e.linha}>
       <Text style={e.linhaRotulo}>{rotulo}</Text>
@@ -194,30 +199,37 @@ function emReais(valor: number): string {
   return `R$ ${comPontos},${resto}`
 }
 
-const e = StyleSheet.create({
-  topo: { flexDirection: 'row', alignItems: 'flex-start', gap: espaco.m },
-  topoTexto: { flex: 1, minWidth: 0 },
-  valor: { ...texto.metrica, color: uso.tinta, marginTop: 2 },
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
+    topo: { flexDirection: 'row', alignItems: 'flex-start', gap: espaco.m },
+    topoTexto: { flex: 1, minWidth: 0 },
+    valor: { ...texto.metrica, color: uso.tinta, marginTop: 2 },
 
-  linha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: espaco.m,
-    paddingVertical: espaco.s,
-  },
-  linhaRotulo: { ...texto.corpo, color: uso.tintaMedia, flex: 1 },
-  linhaValor: { ...texto.corpoForte, color: uso.tinta },
+    linha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: espaco.m,
+      paddingVertical: espaco.s,
+    },
+    linhaRotulo: { ...texto.corpo, color: uso.tintaMedia, flex: 1 },
+    linhaValor: { ...texto.corpoForte, color: uso.tinta },
 
-  rodape: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: espaco.xs,
-    paddingVertical: espaco.m,
-    borderRadius: raio.campo,
-    backgroundColor: cor.neutro100,
-    paddingLeft: espaco.m,
-  },
-  rodapeTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaMedia, flex: 1 },
-})
+    rodape: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: espaco.xs,
+      paddingVertical: espaco.m,
+      borderRadius: raio.campo,
+      backgroundColor: cor.neutro100,
+      paddingLeft: espaco.m,
+    },
+    rodapeTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaMedia, flex: 1 },
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

@@ -13,7 +13,7 @@
 // impossível aqui: o formulário do veículo só abre depois que o condutor é
 // encontrado.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatarBR } from '@credenciei/dominio'
 import type {
@@ -26,12 +26,15 @@ import {
   Selo, Separador, Tela, TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../../src/ui/tema'
+import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 const TIPOS = ['Caminhão', 'Van', 'Carro', 'Moto', 'Outro']
 
 export default function VeiculosDoEventoTela() {
   const { cliente } = useSessao()
+  const { cor, uso } = useTema()
+  const e = useEstilos()
 
   const [eventos, setEventos] = useState<EventoEscaneavel[] | null>(null)
   const [eventoId, setEventoId] = useState('')
@@ -184,6 +187,8 @@ export default function VeiculosDoEventoTela() {
 // ─── Peças ──────────────────────────────────────────────────────────────────
 
 function LinhaDoVeiculo({ veiculo: v, onExcluir }: { veiculo: Veiculo; onExcluir: () => void }) {
+  const { uso } = useTema()
+  const e = useEstilos()
   const [confirmando, setConfirmando] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
 
@@ -255,6 +260,7 @@ function FormularioDeVeiculo({
   aoCancelar: () => void
 }) {
   const { cliente } = useSessao()
+  const e = useEstilos()
 
   const [cpf, setCpf] = useState('')
   const [condutor, setCondutor] = useState<CondutorEncontrado | null>(null)
@@ -422,7 +428,8 @@ function FormularioDeVeiculo({
   )
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   cabecalho: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
   cabecalhoTexto: { flex: 1, minWidth: 0 },
 
@@ -472,4 +479,10 @@ const e = StyleSheet.create({
   diaMarcado: { backgroundColor: cor.acento500, borderColor: cor.acento600 },
   diaTexto: { ...texto.xs, fontFamily: tipo.semi, color: uso.tintaMedia },
   diaTextoMarcado: { color: '#ffffff' },
-})
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}

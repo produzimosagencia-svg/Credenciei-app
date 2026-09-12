@@ -12,7 +12,7 @@
 // num celular, três botões na fileira quebram a linha e empurram para baixo o
 // que se usa o tempo todo. Um botão, e as três dentro. Ver `src/ui/planilha.tsx`.
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
@@ -28,7 +28,8 @@ import {
 import { Icone } from '../../../../src/ui/icone'
 import { BotaoDePlanilha } from '../../../../src/ui/planilha'
 import { CartaoDaPortaria } from '../../../../src/ui/portaria'
-import { cor, corDaEtapa, espaco, raio, texto, tipo, uso } from '../../../../src/ui/tema'
+import { corDaEtapa, espaco, texto, tipo } from '../../../../src/ui/tema'
+import { useTema, type Tokens } from '../../../../src/ui/tema-contexto'
 
 const ICONE_DO_INDICADOR: Record<string, string> = {
   setores: 'Users',
@@ -47,6 +48,8 @@ export default function ConfiguracaoDoEvento() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { cliente } = useSessao()
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
 
   const [versao, setVersao] = useState(0)
   const [ocupado, setOcupado] = useState(false)
@@ -239,6 +242,8 @@ export default function ConfiguracaoDoEvento() {
 // ─── Peças ──────────────────────────────────────────────────────────────────
 
 function Metadado({ icone, texto: valor }: { icone: string; texto: string }) {
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
   return (
     <View style={e.metaItem}>
       <Icone nome={icone} tamanho={12} tom={uso.tintaFraca} />
@@ -250,6 +255,7 @@ function Metadado({ icone, texto: valor }: { icone: string; texto: string }) {
 function BarraDaEtapa({
   etapa, feitos, total,
 }: { etapa: TipoBatida; feitos: number; total: number }) {
+  const e = useEstilos()
   const pct = total > 0 ? Math.round((feitos / total) * 100) : 0
 
   return (
@@ -280,6 +286,8 @@ function BarraDaEtapa({
 function CartaoDoSetor({
   setor, aoVerEquipe, aoImportar,
 }: { setor: SetorDetalhado; aoVerEquipe: () => void; aoImportar: () => void }) {
+  const { cor, uso } = useTema()
+  const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
   const [copiado, setCopiado] = useState(false)
   const pct = setor.estimado && setor.estimado > 0
     ? Math.min(100, Math.round((setor.pessoas / setor.estimado) * 100))
@@ -380,6 +388,7 @@ function FormularioDeSetor({
   }) => void
   aoCancelar: () => void
 }) {
+  const e = useEstilos()
   const [nome, setNome] = useState('')
   const [estimado, setEstimado] = useState('')
   const [valor, setValor] = useState('')
@@ -514,7 +523,8 @@ function emReais(valor: number): string {
   return `R$ ${comPontos}`
 }
 
-const e = StyleSheet.create({
+function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
+  return StyleSheet.create({
   linhaDaChave: { flexDirection: 'row', gap: espaco.m },
   textoDaChave: { flex: 1, minWidth: 0 },
   caixaDaChave: {
@@ -565,4 +575,10 @@ const e = StyleSheet.create({
   acoesDoSetor: { flexDirection: 'row', gap: espaco.s },
   acaoLarga: { flex: 1 },
 
-})
+  })
+}
+
+function useEstilos() {
+  const { cor, uso } = useTema()
+  return useMemo(() => criarEstilos(cor, uso), [cor, uso])
+}
