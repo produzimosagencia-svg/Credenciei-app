@@ -30,10 +30,13 @@
 // atual já faz isso agrupando em memória, e trava por volta de três mil
 // cadastros. É a razão nº 1 da migração, não um detalhe.
 
+import { randomBytes } from 'node:crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { cpfParaEmail } from '../identificador.js'
 import type {
-  AtividadeBruta, BatidaResumida, DiaDeTrabalho, Evento, EventoComContagens, LinhaDoDia, NovoRegistro,
-  Participacao, ParticipacaoParaLocalizar, Perfil, Pessoa, Registro, Repositorio,
+  AcessoCompleto, AtividadeBruta, BatidaResumida, DiaDeTrabalho, Evento, EventoComContagens, LinhaDoDia,
+  NovoAcessoNoRepositorio, NovoRegistro, Participacao, ParticipacaoParaLocalizar, Perfil, Pessoa, Registro,
+  Repositorio,
 } from './repositorio.js'
 
 const soDigitos = (v: string | null | undefined) => (v ?? '').replace(/\D/g, '')
@@ -590,6 +593,87 @@ export class RepositorioSupabase implements Repositorio {
     const f = p?.fornecedores as unknown as { id: string; nome: string; evento_id: string } | null
     return f ? { id: f.id, nome: f.nome, eventoId: f.evento_id } : null
   }
+
+  // ── Acessos ───────────────────────────────────────────────────────────────
+
+  async acessosNoEscopo(organizacaoId?: string | null): Promise<AcessoCompleto[]> {
+    let query = this.db
+      .from('perfis')
+      .select(`${CAMPOS_ACESSO}, fornecedores(nome)`)
+      .neq('role', 'master')
+      .order('created_at', { ascending: false })
+    if (organizacaoId !== undefined && organizacaoId !== null) query = query.eq('organizacao_id', organizacaoId)
+
+    const { data } = await query
+    return (data ?? []).map(paraAcesso)
+  }
+
+  async acessoPorCpf(cpf: string): Promise<AcessoCompleto | null> {
+    const d = soDigitos(cpf)
+    if (!d) return null
+    const { data } = await this.db.from('perfis').select(`${CAMPOS_ACESSO}, fornecedores(nome)`).eq('cpf', d).maybeSingle()
+    return data ? paraAcesso(data) : null
+  }
+
+  async definirSituacaoDoAcesso(id: string, ativo: boolean): Promise<AcessoCompleto | null> {
+    const { data, error } = await this.db
+      .from('perfis')
+      .update({ ativo })
+      .eq('id', id)
+      .select(`${CAMPOS_ACESSO}, fornecedores(nome)`)
+      .maybeSingle()
+    if (error || !data) return null
+    return paraAcesso(data)
+  }
+
+  async equipesDoEvento(eventoId: string): Promise<{ setorId: string; nome: string }[]> {
+    const { data } = await this.db.from('fornecedores').select('id, nome').eq('evento_id', eventoId).order('nome')
+    return (data ?? []).map(f => ({ setorId: f.id as string, nome: f.nome as string }))
+  }
+
+  /**
+   * Cria a conta de painel de verdade: um usuário no Supabase Auth (senha
+   * aleatória e descartada — ninguém a usa, é o convite de senha que ainda
+   * falta que resolveria isto, ver o topo de `rotas/acessos.ts`) e a linha
+   * em `perfis`. Se a segunda parte falhar, desfaz a primeira: usuário do
+   * Auth sem perfil é uma conta fantasma, que nem aparece na lista e nem
+   * pode ser recriada (o e-mail já estaria em uso).
+   */
+  async criarAcesso(dados: NovoAcessoNoRepositorio): Promise<AcessoCompleto> {
+    const cpf = soDigitos(dados.cpf)
+    const email = cpfParaEmail(cpf)
+
+    const { data: user, error } = await this.db.auth.admin.createUser({
+      email,
+      password: randomBytes(32).toString('base64url'),
+      email_confirm: true,
+    })
+    if (error || !user?.user) throw new Error(error?.message ?? 'Não foi possível criar o acesso.')
+
+    const { data, error: erroPerfil } = await this.db
+      .from('perfis')
+      .insert([{
+        id: user.user.id,
+        nome: dados.nome,
+        email,
+        cpf,
+        telefone: dados.telefone,
+        ativo: dados.ativo,
+        role: dados.papel,
+        organizacao_id: dados.organizacaoId,
+        fornecedor_id: dados.setorId ?? null,
+        acesso_expira_em: dados.expiraEm ?? null,
+        permissoes_usuario: dados.permissoesUsuario,
+      }])
+      .select(`${CAMPOS_ACESSO}, fornecedores(nome)`)
+      .single()
+
+    if (erroPerfil || !data) {
+      await this.db.auth.admin.deleteUser(user.user.id).catch(() => {})
+      throw new Error('Não foi possível criar o acesso.')
+    }
+    return paraAcesso(data)
+  }
 }
 
 // ─── Tradução ────────────────────────────────────────────────────────────────
@@ -683,5 +767,28 @@ function paraRegistro(l: Record<string, unknown>): Registro {
     lat: (l.latitude as number | null) ?? null,
     lng: (l.longitude as number | null) ?? null,
     manual: l.registro_manual === true,
+  }
+}
+
+const CAMPOS_ACESSO =
+  'id, nome, cpf, telefone, role, organizacao_id, ativo, fornecedor_id, created_at, acesso_expira_em, permissoes_usuario'
+
+function paraAcesso(l: Record<string, unknown>): AcessoCompleto {
+  const fornecedor = l.fornecedores as { nome?: string } | null
+  return {
+    id: l.id as string,
+    nome: l.nome as string,
+    cpf: (l.cpf as string | null) ?? '',
+    telefone: (l.telefone as string | null) ?? null,
+    papel: l.role as Perfil['papel'],
+    organizacaoId: (l.organizacao_id as string | null) ?? null,
+    ativo: l.ativo !== false,
+    setorId: (l.fornecedor_id as string | null) ?? null,
+    setorNome: fornecedor?.nome ?? null,
+    // Ver o comentário em `AcessoCompleto.eventos`, no repositório.
+    eventos: 1,
+    criadoEm: l.created_at as string,
+    expiraEm: (l.acesso_expira_em as string | null) ?? null,
+    permissoesUsuario: (l.permissoes_usuario as Record<string, boolean> | null) ?? {},
   }
 }

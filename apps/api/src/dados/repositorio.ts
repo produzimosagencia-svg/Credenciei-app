@@ -297,4 +297,66 @@ export interface Repositorio {
   // ── Supervisor ──────────────────────────────────────────────────────────
   participacoesDaEquipe(equipeId: string): Promise<(Participacao & { pessoa: Pessoa })[]>
   equipeDoSupervisor(pessoaId: string): Promise<{ id: string; nome: string; eventoId: string } | null>
+
+  // ── Acessos ─────────────────────────────────────────────────────────────
+  /**
+   * Os acessos de painel no escopo de quem pergunta — nunca inclui o master
+   * (ele "não é gerenciado por aqui", mesma frase do site).
+   *
+   * `organizacaoId: undefined` é o master perguntando: a plataforma inteira.
+   */
+  acessosNoEscopo(organizacaoId?: string | null): Promise<AcessoCompleto[]>
+
+  /** Um acesso com este CPF, em QUALQUER organização — a checagem de unicidade antes de criar. */
+  acessoPorCpf(cpf: string): Promise<AcessoCompleto | null>
+
+  /** Ativa ou desativa um acesso. `null` quando o id não existe. */
+  definirSituacaoDoAcesso(id: string, ativo: boolean): Promise<AcessoCompleto | null>
+
+  /** Os setores (equipes) de um evento — para o formulário de criar acesso de supervisor. */
+  equipesDoEvento(eventoId: string): Promise<{ setorId: string; nome: string }[]>
+
+  /**
+   * Cria um acesso de painel novo — supervisor, operador de portão ou
+   * suporte. Admin e master não nascem por aqui: são a Plataforma, ainda no
+   * servidor falso.
+   */
+  criarAcesso(dados: NovoAcessoNoRepositorio): Promise<AcessoCompleto>
+}
+
+/** Um acesso de painel, com tudo que a tela de Acessos precisa mostrar. */
+export type AcessoCompleto = {
+  id: string
+  nome: string
+  cpf: string
+  telefone: string | null
+  papel: Papel
+  organizacaoId: string | null
+  ativo: boolean
+  setorId: string | null
+  setorNome: string | null
+  /**
+   * Quantos eventos este acesso alcança. Supervisor é sempre 1 (um setor,
+   * um evento); para operador de portão e suporte, o evento em que foi
+   * criado — contar de verdade exigiria uma tabela de escopo por pessoa
+   * (`suporte_escopo`, no site) que este domínio ainda não tem.
+   */
+  eventos: number
+  criadoEm: string
+  /** Só o suporte tem — `null` para os demais papéis. */
+  expiraEm: string | null
+  permissoesUsuario: Record<string, boolean>
+}
+
+export type NovoAcessoNoRepositorio = {
+  nome: string
+  cpf: string
+  telefone: string
+  papel: 'supervisor' | 'operador_portao' | 'suporte'
+  organizacaoId: string | null
+  ativo: boolean
+  /** Só o supervisor tem — os outros dois são do evento inteiro. */
+  setorId?: string
+  expiraEm?: string | null
+  permissoesUsuario: Record<string, boolean>
 }

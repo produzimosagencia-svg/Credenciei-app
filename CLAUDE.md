@@ -40,13 +40,13 @@ uma regra só.
 ```
 packages/dominio     a regra de negócio, pura — 85 testes
 packages/offline     a fila de batidas sem internet — 22 testes
-packages/contrato    o que o app pode pedir + servidor falso — 219 testes
-apps/api             a API HTTP completa — 175 testes
+packages/contrato    o que o app pode pedir + servidor falso — 221 testes
+apps/api             a API HTTP completa — 192 testes
 apps/app             o aplicativo, em React Native + Expo — 85 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**586 testes.** `npm run verificar` roda tipos e testes de
+**605 testes.** `npm run verificar` roda tipos e testes de
 tudo, sem banco e sem rede. Só `npm run teste` NÃO confere tipos — o `tsx` não
 olha para eles.
 
@@ -156,13 +156,17 @@ o erro volta.
 - **`created_at` guarda o horário da batida** e não há coluna separada para o
   de recebimento — a divergência de relógio só fica detectável depois da
   migração 003.
+- **`criarAcesso` (Acessos) cria a conta de verdade no Supabase Auth, mas não
+  manda o convite de senha por WhatsApp.** No site é isso que torna a conta
+  utilizável; sem ele, quem acabou de ser criado não tem como entrar até
+  alguém redefinir a senha por fora (Supabase Studio).
 
 ---
 
 ## Como acompanhar
 
 O Juan pede status assim: *"como estamos?"*. Responda com **percentual real do
-backlog** (332 tasks, 211 no MVP) — e o do MVP é o que responde "quando dá para usar"; `npm run backlog` calcula os dois — nunca invente número. Login de painel (`entrarComSenha`), o Painel (`painel()`), Escanear QR (`registrarPorQr`, `conferirPorCpf`), o Ponto assistido (`localizarPessoa`, `abrirFicha`, `registrarPresencaAssistida`) e Atividades (`eventosParaAcompanhar`, `atividades`) já são reais na API, ligados pelo `ClienteHttp`; o resto das rotas ainda usa o servidor falso — ver a Fase 2 em `docs/backlog.md`. O que está feito por
+backlog** (332 tasks, 211 no MVP) — e o do MVP é o que responde "quando dá para usar"; `npm run backlog` calcula os dois — nunca invente número. A Epic 3 (API v1) está completa: login (`entrarComSenha`), Painel (`painel()`), Escanear QR (`registrarPorQr`, `conferirPorCpf`), Ponto assistido (`localizarPessoa`, `abrirFicha`, `registrarPresencaAssistida`), Atividades (`eventosParaAcompanhar`, `atividades`) e Acessos (`acessos`, `mudarSituacaoDoAcesso`, `eventosComSetores`, `criarAcesso`) já são reais na API, ligados pelo `ClienteHttp`; falta configurar evento (Epic 18) e a Plataforma, que ainda usam o servidor falso — ver a Fase 2 em `docs/backlog.md`. O que está feito por
 epic está em `docs/backlog.md`.
 
 Ao terminar um dia de trabalho, ele espera um resumo: feito, alterado, testado,

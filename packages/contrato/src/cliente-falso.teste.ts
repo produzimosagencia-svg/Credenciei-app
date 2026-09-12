@@ -1108,7 +1108,7 @@ test('CPF repetido é recusado', async () => {
   assert.ok((await c.criarAcesso({ ...dados, nome: 'Mais Outra' })).erro)
 })
 
-test('operador de portão e suporte nascem sem setor, presos ao evento inteiro', async () => {
+test('operador de portão nasce sem setor, preso ao evento inteiro', async () => {
   const c = await noPortao()
 
   const operador = await c.criarAcesso({
@@ -1119,6 +1119,11 @@ test('operador de portão e suporte nascem sem setor, presos ao evento inteiro',
   assert.ok(operador.acesso, operador.erro)
   assert.equal(operador.acesso.papel, 'operador_portao')
   assert.equal(operador.acesso.setorNome, null)
+})
+
+test('suporte, criado pelo master, também nasce sem setor, preso ao evento inteiro', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'master')
 
   const suporte = await c.criarAcesso({
     funcao: 'suporte',
@@ -1129,6 +1134,27 @@ test('operador de portão e suporte nascem sem setor, presos ao evento inteiro',
   assert.equal(suporte.acesso.papel, 'suporte')
   assert.equal(suporte.acesso.setorNome, null)
   assert.equal(suporte.acesso.expiraEm, '2026-12-01')
+})
+
+test('só o master cria acesso de suporte — trazido do site em 11/09/2026', async () => {
+  // Suporte atravessa organizações; conceder isso não é decisão de um admin
+  // de cliente específico. Mesma régua de quem cria organização.
+  const c = await noPortao()
+  const doAdmin = await c.criarAcesso({
+    funcao: 'suporte',
+    nome: 'Beatriz Nunes', cpf: '66677788899', telefone: '27999887766',
+    eventoId: 'ev-1', ativo: true,
+  })
+  assert.match(doAdmin.erro ?? '', /Só o master/)
+
+  const master = new ClienteFalso()
+  await entrarComo(master, 'master')
+  const doMaster = await master.criarAcesso({
+    funcao: 'suporte',
+    nome: 'Beatriz Nunes', cpf: '66677788899', telefone: '27999887766',
+    eventoId: 'ev-1', ativo: true,
+  })
+  assert.ok(doMaster.acesso, doMaster.erro)
 })
 
 test('a "Funções ligadas" grava só o override, e ele volta na lista de acessos', async () => {

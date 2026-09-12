@@ -31,7 +31,8 @@ import { painel } from './rotas/painel.js'
 import { conferirPorCpf, eventosParaEscanear, registrarPorQr } from './rotas/escanear.js'
 import { abrirFicha, localizarPessoa, registrarPresencaAssistida } from './rotas/ponto-assistido.js'
 import { atividades, eventosParaAcompanhar } from './rotas/atividades.js'
-import type { VisaoDeAtividade } from '@credenciei/contrato'
+import { acessos, criarAcesso, eventosComSetores, mudarSituacaoDoAcesso } from './rotas/acessos.js'
+import type { FuncaoDeAcesso, VisaoDeAtividade } from '@credenciei/contrato'
 import {
   consultarConvite, entrarNoEvento, meuFinanceiro, meuQr, meusDias,
   minhasParticipacoes, type FonteDeCampos,
@@ -265,6 +266,42 @@ export function criarServidor(amb: Ambiente) {
     return protegido(c, () => atividades(amb.repo, c.get('pessoaId'), c.req.param('eventoId'), {
       ...(visao ? { visao: visao as VisaoDeAtividade } : {}),
       ...(dia ? { dia } : {}),
+    }))
+  })
+
+  // ── Acessos ─────────────────────────────────────────────────────────────
+  app.get('/v1/acessos', async c => {
+    const busca = c.req.query('busca')
+    const situacao = c.req.query('situacao')
+    return protegido(c, () => acessos(amb.repo, c.get('pessoaId'), {
+      ...(busca ? { busca } : {}),
+      ...(situacao === 'ativos' || situacao === 'inativos' ? { situacao } : {}),
+    }))
+  })
+
+  app.post('/v1/acessos/:id/situacao', async c => {
+    const { ativo } = await c.req.json<{ ativo?: boolean }>()
+    return protegido(c, () => mudarSituacaoDoAcesso(amb.repo, c.get('pessoaId'), c.req.param('id'), ativo === true))
+  })
+
+  app.get('/v1/acessos/eventos', async c =>
+    protegido(c, () => eventosComSetores(amb.repo, c.get('pessoaId'))))
+
+  app.post('/v1/acessos', async c => {
+    const corpo = await c.req.json<{
+      funcao?: FuncaoDeAcesso; nome?: string; cpf?: string; telefone?: string; eventoId?: string
+      setorId?: string; expiraEm?: string | null; ativo?: boolean; permissoesUsuario?: Record<string, boolean>
+    }>()
+    return protegido(c, () => criarAcesso(amb.repo, c.get('pessoaId'), {
+      funcao: corpo.funcao ?? 'supervisor',
+      nome: corpo.nome ?? '',
+      cpf: corpo.cpf ?? '',
+      telefone: corpo.telefone ?? '',
+      eventoId: corpo.eventoId ?? '',
+      setorId: corpo.setorId,
+      expiraEm: corpo.expiraEm,
+      ativo: corpo.ativo !== false,
+      permissoesUsuario: corpo.permissoesUsuario,
     }))
   })
 

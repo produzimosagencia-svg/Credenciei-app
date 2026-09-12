@@ -2594,6 +2594,16 @@ export class ClienteFalso implements ClienteApi {
 
     if (nome.length < 3) return { erro: 'Digite o nome completo da pessoa.' }
     if (cpf.length !== 11) return { erro: 'O CPF precisa ter 11 dígitos.' }
+    /*
+     * Só o master cria suporte — trazido do site em 11/09/2026 (achado ao
+     * portar `criarAcesso` para a API de verdade). Suporte atravessa
+     * organizações, é gente contratada pela PLATAFORMA para apoiar vários
+     * clientes; conceder isso não é decisão de um admin de cliente
+     * específico. Mesma régua de quem cria organização.
+     */
+    if (funcao === 'suporte' && !ehMaster(this.sessao?.papel)) {
+      return { erro: 'Só o master cria acesso de suporte.' }
+    }
     if (!dados.eventoId) return { erro: 'Escolha o evento.' }
     // Só o supervisor pede setor — operador de portão e suporte são do
     // evento inteiro, sem setor: prender os dois num setor faria o

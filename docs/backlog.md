@@ -1,8 +1,8 @@
 # Backlog
 
-**332 tasks · 211 no MVP · 177 concluídas (53%)**
+**332 tasks · 211 no MVP · 178 concluídas (54%)**
 
-**Só o MVP: 148 de 211 (70%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 149 de 211 (71%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -59,7 +59,7 @@ cada uma.
 | Fase | Epics | Restam | O que é |
 |---|---|---|---|
 | 1 — Fechar o mapeamento | 17 | 7 | As 6 linhas de `Mapeado em 31/08` que ainda não têm ✅, mais a tela de pendências do evento |
-| 2 — Ligar a API de verdade | 3, 18 | 17 | O maior bloco: toda tela do painel — acessos, Plataforma, configurar evento — ainda fala com `ClienteFalso`; painel, escanear, ponto assistido e atividades já são reais |
+| 2 — Ligar a API de verdade | 3, 18 | 16 | Epic 3 (API v1) está completa. Falta configurar evento (Epic 18) e a Plataforma (organizações, veículos, bloqueio de CPF, relatórios) — ainda falam com `ClienteFalso` |
 | 3 — Fechar os ciclos pela metade | 2, 4, 6, 7, 8, 9, 10 | 48 | Sincronização com o site, recuperação de conta, QR (Ed25519, código giratório), foto no storage, o resto do ciclo de ponto, histórico e polimento do supervisor |
 | 4 — Aguentar 20 mil pessoas | 13, 14 | 23 | Teste de carga, LGPD, retenção de dados |
 | 5 — Publicar | 11, 16 | 30 | Push e as duas lojas — **bloqueado na conta Apple Developer** |
@@ -79,7 +79,7 @@ nada do resto importa ainda.
 |---|---|---|---|---|---|
 | 1 | Modelo de dados | 3 | 16 | ✓ | SQL escrito, nada executado |
 | 2 | Fundação | 8 | 13 | ✓ | `operador_portao` e `suporte` no domínio; falta só `produtor` (módulo Gastos) |
-| 3 | API v1 | 31 | 32 | ✓ | Login, Painel, Escanear QR, Ponto assistido e Atividades reais; faltam acessos, evento e Plataforma |
+| 3 | API v1 | 32 | 32 | ✓ | Completo: login, painel, escanear, ponto assistido, atividades e acessos, todos reais e ligados pelo `ClienteHttp` |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
 | 5 | App base | 15 | 15 | ✓ | Navegação com voltar, campos, data/hora e o redesign "Arena" (laranja/escuro) |
 | 6 | QR | 9 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
@@ -91,7 +91,7 @@ nada do resto importa ainda.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 5 | 15 | — | Isolamento e limite feitos; falta LGPD, retenção e a trilha de auditoria |
-| 15 | Testes | 9 | 14 | — | 586 testes rodando |
+| 15 | Testes | 9 | 14 | — | 605 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 45 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
 | 18 | Configurar evento | 11 | 17 | ✓ | Falta a API |
@@ -134,6 +134,7 @@ nada do resto importa ainda.
 - Escanear QR real: `inferirMomentoDoScanner` decide a etapa, `avaliarEntradaSaida` confere dia/janela, isolamento por evento e organização — trouxe também a correção "a saída não exige mais o meio" (mudou no site em 11/09/2026, corrigido ao mesmo tempo no servidor de mentira)
 - Ponto assistido real: localizar por CPF (com a busca aproximada de `distanciaEntreCpfs`) ou por nome, abrir ficha, registrar — quem escolhe a etapa é o operador, não o servidor (mudou no site em 11/09/2026); sobrescrever uma etapa já registrada é correção, não duplicata; `diaDeReferenciaAssistida` decide a que dia a batida pertence, igual ao `diaDeReferencia` do site
 - Atividades real: as sete visões (entrada, meio, saída, presentes, e as três pendências) sobre uma consulta só (`linhasDoEventoNoDia`); pendência só cobra depois do horário esperado (`horariosEsperados`); o meio exige as duas chaves ligadas — setor (`exigeMeio`, nasce desligado) e dia (nasce ligado), a mesma dupla trava do site; `Registro.manual` novo, para a coluna distinguir batida do QR de batida lançada por outra pessoa
+- Acessos real: listar (com busca e filtro por situação), ativar/desativar (ninguém desativa o próprio acesso), os eventos com setores para o formulário, e criar supervisor/operador de portão/suporte — a conta nasce de verdade no Supabase Auth + `perfis`, mas ainda sem o convite de senha por WhatsApp (documentado como pendência, não falha silenciosa); achado ao portar: só o master cria suporte, regra que faltava no servidor de mentira e foi corrigida ao mesmo tempo
 - Sessão carrega o papel de quem entrou, de verdade — não mais fixo em "colaborador"
 - `/v1/eu` responde o papel certo pra quem tem conta de painel
 - `ClienteHttp.entrarComSenha` ligado — a tela de entrar não mudou uma linha
@@ -268,10 +269,10 @@ entra por baixo. Nenhuma tela muda na troca.
 1. **O que o mapeamento de 31/08 achou** (Epic 17 + 18) — ver a seção logo
    abaixo para a lista com as nove linhas, o que cada uma resolve e onde
    olhar no site.
-2. **Endpoints do painel na API** (Epic 3 + 17). Login, Painel, Escanear QR,
-   Ponto assistido e Atividades já estão prontos e testados. Faltam
-   acessos, evento e as quatro da Plataforma. Sem elas, essas telas
-   continuam no servidor falso.
+2. **Endpoints do painel na API** (Epic 3 + 17). Epic 3 está completa: login,
+   Painel, Escanear QR, Ponto assistido, Atividades e Acessos, todos reais e
+   testados. Falta configurar evento (Epic 18) e as quatro telas da
+   Plataforma. Sem elas, essas telas continuam no servidor falso.
 
    **Achado ao começar esta fase**: a API nunca foi de fato ligada a nada —
    não existe arquivo que suba um servidor de verdade (`servidor.ts` só

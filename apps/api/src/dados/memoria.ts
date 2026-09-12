@@ -8,16 +8,32 @@
 // desenvolvimento local antes de a implementação sobre o Supabase ficar pronta.
 
 import type {
-  AtividadeBruta, DiaDeTrabalho, Evento, EventoComContagens, LinhaDoDia, NovoRegistro, Participacao,
-  ParticipacaoParaLocalizar, Perfil, Pessoa, Registro, Repositorio,
+  AcessoCompleto, AtividadeBruta, DiaDeTrabalho, Evento, EventoComContagens, LinhaDoDia,
+  NovoAcessoNoRepositorio, NovoRegistro, Participacao, ParticipacaoParaLocalizar, Perfil, Pessoa,
+  Registro, Repositorio,
 } from './repositorio.js'
 
 let seq = 0
 const novoId = (p: string) => `${p}-${++seq}`
 
+/**
+ * O que a memória guarda de cada perfil além do que `Perfil` expõe — os
+ * campos que só a tela de Acessos precisa. `Perfil` fica enxuto de propósito:
+ * é lido em toda checagem de permissão da API, e a maioria dessas checagens
+ * não olha para nada disto.
+ */
+type PerfilInterno = Perfil & {
+  cpf?: string
+  telefone?: string | null
+  setorId?: string | null
+  criadoEm?: string
+  expiraEm?: string | null
+  permissoesUsuario?: Record<string, boolean>
+}
+
 export class RepositorioEmMemoria implements Repositorio {
   pessoas: Pessoa[] = []
-  perfis: Perfil[] = []
+  perfis: PerfilInterno[] = []
   eventos: Evento[] = []
   participacoes: Participacao[] = []
   registros: Registro[] = []
@@ -270,6 +286,69 @@ export class RepositorioEmMemoria implements Repositorio {
   async equipeDoSupervisor(pessoaId: string) {
     const e = this.equipes.find(x => x.supervisorPessoaId === pessoaId)
     return e ? { id: e.id, nome: e.nome, eventoId: e.eventoId } : null
+  }
+
+  // ── Acessos ───────────────────────────────────────────────────────────────
+
+  private paraAcesso(p: PerfilInterno): AcessoCompleto {
+    const setorNome = p.setorId ? this.equipes.find(eq => eq.id === p.setorId)?.nome ?? null : null
+    return {
+      id: p.id,
+      nome: p.nome,
+      cpf: p.cpf ?? '',
+      telefone: p.telefone ?? null,
+      papel: p.papel,
+      organizacaoId: p.organizacaoId,
+      ativo: p.ativo,
+      setorId: p.setorId ?? null,
+      setorNome,
+      eventos: 1,
+      criadoEm: p.criadoEm ?? new Date(0).toISOString(),
+      expiraEm: p.expiraEm ?? null,
+      permissoesUsuario: p.permissoesUsuario ?? {},
+    }
+  }
+
+  async acessosNoEscopo(organizacaoId?: string | null): Promise<AcessoCompleto[]> {
+    return this.perfis
+      .filter(p => p.papel !== 'master')
+      .filter(p => organizacaoId === undefined || organizacaoId === null || p.organizacaoId === organizacaoId)
+      .map(p => this.paraAcesso(p))
+  }
+
+  async acessoPorCpf(cpf: string): Promise<AcessoCompleto | null> {
+    const d = (cpf ?? '').replace(/\D/g, '')
+    const p = this.perfis.find(x => (x.cpf ?? '').replace(/\D/g, '') === d && d.length > 0)
+    return p ? this.paraAcesso(p) : null
+  }
+
+  async definirSituacaoDoAcesso(id: string, ativo: boolean): Promise<AcessoCompleto | null> {
+    const p = this.perfis.find(x => x.id === id)
+    if (!p) return null
+    p.ativo = ativo
+    return this.paraAcesso(p)
+  }
+
+  async equipesDoEvento(eventoId: string): Promise<{ setorId: string; nome: string }[]> {
+    return this.equipes.filter(eq => eq.eventoId === eventoId).map(eq => ({ setorId: eq.id, nome: eq.nome }))
+  }
+
+  async criarAcesso(dados: NovoAcessoNoRepositorio): Promise<AcessoCompleto> {
+    const novo: PerfilInterno = {
+      id: novoId('auth'),
+      nome: dados.nome,
+      papel: dados.papel,
+      organizacaoId: dados.organizacaoId,
+      ativo: dados.ativo,
+      cpf: dados.cpf.replace(/\D/g, ''),
+      telefone: dados.telefone,
+      setorId: dados.setorId ?? null,
+      criadoEm: new Date().toISOString(),
+      expiraEm: dados.expiraEm ?? null,
+      permissoesUsuario: dados.permissoesUsuario,
+    }
+    this.perfis.push(novo)
+    return this.paraAcesso(novo)
   }
 }
 

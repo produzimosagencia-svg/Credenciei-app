@@ -345,6 +345,26 @@ test('atividades vai e volta pela API — eventos, e a visão de entrada de um d
   assert.deepEqual(a.linhas, [])
 })
 
+test('acessos vai e volta pela API — eventos com setores, criar e listar', async () => {
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(r.sessao, r.erro)
+  m.guardarToken(r.sessao.token)
+
+  const eventos = await m.cliente.eventosComSetores()
+  assert.deepEqual(eventos, [{ eventoId: 'ev-hj', nome: 'Henrique e Juliano — Kleber Andrade', setores: [{ setorId: 'eq-1', nome: 'Produção' }] }])
+
+  const criado = await m.cliente.criarAcesso({
+    funcao: 'supervisor', nome: 'Larissa Prado', cpf: '65498732100', telefone: '27999887766',
+    eventoId: 'ev-hj', setorId: 'eq-1', ativo: true,
+  })
+  assert.ok(criado.acesso, criado.erro)
+  assert.equal(criado.acesso?.setorNome, 'Produção')
+
+  const lista = await m.cliente.acessos({ busca: 'Larissa' })
+  assert.equal(lista.itens.length, 1)
+})
+
 test('senha errada por HTTP devolve erro, não exceção', async () => {
   const m = montar()
   const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'errada')
@@ -382,9 +402,9 @@ test('o que a API não tem falha dizendo o nome, e não devolve vazio', async ()
 
   for (const chamar of [
     () => m.cliente.eventosParaVeiculos(),
-    () => m.cliente.acessos(),
     () => m.cliente.equipeDoSetor('setor-1'),
     () => m.cliente.fichaDaPessoa('part-1'),
+    () => m.cliente.organizacoes(),
   ]) {
     await assert.rejects(chamar, AindaNaoNaApi)
   }

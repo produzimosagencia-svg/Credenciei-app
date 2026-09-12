@@ -567,23 +567,36 @@ export class ClienteHttp implements ClienteApi {
 
   // ─── Acessos ──────────────────────────────────────────────────────────────
 
-  async acessos(_filtro?: FiltroDeAcessos): Promise<ListaDeAcessos> {
-    void _filtro
-    throw new AindaNaoNaApi('acessos')
+  async acessos(filtro?: FiltroDeAcessos): Promise<ListaDeAcessos> {
+    const partes: string[] = []
+    if (filtro?.busca) partes.push(`busca=${encodeURIComponent(filtro.busca)}`)
+    if (filtro?.situacao && filtro.situacao !== 'todos') partes.push(`situacao=${encodeURIComponent(filtro.situacao)}`)
+    const query = partes.length ? `?${partes.join('&')}` : ''
+
+    const r = await this.pedir(`/v1/acessos${query}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar os acessos.'))
+    return r.corpo as unknown as ListaDeAcessos
   }
 
-  async mudarSituacaoDoAcesso(_id: string, _ativo: boolean): Promise<{ erro?: string }> {
-    void _id; void _ativo
-    throw new AindaNaoNaApi('mudarSituacaoDoAcesso')
+  async mudarSituacaoDoAcesso(id: string, ativo: boolean): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/acessos/${encodeURIComponent(id)}/situacao`, {
+      metodo: 'POST',
+      corpo: { ativo },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos mudar este acesso.') }
+    return r.corpo as unknown as { erro?: string }
   }
 
   async eventosComSetores(): Promise<EventoComSetores[]> {
-    throw new AindaNaoNaApi('eventosComSetores')
+    const r = await this.pedir('/v1/acessos/eventos')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar os eventos.'))
+    return (Array.isArray(r.corpo) ? r.corpo : []) as unknown as EventoComSetores[]
   }
 
-  async criarAcesso(_dados: NovoAcesso): Promise<{ acesso?: Acesso; erro?: string }> {
-    void _dados
-    throw new AindaNaoNaApi('criarAcesso')
+  async criarAcesso(dados: NovoAcesso): Promise<{ acesso?: Acesso; erro?: string }> {
+    const r = await this.pedir('/v1/acessos', { metodo: 'POST', corpo: dados })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos criar este acesso.') }
+    return r.corpo as unknown as { acesso?: Acesso; erro?: string }
   }
 
   // ─── Plataforma ───────────────────────────────────────────────────────────
