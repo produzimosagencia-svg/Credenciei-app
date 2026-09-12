@@ -143,6 +143,7 @@ export async function registrarBatida(
     fotoPath: pedido.fotoPath ?? null,
     lat: pedido.lat ?? null,
     lng: pedido.lng ?? null,
+    manual: false,
   }
 
   const gravado = await repo.gravarRegistro(novo)

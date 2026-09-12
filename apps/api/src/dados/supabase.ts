@@ -32,8 +32,8 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type {
-  AtividadeBruta, DiaDeTrabalho, Evento, EventoComContagens, NovoRegistro, Participacao,
-  ParticipacaoParaLocalizar, Perfil, Pessoa, Registro, Repositorio,
+  AtividadeBruta, BatidaResumida, DiaDeTrabalho, Evento, EventoComContagens, LinhaDoDia, NovoRegistro,
+  Participacao, ParticipacaoParaLocalizar, Perfil, Pessoa, Registro, Repositorio,
 } from './repositorio.js'
 
 const soDigitos = (v: string | null | undefined) => (v ?? '').replace(/\D/g, '')
@@ -213,7 +213,7 @@ export class RepositorioSupabase implements Repositorio {
   async diasDoEvento(eventoId: string): Promise<DiaDeTrabalho[]> {
     const { data } = await this.db
       .from('jornada_dias')
-      .select('data, tipo, cancelado')
+      .select('data, tipo, cancelado, exige_meio')
       .eq('evento_id', eventoId)
       .order('data')
 
@@ -221,6 +221,8 @@ export class RepositorioSupabase implements Repositorio {
       data: d.data as string,
       tipo: (d.tipo as 'principal' | 'preparacao') ?? 'preparacao',
       cancelado: d.cancelado === true,
+      // Nasce ligado — o padrão da coluna. Ver `LinhaDoDia.exigeMeio`.
+      exigeMeio: d.exige_meio !== false,
     }))
   }
 
@@ -308,6 +310,58 @@ export class RepositorioSupabase implements Repositorio {
         setorNome: func?.fornecedores?.nome ?? null,
         tipo: r.tipo as 'entrada' | 'meio' | 'fim',
         em: r.created_at as string,
+      }
+    })
+  }
+
+  /**
+   * A mesma consulta de `linhasDaVisao` no site: a equipe do evento (ou de
+   * UM fornecedor só) juntada aos registros DAQUELE DIA — a base das sete
+   * visões de Atividades, que filtram esta lista de jeitos diferentes.
+   */
+  async linhasDoEventoNoDia(eventoId: string, dia: string, equipeId?: string): Promise<LinhaDoDia[]> {
+    let equipeQuery = this.db
+      .from('funcionarios')
+      .select(`${CAMPOS_FUNCIONARIO}, fornecedores!inner(id, nome, evento_id, exige_meio)`)
+      .eq('fornecedores.evento_id', eventoId)
+      .order('nome')
+    if (equipeId) equipeQuery = equipeQuery.eq('fornecedor_id', equipeId)
+
+    const [{ data: equipe }, { data: registros }] = await Promise.all([
+      equipeQuery,
+      this.db
+        .from('registros')
+        .select('funcionario_id, tipo, created_at, registro_manual')
+        .eq('evento_id', eventoId)
+        .eq('data_ref', dia),
+    ])
+
+    const porPessoa = new Map<string, Partial<Record<'entrada' | 'meio' | 'fim', BatidaResumida>>>()
+    for (const r of registros ?? []) {
+      const atual = porPessoa.get(r.funcionario_id as string) ?? {}
+      atual[r.tipo as 'entrada' | 'meio' | 'fim'] = { em: r.created_at as string, manual: r.registro_manual === true }
+      porPessoa.set(r.funcionario_id as string, atual)
+    }
+
+    return (equipe ?? []).map(f => {
+      const linha = f as unknown as LinhaFuncionario & {
+        fornecedores: { id: string; nome: string; exige_meio: boolean | null }
+      }
+      const feito = porPessoa.get(linha.id) ?? {}
+      return {
+        participacaoId: linha.id,
+        nome: linha.nome,
+        cpf: linha.cpf,
+        telefone: linha.telefone,
+        setorId: linha.fornecedores.id,
+        setorNome: linha.fornecedores.nome,
+        // Nasce desligado — o padrão da coluna. Ver `LinhaDoDia.exigeMeio`.
+        exigeMeio: linha.fornecedores.exige_meio === true,
+        ativo: linha.ativo !== false,
+        descredenciadoEm: linha.descredenciado_em,
+        entrada: feito.entrada ?? null,
+        meio: feito.meio ?? null,
+        fim: feito.fim ?? null,
       }
     })
   }
@@ -465,6 +519,7 @@ export class RepositorioSupabase implements Repositorio {
         latitude: r.lat,
         longitude: r.lng,
         dispositivo: 'app',
+        registro_manual: r.manual,
       }])
       .select(CAMPOS_REGISTRO)
       .single()
@@ -555,7 +610,7 @@ const CAMPOS_FUNCIONARIO =
   'valor_receber, pago, pago_em, foto_perfil_path, qr_token, fornecedor_id'
 
 const CAMPOS_REGISTRO =
-  'id, funcionario_id, tipo, data_ref, created_at, foto_url, latitude, longitude'
+  'id, funcionario_id, tipo, data_ref, created_at, foto_url, latitude, longitude, registro_manual'
 
 function paraEvento(l: Record<string, unknown>): Evento {
   const org = l.organizacoes as { nome?: string } | null
@@ -627,5 +682,6 @@ function paraRegistro(l: Record<string, unknown>): Registro {
     fotoPath: (l.foto_url as string | null) ?? null,
     lat: (l.latitude as number | null) ?? null,
     lng: (l.longitude as number | null) ?? null,
+    manual: l.registro_manual === true,
   }
 }

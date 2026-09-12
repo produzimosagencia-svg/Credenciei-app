@@ -330,6 +330,21 @@ test('registro assistido vai e volta pela API — localizar por CPF, abrir ficha
   assert.match(semFoto.erro ?? '', /foto do rosto é obrigatória/)
 })
 
+test('atividades vai e volta pela API — eventos, e a visão de entrada de um dia', async () => {
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(r.sessao, r.erro)
+  m.guardarToken(r.sessao.token)
+
+  const eventos = await m.cliente.eventosParaAcompanhar()
+  assert.deepEqual(eventos, [{ eventoId: 'ev-hj', nome: 'Henrique e Juliano — Kleber Andrade' }])
+
+  const a = await m.cliente.atividades('ev-hj', { visao: 'entrada', dia: '2026-09-05' })
+  assert.equal(a.eventoNome, 'Henrique e Juliano — Kleber Andrade')
+  assert.equal(a.diaEscolhido, '2026-09-05')
+  assert.deepEqual(a.linhas, [])
+})
+
 test('senha errada por HTTP devolve erro, não exceção', async () => {
   const m = montar()
   const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'errada')
@@ -366,11 +381,10 @@ test('o que a API não tem falha dizendo o nome, e não devolve vazio', async ()
   await entrar(m)
 
   for (const chamar of [
-    () => m.cliente.eventosParaAcompanhar(),
     () => m.cliente.eventosParaVeiculos(),
-    () => m.cliente.atividades('ev-1'),
     () => m.cliente.acessos(),
     () => m.cliente.equipeDoSetor('setor-1'),
+    () => m.cliente.fichaDaPessoa('part-1'),
   ]) {
     await assert.rejects(chamar, AindaNaoNaApi)
   }

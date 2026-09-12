@@ -173,7 +173,7 @@ test('dia com batida fora da escala aparece mesmo assim', async () => {
   repo.registros.push({
     id: 'fora', participacaoId: 'part-joao', tipo: 'entrada',
     dataRef: '2026-09-01', registradoEm: '2026-09-01T08:00:00-03:00',
-    recebidoEm: '2026-09-01T08:00:00-03:00', fotoPath: null, lat: null, lng: null,
+    recebidoEm: '2026-09-01T08:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false,
   })
 
   const dias = await meusDias(repo, 'pes-joao', 'part-joao')

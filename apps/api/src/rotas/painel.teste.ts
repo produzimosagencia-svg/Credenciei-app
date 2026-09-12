@@ -111,7 +111,7 @@ test('presentes e "ainda não chegaram" somam a equipe e quem já bateu entrada'
   repo.registros.push({
     id: 'r-1', participacaoId: participacao.id, tipo: 'entrada',
     dataRef: '2026-09-05', registradoEm: '2026-09-05T18:00:00-03:00',
-    recebidoEm: '2026-09-05T18:00:00-03:00', fotoPath: null, lat: null, lng: null,
+    recebidoEm: '2026-09-05T18:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false,
   })
 
   const p = await painel(repo, admin.id)
@@ -127,12 +127,12 @@ test('a mesma pessoa com duas entradas conta uma vez só em "presentes"', async 
     {
       id: 'r-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-03',
       registradoEm: '2026-09-03T08:00:00-03:00', recebidoEm: '2026-09-03T08:00:00-03:00',
-      fotoPath: null, lat: null, lng: null,
+      fotoPath: null, lat: null, lng: null, manual: false,
     },
     {
       id: 'r-2', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
       registradoEm: '2026-09-05T18:00:00-03:00', recebidoEm: '2026-09-05T18:00:00-03:00',
-      fotoPath: null, lat: null, lng: null,
+      fotoPath: null, lat: null, lng: null, manual: false,
     },
   )
   const p = await painel(repo, admin.id)
@@ -148,13 +148,13 @@ test('batidas na janela contam só o que caiu dentro da janela do evento de refe
     {
       id: 'r-dentro', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
       registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
-      fotoPath: null, lat: null, lng: null,
+      fotoPath: null, lat: null, lng: null, manual: false,
     },
     // Fora da janela (dia de montagem, bem antes de ela abrir).
     {
       id: 'r-fora', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-03',
       registradoEm: '2026-09-03T08:00:00-03:00', recebidoEm: '2026-09-03T08:00:00-03:00',
-      fotoPath: null, lat: null, lng: null,
+      fotoPath: null, lat: null, lng: null, manual: false,
     },
   )
 
@@ -182,7 +182,7 @@ test('atividade recente vem da mais nova para a mais velha, e limitada a 10', as
     repo.registros.push({
       id: `r-${i}`, participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
       registradoEm: `2026-09-05T${String(10 + i).padStart(2, '0')}:00:00-03:00`,
-      recebidoEm: '2026-09-05T10:00:00-03:00', fotoPath: null, lat: null, lng: null,
+      recebidoEm: '2026-09-05T10:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false,
     })
   }
   const p = await painel(repo, admin.id)

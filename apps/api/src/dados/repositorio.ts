@@ -146,6 +146,41 @@ export type DiaDeTrabalho = {
   data: string
   tipo: 'principal' | 'preparacao'
   cancelado: boolean
+  /**
+   * Este dia pede o meio? Nasce LIGADO — é o padrão da coluna
+   * `jornada_dias.exige_meio` no site: antes da migração rodar, todo dia
+   * pedia o meio, e desligar por padrão silenciaria o meio do evento
+   * inteiro.
+   */
+  exigeMeio: boolean
+}
+
+/** Uma batida de uma etapa, para as telas que só precisam do resumo. */
+export type BatidaResumida = { em: string; manual: boolean }
+
+/**
+ * Uma pessoa da equipe, com o que ela fez NUM DIA — a mesma pergunta de
+ * `linhasDaVisao` e `pendenciasDoDia` no site, juntas numa consulta só: as
+ * duas olham a mesma equipe+dia e só filtram diferente depois.
+ */
+export type LinhaDoDia = {
+  participacaoId: string
+  nome: string
+  cpf: string
+  telefone: string | null
+  setorId: string
+  setorNome: string
+  /**
+   * Este SETOR pede o meio? Nasce DESLIGADO — o outro lado da mesma conta de
+   * `DiaDeTrabalho.exigeMeio`: as duas chaves precisam estar ligadas para o
+   * meio valer, ver `fornecedores.exige_meio` no site.
+   */
+  exigeMeio: boolean
+  ativo: boolean
+  descredenciadoEm: string | null
+  entrada: BatidaResumida | null
+  meio: BatidaResumida | null
+  fim: BatidaResumida | null
 }
 
 export type Registro = {
@@ -160,6 +195,13 @@ export type Registro = {
   fotoPath: string | null
   lat: number | null
   lng: number | null
+  /**
+   * Lançado por outra pessoa (registro assistido), e não pelo próprio QR ou
+   * pela selfie do próprio colaborador. É o que a coluna "Atividades" precisa
+   * para marcar a batida como manual — mesmo campo de `registro_manual` no
+   * site.
+   */
+  manual: boolean
 }
 
 export type NovoRegistro = Omit<Registro, 'recebidoEm'> & { recebidoEm?: string }
@@ -194,6 +236,17 @@ export interface Repositorio {
 
   /** As últimas batidas dos eventos informados — o pulso da operação. */
   atividadeRecente(eventoIds: string[], limite: number): Promise<AtividadeBruta[]>
+
+  /**
+   * A equipe do evento (ou de UM setor só, para o supervisor), com o que
+   * cada um fez NAQUELE DIA — a base das sete visões de "Atividades".
+   *
+   * Devolve TODO MUNDO, ativo ou não, credenciado ou não: cada visão filtra
+   * diferente depois (quem já registrou algo aparece mesmo inativo; quem é
+   * cobrado por pendência, não) — a mesma divisão de `linhasDaVisao` e
+   * `pendenciasDoDia` no site.
+   */
+  linhasDoEventoNoDia(eventoId: string, dia: string, equipeId?: string): Promise<LinhaDoDia[]>
 
   /**
    * As participações candidatas do registro assistido, já dentro do escopo

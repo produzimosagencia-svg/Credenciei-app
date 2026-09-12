@@ -426,15 +426,23 @@ export class ClienteHttp implements ClienteApi {
   // ─── Atividades ───────────────────────────────────────────────────────────
 
   async eventosParaAcompanhar(): Promise<EventoEscaneavel[]> {
-    throw new AindaNaoNaApi('eventosParaAcompanhar')
+    const r = await this.pedir('/v1/atividades/eventos')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar os eventos.'))
+    return (Array.isArray(r.corpo) ? r.corpo : []) as unknown as EventoEscaneavel[]
   }
 
   async atividades(
-    _eventoId: string,
-    _opcoes?: { visao?: VisaoDeAtividade; dia?: string },
+    eventoId: string,
+    opcoes?: { visao?: VisaoDeAtividade; dia?: string },
   ): Promise<AtividadesDoEvento> {
-    void _eventoId; void _opcoes
-    throw new AindaNaoNaApi('atividades')
+    const partes: string[] = []
+    if (opcoes?.visao) partes.push(`visao=${encodeURIComponent(opcoes.visao)}`)
+    if (opcoes?.dia) partes.push(`dia=${encodeURIComponent(opcoes.dia)}`)
+    const query = partes.length ? `?${partes.join('&')}` : ''
+
+    const r = await this.pedir(`/v1/atividades/${encodeURIComponent(eventoId)}${query}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar as atividades.'))
+    return r.corpo as unknown as AtividadesDoEvento
   }
 
   async criarEvento(_dados: DadosDeNovoEvento): Promise<{ eventoId?: string; erro?: string }> {

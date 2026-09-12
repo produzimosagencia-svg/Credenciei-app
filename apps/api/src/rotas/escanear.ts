@@ -164,6 +164,7 @@ export async function registrarPorQr(
     fotoPath: null,
     lat: null,
     lng: null,
+    manual: false,
   })
 
   return {

@@ -30,6 +30,8 @@ import { painelDaEquipe } from './rotas/equipe.js'
 import { painel } from './rotas/painel.js'
 import { conferirPorCpf, eventosParaEscanear, registrarPorQr } from './rotas/escanear.js'
 import { abrirFicha, localizarPessoa, registrarPresencaAssistida } from './rotas/ponto-assistido.js'
+import { atividades, eventosParaAcompanhar } from './rotas/atividades.js'
+import type { VisaoDeAtividade } from '@credenciei/contrato'
 import {
   consultarConvite, entrarNoEvento, meuFinanceiro, meuQr, meusDias,
   minhasParticipacoes, type FonteDeCampos,
@@ -250,6 +252,19 @@ export function criarServidor(amb: Ambiente) {
       lng: corpo.lng,
       dispositivo: corpo.dispositivo,
       motivo: corpo.motivo,
+    }))
+  })
+
+  // ── Atividades ───────────────────────────────────────────────────────────
+  app.get('/v1/atividades/eventos', async c =>
+    protegido(c, () => eventosParaAcompanhar(amb.repo, c.get('pessoaId'))))
+
+  app.get('/v1/atividades/:eventoId', async c => {
+    const visao = c.req.query('visao')
+    const dia = c.req.query('dia')
+    return protegido(c, () => atividades(amb.repo, c.get('pessoaId'), c.req.param('eventoId'), {
+      ...(visao ? { visao: visao as VisaoDeAtividade } : {}),
+      ...(dia ? { dia } : {}),
     }))
   })
 

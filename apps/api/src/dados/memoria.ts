@@ -8,7 +8,7 @@
 // desenvolvimento local antes de a implementação sobre o Supabase ficar pronta.
 
 import type {
-  AtividadeBruta, DiaDeTrabalho, Evento, EventoComContagens, NovoRegistro, Participacao,
+  AtividadeBruta, DiaDeTrabalho, Evento, EventoComContagens, LinhaDoDia, NovoRegistro, Participacao,
   ParticipacaoParaLocalizar, Perfil, Pessoa, Registro, Repositorio,
 } from './repositorio.js'
 
@@ -22,7 +22,7 @@ export class RepositorioEmMemoria implements Repositorio {
   participacoes: Participacao[] = []
   registros: Registro[] = []
   dias = new Map<string, DiaDeTrabalho[]>()
-  equipes: { id: string; nome: string; eventoId: string; supervisorPessoaId?: string }[] = []
+  equipes: { id: string; nome: string; eventoId: string; supervisorPessoaId?: string; exigeMeio?: boolean }[] = []
 
   // ── Identidade ────────────────────────────────────────────────────────────
 
@@ -127,6 +127,37 @@ export class RepositorioEmMemoria implements Repositorio {
           setorNome: participacao.equipeNome,
           tipo: r.tipo,
           em: r.registradoEm,
+        }
+      })
+  }
+
+  async linhasDoEventoNoDia(eventoId: string, dia: string, equipeId?: string): Promise<LinhaDoDia[]> {
+    const equipesAlvo = this.equipes.filter(eq => eq.eventoId === eventoId && (!equipeId || eq.id === equipeId))
+    const idsDeEquipe = new Set(equipesAlvo.map(eq => eq.id))
+
+    return this.participacoes
+      .filter(p => idsDeEquipe.has(p.equipeId))
+      .map(p => {
+        const pessoa = this.pessoas.find(x => x.id === p.pessoaId)!
+        const equipe = equipesAlvo.find(eq => eq.id === p.equipeId)!
+        const doDia = this.registros.filter(r => r.participacaoId === p.id && r.dataRef === dia)
+        const porTipo = (tipo: 'entrada' | 'meio' | 'fim') => {
+          const r = doDia.find(x => x.tipo === tipo)
+          return r ? { em: r.registradoEm, manual: r.manual } : null
+        }
+        return {
+          participacaoId: p.id,
+          nome: pessoa.nome,
+          cpf: pessoa.cpf,
+          telefone: pessoa.telefone,
+          setorId: equipe.id,
+          setorNome: p.equipeNome,
+          exigeMeio: equipe.exigeMeio ?? false,
+          ativo: p.ativo,
+          descredenciadoEm: p.descredenciadoEm,
+          entrada: porTipo('entrada'),
+          meio: porTipo('meio'),
+          fim: porTipo('fim'),
         }
       })
   }
@@ -278,13 +309,13 @@ export function cenarioHenriqueEJuliano() {
   repo.eventos.push(evento)
 
   repo.dias.set(evento.id, [
-    { data: '2026-09-03', tipo: 'preparacao', cancelado: false },
-    { data: '2026-09-04', tipo: 'preparacao', cancelado: false },
-    { data: '2026-09-05', tipo: 'principal', cancelado: false },
-    { data: '2026-09-06', tipo: 'preparacao', cancelado: false },
+    { data: '2026-09-03', tipo: 'preparacao', cancelado: false, exigeMeio: true },
+    { data: '2026-09-04', tipo: 'preparacao', cancelado: false, exigeMeio: true },
+    { data: '2026-09-05', tipo: 'principal', cancelado: false, exigeMeio: true },
+    { data: '2026-09-06', tipo: 'preparacao', cancelado: false, exigeMeio: true },
   ])
 
-  repo.equipes.push({ id: 'eq-1', nome: 'Produção', eventoId: evento.id })
+  repo.equipes.push({ id: 'eq-1', nome: 'Produção', eventoId: evento.id, exigeMeio: true })
 
   // Duas contas de painel prontas, na mesma organização do evento: o master
   // não pertence a nenhuma; o admin é sempre da Produzimos (org-1) — a mesma

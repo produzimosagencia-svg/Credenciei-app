@@ -249,6 +249,7 @@ export async function registrarPresencaAssistida(
     fotoPath: null,
     lat: dados.lat ?? null,
     lng: dados.lng ?? null,
+    manual: true,
   })
 
   return { nome: item.nome, etapa: ROTULO_DA_ETAPA[dados.tipo] }
