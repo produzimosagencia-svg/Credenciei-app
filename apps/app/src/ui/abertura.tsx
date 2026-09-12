@@ -11,9 +11,6 @@ import { useEffect, useState } from 'react'
 import { Pressable, StyleSheet } from 'react-native'
 import { useEventListener } from 'expo'
 import { useVideoPlayer, VideoView } from 'expo-video'
-import { PALETAS } from './tema'
-
-const cor = PALETAS.escuro.cor
 
 /*
  * Bem mais longa que o vídeo (que tem uns 12s) — só existe para o caso raro
@@ -79,7 +76,11 @@ const e = StyleSheet.create({
   fora: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: cor.fundoEscuro,
+    // O fundo do PRÓPRIO vídeo é branco do começo ao fim (conferido quadro a
+    // quadro) — o fundo daqui precisa ser o MESMO branco, senão "contain"
+    // sobra como barra escura em volta de um vídeo branco, que é pior do que
+    // o corte que "cover" fazia.
+    backgroundColor: '#ffffff',
     zIndex: 10,
   },
   video: { flex: 1 },
