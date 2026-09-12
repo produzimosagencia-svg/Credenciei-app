@@ -1,6 +1,6 @@
 # Backlog
 
-**332 tasks · 211 no MVP · 174 concluídas (52%)**
+**332 tasks · 211 no MVP · 175 concluídas (53%)**
 
 **Só o MVP: 141 de 211 (67%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -79,7 +79,7 @@ nada do resto importa ainda.
 |---|---|---|---|---|---|
 | 1 | Modelo de dados | 3 | 16 | ✓ | SQL escrito, nada executado |
 | 2 | Fundação | 8 | 13 | ✓ | `operador_portao` e `suporte` no domínio; falta só `produtor` (módulo Gastos) |
-| 3 | API v1 | 28 | 32 | ✓ | Login e Painel reais; faltam escanear, ponto assistido, atividades, acessos, evento e Plataforma |
+| 3 | API v1 | 29 | 32 | ✓ | Login, Painel e Escanear QR reais; faltam ponto assistido, atividades, acessos, evento e Plataforma |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
 | 5 | App base | 15 | 15 | ✓ | Navegação com voltar, campos, data/hora e o redesign "Arena" (laranja/escuro) |
 | 6 | QR | 9 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
@@ -91,7 +91,7 @@ nada do resto importa ainda.
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 5 | 15 | — | Isolamento e limite feitos; falta LGPD, retenção e a trilha de auditoria |
-| 15 | Testes | 9 | 14 | — | 528 testes rodando |
+| 15 | Testes | 9 | 14 | — | 544 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 45 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
 | 18 | Configurar evento | 11 | 17 | ✓ | Falta a API |
@@ -131,6 +131,7 @@ nada do resto importa ainda.
 - `Perfil` no Repositorio — quem tem conta de painel, por cima do Supabase Auth
 - Login por senha de verdade: CPF (supervisor) ou e-mail (admin/master), a mesma régua de tentativas do WhatsApp
 - Painel real: indicadores, eventos ativos e atividade recente, com o mesmo recorte por papel de `app/admin/page.tsx` (master vê tudo, quem gerencia evento só a própria organização, supervisor só o próprio evento)
+- Escanear QR real: `inferirMomentoDoScanner` decide a etapa, `avaliarEntradaSaida` confere dia/janela, isolamento por evento e organização — trouxe também a correção "a saída não exige mais o meio" (mudou no site em 11/09/2026, corrigido ao mesmo tempo no servidor de mentira)
 - Sessão carrega o papel de quem entrou, de verdade — não mais fixo em "colaborador"
 - `/v1/eu` responde o papel certo pra quem tem conta de painel
 - `ClienteHttp.entrarComSenha` ligado — a tela de entrar não mudou uma linha

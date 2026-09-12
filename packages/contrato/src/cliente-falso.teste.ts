@@ -587,9 +587,26 @@ test('depois da carência, a leitura seguinte já é a saída — sem escolher n
   await c.registrarPorQr('ev-1', cracha.codigo)
   const r = await c.registrarPorQr('ev-1', cracha.codigo)
 
-  assert.equal(r.situacao, 'recusado') // sem o meio, ver teste abaixo
-  if (r.situacao !== 'recusado') return
-  assert.match(r.mensagem, /meio/i)
+  assert.equal(r.situacao, 'registrado')
+  if (r.situacao !== 'registrado') return
+  assert.equal(r.momento, 'fim')
+})
+
+test('a saída NÃO exige mais o meio — mudou no site, trazido em 11/09/2026', async () => {
+  /*
+   * Chegou a existir essa trava, a pedido explícito — mas travava justamente
+   * quem mais precisava sair: quem perdeu o meio de verdade ficava preso no
+   * evento até um supervisor destravar pelo registro assistido. A ausência
+   * do meio continua visível no histórico; só deixou de IMPEDIR a saída.
+   */
+  const c = await noPortao({ agora: relogioQueAvanca() })
+  const cracha = credenciaisDeDemonstracao(INICIO_DO_TURNO).find(x => x.serveHoje)!
+  await c.registrarPorQr('ev-1', cracha.codigo)
+  const saida = await c.registrarPorQr('ev-1', cracha.codigo)
+
+  assert.equal(saida.situacao, 'registrado')
+  if (saida.situacao !== 'registrado') return
+  assert.equal(saida.momento, 'fim')
 })
 
 test('crachá de outra etapa não é "inválido": é etapa errada, com as duas', async () => {
@@ -613,21 +630,6 @@ test('código que não saiu deste sistema é recusado', async () => {
   const c = await noPortao()
   const r = await c.registrarPorQr('ev-1', 'c3.qr-ana.M.assinaturaInventada')
   assert.equal(r.situacao, 'recusado')
-})
-
-test('a saída exige o meio', async () => {
-  // O meio é o que prova que a pessoa ficou no evento. Liberar a saída sem ele
-  // apagaria essa prova — e o meio é registrado pela própria pessoa, com foto.
-  // Relógio avançando: sem isso, a segunda leitura cairia na carência, e
-  // nunca chegaria a testar a exigência do meio.
-  const c = await noPortao({ agora: relogioQueAvanca() })
-  const cracha = credenciaisDeDemonstracao(INICIO_DO_TURNO).find(x => x.serveHoje)!
-  await c.registrarPorQr('ev-1', cracha.codigo)
-  const saida = await c.registrarPorQr('ev-1', cracha.codigo)
-
-  assert.equal(saida.situacao, 'recusado')
-  if (saida.situacao !== 'recusado') return
-  assert.match(saida.mensagem, /meio/i)
 })
 
 test('sair e voltar no mesmo dia reabre o turno, não recusa', async () => {

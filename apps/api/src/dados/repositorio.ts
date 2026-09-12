@@ -150,6 +150,8 @@ export interface Repositorio {
   // ── Identidade ──────────────────────────────────────────────────────────
   pessoaPorTelefone(telefone: string): Promise<Pessoa | null>
   pessoaPorId(id: string): Promise<Pessoa | null>
+  /** A conferência pelo CPF, no portão, resolve por aqui. */
+  pessoaPorCpf(cpf: string): Promise<Pessoa | null>
   criarPessoa(p: Omit<Pessoa, 'id'>): Promise<Pessoa>
 
   /** Quem tem conta de painel, pelo id do Supabase Auth. */
@@ -178,6 +180,8 @@ export interface Repositorio {
   // ── Participação ────────────────────────────────────────────────────────
   participacoesDaPessoa(pessoaId: string): Promise<Participacao[]>
   participacaoPorId(id: string): Promise<Participacao | null>
+  /** O crachá lido no portão resolve nisto — é o que o QR carrega. */
+  participacaoPorQrToken(token: string): Promise<Participacao | null>
   criarParticipacao(p: Omit<Participacao, 'id'>): Promise<Participacao>
 
   // ── Batidas ─────────────────────────────────────────────────────────────
@@ -192,6 +196,12 @@ export interface Repositorio {
   registrosDoDia(participacaoId: string, dataRef: string): Promise<Registro[]>
   registrosDaParticipacao(participacaoId: string): Promise<Registro[]>
   gravarRegistro(r: NovoRegistro): Promise<Registro>
+  /**
+   * Apaga um registro — só usado para REABRIR um turno (a saída que a
+   * pessoa "desfez" voltando a trabalhar). O horário apagado não é
+   * segredo: quem chama já sabe qual era antes de decidir apagar.
+   */
+  apagarRegistro(id: string): Promise<void>
 
   // ── Supervisor ──────────────────────────────────────────────────────────
   participacoesDaEquipe(equipeId: string): Promise<(Participacao & { pessoa: Pessoa })[]>

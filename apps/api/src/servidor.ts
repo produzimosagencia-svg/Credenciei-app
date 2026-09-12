@@ -28,6 +28,7 @@ import { entrar, entrarComSenha, pedirCodigo } from './rotas/sessao.js'
 import { registrarBatida } from './rotas/batidas.js'
 import { painelDaEquipe } from './rotas/equipe.js'
 import { painel } from './rotas/painel.js'
+import { conferirPorCpf, eventosParaEscanear, registrarPorQr } from './rotas/escanear.js'
 import {
   consultarConvite, entrarNoEvento, meuFinanceiro, meuQr, meusDias,
   minhasParticipacoes, type FonteDeCampos,
@@ -207,6 +208,24 @@ export function criarServidor(amb: Ambiente) {
   // ── Painel ──────────────────────────────────────────────────────────────
   app.get('/v1/painel', async c =>
     protegido(c, () => painel(amb.repo, c.get('pessoaId'))))
+
+  // ── Escanear QR ─────────────────────────────────────────────────────────
+  app.get('/v1/escanear/eventos', async c =>
+    protegido(c, () => eventosParaEscanear(amb.repo, c.get('pessoaId'))))
+
+  app.post('/v1/escanear/:eventoId', async c => {
+    const { codigo } = await c.req.json<{ codigo?: string }>()
+    return protegido(c, () => registrarPorQr(
+      amb.repo, amb.segredoQr, c.get('pessoaId'), c.req.param('eventoId'), codigo ?? '',
+    ))
+  })
+
+  app.post('/v1/escanear/:eventoId/cpf', async c => {
+    const { cpf } = await c.req.json<{ cpf?: string }>()
+    return protegido(c, () => conferirPorCpf(
+      amb.repo, c.get('pessoaId'), c.req.param('eventoId'), cpf ?? '',
+    ))
+  })
 
   return app
 }

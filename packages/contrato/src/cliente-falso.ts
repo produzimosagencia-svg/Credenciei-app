@@ -1465,14 +1465,16 @@ export class ClienteFalso implements ClienteApi {
 
     const momento = decisao.momento
 
-    // A saída exige o meio, como no domínio: o meio é o que prova que a pessoa
-    // ficou no evento, e liberar a saída sem ele apagaria essa prova.
-    if (momento === 'fim' && !this.etapasDe(pessoa.id).has('meio')) {
-      return {
-        situacao: 'recusado',
-        mensagem: `${pessoa.nome} ainda não registrou o meio. Peça para ela abrir a credencial e tirar a selfie do meio.`,
-      }
-    }
+    /*
+     * A saída NÃO exige mais o meio — mudou no site, trazido em 11/09/2026.
+     *
+     * Chegou a existir essa trava, a pedido explícito — mas travava
+     * justamente quem mais precisava sair: quem perdeu o meio de verdade
+     * ficava preso no evento até um supervisor destravar pelo registro
+     * assistido, e num show grande isso virava fila. A ausência do meio
+     * continua visível no histórico e na tela de pendências, para o
+     * organizador cobrar depois — só deixou de IMPEDIR a saída.
+     */
 
     this.registrosDe(pessoa.id).push({
       id: `reg-${pessoa.id}-${this.registrosDe(pessoa.id).length + 1}`,

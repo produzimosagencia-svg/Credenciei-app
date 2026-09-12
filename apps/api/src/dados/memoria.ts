@@ -35,6 +35,11 @@ export class RepositorioEmMemoria implements Repositorio {
     return this.pessoas.find(p => p.id === id) ?? null
   }
 
+  async pessoaPorCpf(cpf: string) {
+    const d = (cpf ?? '').replace(/\D/g, '')
+    return this.pessoas.find(p => p.cpf.replace(/\D/g, '') === d) ?? null
+  }
+
   async criarPessoa(p: Omit<Pessoa, 'id'>) {
     const nova = { ...p, id: novoId('pes') }
     this.pessoas.push(nova)
@@ -136,6 +141,10 @@ export class RepositorioEmMemoria implements Repositorio {
     return this.participacoes.find(p => p.id === id) ?? null
   }
 
+  async participacaoPorQrToken(token: string) {
+    return this.participacoes.find(p => p.qrToken === token) ?? null
+  }
+
   async criarParticipacao(p: Omit<Participacao, 'id'>) {
     const nova = { ...p, id: novoId('part') }
     this.participacoes.push(nova)
@@ -170,6 +179,10 @@ export class RepositorioEmMemoria implements Repositorio {
     const gravado: Registro = { ...r, recebidoEm: r.recebidoEm ?? new Date().toISOString() }
     this.registros.push(gravado)
     return gravado
+  }
+
+  async apagarRegistro(id: string) {
+    this.registros = this.registros.filter(r => r.id !== id)
   }
 
   // ── Supervisor ────────────────────────────────────────────────────────────

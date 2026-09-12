@@ -113,6 +113,10 @@ export class RepositorioSupabase implements Repositorio {
     }
   }
 
+  async pessoaPorCpf(cpf: string): Promise<Pessoa | null> {
+    return this.pessoaPorId(idDaPessoa(cpf))
+  }
+
   async pessoaPorId(id: string): Promise<Pessoa | null> {
     const cpf = cpfDoId(id)
     if (!cpf) return null
@@ -333,6 +337,17 @@ export class RepositorioSupabase implements Repositorio {
     return f ? paraParticipacao(f as never, idDaPessoa(f.cpf)) : null
   }
 
+  async participacaoPorQrToken(token: string): Promise<Participacao | null> {
+    const { data } = await this.db
+      .from('funcionarios')
+      .select(`${CAMPOS_FUNCIONARIO}, fornecedores!inner(id, nome, evento_id)`)
+      .eq('qr_token', token)
+      .limit(1)
+
+    const f = data?.[0] as (LinhaFuncionario & { fornecedores: unknown }) | undefined
+    return f ? paraParticipacao(f as never, idDaPessoa(f.cpf)) : null
+  }
+
   async criarParticipacao(p: Omit<Participacao, 'id'>): Promise<Participacao> {
     const cpf = cpfDoId(p.pessoaId)
     if (!cpf) throw new Error('Pessoa inválida.')
@@ -421,6 +436,10 @@ export class RepositorioSupabase implements Repositorio {
     }
     if (error || !data) throw new Error('Não foi possível gravar a batida.')
     return paraRegistro(data)
+  }
+
+  async apagarRegistro(id: string): Promise<void> {
+    await this.db.from('registros').delete().eq('id', id)
   }
 
   // ── Supervisor ────────────────────────────────────────────────────────────

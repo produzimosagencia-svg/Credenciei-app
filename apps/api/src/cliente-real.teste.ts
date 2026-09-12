@@ -291,6 +291,27 @@ test('o painel vem da API de verdade, com o recorte do admin', async () => {
   assert.ok(p.indicadores.some(i => i.chave === 'eventos_ativos'))
 })
 
+test('escanear vai e volta pela API — eventos, e um crachá com assinatura errada', async () => {
+  /*
+   * Sem data fixa de propósito: o cenário de teste tem um evento datado de
+   * 2026-09-05/06, e o relógio de verdade já passou disso — testar um
+   * REGISTRO com sucesso aqui exigiria um relógio injetável na rota HTTP,
+   * que ainda não existe. Esse caminho é coberto a fundo, com relógio
+   * controlado, em `rotas/escanear.teste.ts`; aqui só se prova a ligação
+   * HTTP (autenticação, rota, formato do corpo).
+   */
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(r.sessao, r.erro)
+  m.guardarToken(r.sessao.token)
+
+  const eventos = await m.cliente.eventosParaEscanear()
+  assert.deepEqual(eventos, [{ eventoId: 'ev-hj', nome: 'Henrique e Juliano — Kleber Andrade' }])
+
+  const leitura = await m.cliente.registrarPorQr('ev-hj', 'c3.token-do-joao.M.assinaturaFalsa')
+  assert.equal(leitura.situacao, 'recusado')
+})
+
 test('senha errada por HTTP devolve erro, não exceção', async () => {
   const m = montar()
   const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'errada')
@@ -328,7 +349,7 @@ test('o que a API não tem falha dizendo o nome, e não devolve vazio', async ()
 
   for (const chamar of [
     () => m.cliente.eventosParaAcompanhar(),
-    () => m.cliente.eventosParaEscanear(),
+    () => m.cliente.eventosParaVeiculos(),
     () => m.cliente.atividades('ev-1'),
     () => m.cliente.acessos(),
     () => m.cliente.localizarPessoa('Silva'),

@@ -41,12 +41,12 @@ uma regra só.
 packages/dominio     a regra de negócio, pura — 81 testes
 packages/offline     a fila de batidas sem internet — 22 testes
 packages/contrato    o que o app pode pedir + servidor falso — 219 testes
-apps/api             a API HTTP completa — 121 testes
+apps/api             a API HTTP completa — 137 testes
 apps/app             o aplicativo, em React Native + Expo — 85 testes
 db/migracoes         três migrações escritas, NENHUMA executada
 ```
 
-**528 testes.** `npm run verificar` roda tipos e testes de
+**544 testes.** `npm run verificar` roda tipos e testes de
 tudo, sem banco e sem rede. Só `npm run teste` NÃO confere tipos — o `tsx` não
 olha para eles.
 
@@ -162,7 +162,7 @@ o erro volta.
 ## Como acompanhar
 
 O Juan pede status assim: *"como estamos?"*. Responda com **percentual real do
-backlog** (332 tasks, 211 no MVP) — e o do MVP é o que responde "quando dá para usar"; `npm run backlog` calcula os dois — nunca invente número. Login de painel (`entrarComSenha`) e o Painel (`painel()`) já são reais na API, ligados pelo `ClienteHttp`; o resto das rotas ainda usa o servidor falso — ver a Fase 2 em `docs/backlog.md`. O que está feito por
+backlog** (332 tasks, 211 no MVP) — e o do MVP é o que responde "quando dá para usar"; `npm run backlog` calcula os dois — nunca invente número. Login de painel (`entrarComSenha`), o Painel (`painel()`) e Escanear QR (`registrarPorQr`, `conferirPorCpf`) já são reais na API, ligados pelo `ClienteHttp`; o resto das rotas ainda usa o servidor falso — ver a Fase 2 em `docs/backlog.md`. O que está feito por
 epic está em `docs/backlog.md`.
 
 Ao terminar um dia de trabalho, ele espera um resumo: feito, alterado, testado,

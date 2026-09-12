@@ -371,17 +371,27 @@ export class ClienteHttp implements ClienteApi {
   // ─── Escanear QR ──────────────────────────────────────────────────────────
 
   async eventosParaEscanear(): Promise<EventoEscaneavel[]> {
-    throw new AindaNaoNaApi('eventosParaEscanear')
+    const r = await this.pedir('/v1/escanear/eventos')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar os eventos.'))
+    return (Array.isArray(r.corpo) ? r.corpo : []) as unknown as EventoEscaneavel[]
   }
 
-  async registrarPorQr(_eventoId: string, _codigoLido: string): Promise<ResultadoDaLeitura> {
-    void _eventoId; void _codigoLido
-    throw new AindaNaoNaApi('registrarPorQr')
+  async registrarPorQr(eventoId: string, codigoLido: string): Promise<ResultadoDaLeitura> {
+    const r = await this.pedir(`/v1/escanear/${encodeURIComponent(eventoId)}`, {
+      metodo: 'POST',
+      corpo: { codigo: codigoLido },
+    })
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos registrar a leitura.'))
+    return r.corpo as unknown as ResultadoDaLeitura
   }
 
-  async conferirPorCpf(_eventoId: string, _cpf: string): Promise<ConferenciaPorCpf> {
-    void _eventoId; void _cpf
-    throw new AindaNaoNaApi('conferirPorCpf')
+  async conferirPorCpf(eventoId: string, cpf: string): Promise<ConferenciaPorCpf> {
+    const r = await this.pedir(`/v1/escanear/${encodeURIComponent(eventoId)}/cpf`, {
+      metodo: 'POST',
+      corpo: { cpf },
+    })
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos conferir o CPF.'))
+    return r.corpo as unknown as ConferenciaPorCpf
   }
 
   // ─── Registrar ponto por outra pessoa ─────────────────────────────────────
