@@ -287,10 +287,11 @@ export function avaliarEntradaSaida(
 
 // ─── O que a leitura do crachá significa ──────────────────────────────────────
 //
-// Só entra em jogo quando NINGUÉM escolhe a etapa — o scanner do portão e o
-// registro assistido decidem sozinhos, porque pedir para o operador escolher
-// (Entrada/Meio/Saída) confundia com a fila andando. A pessoa que bate o
-// próprio ponto pelo celular manda o `tipo` explícito e não passa por aqui.
+// Só entra em jogo no SCANNER do portão: pedir para o operador escolher
+// (Entrada/Meio/Saída) ali confundia, com a fila andando. O registro
+// assistido é o oposto — quem escolhe a etapa é o operador, de propósito (ver
+// `diaDeReferenciaAssistida`, abaixo) — e a pessoa que bate o próprio ponto
+// pelo celular manda o `tipo` explícito. Nenhum dos dois passa por aqui.
 
 export type RegistroParaInferencia = { id: string; tipo: 'entrada' | 'meio' | 'fim'; em: string; dataRef: string }
 
@@ -381,6 +382,55 @@ export function inferirMomentoDoScanner(
   }
 
   return { momento: 'entrada' }
+}
+
+/**
+ * A que dia de trabalho pertence uma batida do REGISTRO ASSISTIDO.
+ *
+ * Copiado de `lib/actions.ts` (`diaDeReferencia`) do sistema web, 11/09/2026.
+ * Existe separado de `inferirMomentoDoScanner` porque aqui quem escolhe a
+ * ETAPA é o operador — mas o DIA a que a batida pertence continua sendo
+ * calculado pelo servidor, e pela MESMA regra do scanner: a entrada nunca
+ * herda turno (ela abre um, é sempre hoje); meio e saída pertencem ao turno
+ * ainda ABERTO (entrada sem saída, dentro de `TETO_TURNO_H`), ou a hoje
+ * quando não há nenhum aberto.
+ *
+ * ── O BUG QUE ESTA REGRA CORRIGE (site, 03/09/2026) ──────────────────────
+ *
+ * Sem as duas travas acima, quem batia a ENTRADA de hoje pelo registro
+ * assistido depois de ter trabalhado ontem à noite recebia `dataRef` de
+ * ONTEM (a entrada de ontem ainda estava dentro de `TETO_TURNO_H`, mesmo com
+ * o turno já fechado). Como o registro assistido SOBRESCREVE por chave
+ * (participação + etapa + dia), a entrada de ontem era apagada e substituída
+ * pelo horário de hoje — a ficha passava a mostrar "entrada 03/09 08:07,
+ * saída 02/09 20:12", cronologicamente impossível. Duas pessoas atingidas
+ * antes da correção.
+ *
+ * `momento` fica de fora quando só se quer o dia do TURNO ATUAL, sem gravar
+ * nada ainda — é o que a Ficha usa para saber que dia mostrar antes de o
+ * operador escolher a etapa.
+ */
+export function diaDeReferenciaAssistida(
+  registros: RegistroParaInferencia[],
+  momento: 'entrada' | 'meio' | 'fim' | undefined,
+  hoje: string,
+  agora: Date,
+): string {
+  if (momento === 'entrada') return hoje
+
+  const desde = agora.getTime() - TETO_TURNO_H * H_MS
+  const entradaAberta = registros
+    .filter(r => r.tipo === 'entrada' && new Date(r.em).getTime() >= desde)
+    .sort((a, b) => b.em.localeCompare(a.em))[0] ?? null
+
+  if (entradaAberta) {
+    const fimDoTurno = registros.find(
+      r => r.tipo === 'fim' && r.dataRef === entradaAberta.dataRef && r.em > entradaAberta.em,
+    )
+    if (!fimDoTurno) return entradaAberta.dataRef
+  }
+
+  return hoje
 }
 
 // ─── Horário ESPERADO de cada etapa ──────────────────────────────────────────

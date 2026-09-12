@@ -9,7 +9,7 @@
 
 import type {
   AtividadeBruta, DiaDeTrabalho, Evento, EventoComContagens, NovoRegistro, Participacao,
-  Perfil, Pessoa, Registro, Repositorio,
+  ParticipacaoParaLocalizar, Perfil, Pessoa, Registro, Repositorio,
 } from './repositorio.js'
 
 let seq = 0
@@ -131,6 +131,43 @@ export class RepositorioEmMemoria implements Repositorio {
       })
   }
 
+  async participacoesParaLocalizar(
+    escopo: { organizacaoId?: string | null; equipeId?: string },
+  ): Promise<ParticipacaoParaLocalizar[]> {
+    const equipesNoEscopo = escopo.equipeId
+      ? this.equipes.filter(eq => eq.id === escopo.equipeId)
+      : escopo.organizacaoId === undefined
+        ? this.equipes
+        : this.equipes.filter(eq => {
+            const evento = this.eventos.find(e => e.id === eq.eventoId)
+            return escopo.organizacaoId === null || evento?.organizacaoId === escopo.organizacaoId
+          })
+
+    const eventoDaEquipe = new Map(equipesNoEscopo.map(eq => [eq.id, this.eventos.find(e => e.id === eq.eventoId)]))
+    const idsDeEquipeAtiva = new Set(
+      [...eventoDaEquipe.entries()].filter(([, ev]) => ev?.ativo).map(([id]) => id),
+    )
+
+    return this.participacoes
+      .filter(p => idsDeEquipeAtiva.has(p.equipeId))
+      .map(p => {
+        const pessoa = this.pessoas.find(x => x.id === p.pessoaId)!
+        const evento = eventoDaEquipe.get(p.equipeId)!
+        return {
+          participacaoId: p.id,
+          pessoaId: p.pessoaId,
+          nome: pessoa.nome,
+          cpf: pessoa.cpf,
+          funcao: p.funcao,
+          setorNome: p.equipeNome,
+          eventoId: evento.id,
+          eventoNome: evento.nome,
+          ativo: p.ativo,
+          supervisorNome: p.supervisorNome,
+        }
+      })
+  }
+
   // ── Participação ──────────────────────────────────────────────────────────
 
   async participacoesDaPessoa(pessoaId: string) {
@@ -183,6 +220,12 @@ export class RepositorioEmMemoria implements Repositorio {
 
   async apagarRegistro(id: string) {
     this.registros = this.registros.filter(r => r.id !== id)
+  }
+
+  async apagarRegistroDoTipo(participacaoId: string, tipo: 'entrada' | 'meio' | 'fim', dataRef: string) {
+    this.registros = this.registros.filter(
+      r => !(r.participacaoId === participacaoId && r.tipo === tipo && r.dataRef === dataRef),
+    )
   }
 
   // ── Supervisor ────────────────────────────────────────────────────────────

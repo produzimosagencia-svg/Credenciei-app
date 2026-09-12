@@ -396,25 +396,31 @@ export class ClienteHttp implements ClienteApi {
 
   // ─── Registrar ponto por outra pessoa ─────────────────────────────────────
 
-  async localizarPessoa(_termo: string): Promise<{
+  async localizarPessoa(termo: string): Promise<{
     ficha?: FichaLocalizada
     candidatos?: CandidatoLocalizado[]
     erro?: string
   }> {
-    void _termo
-    throw new AindaNaoNaApi('localizarPessoa')
+    const r = await this.pedir(`/v1/localizar?termo=${encodeURIComponent(termo)}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos localizar esta pessoa.'))
+    return r.corpo as unknown as { ficha?: FichaLocalizada; candidatos?: CandidatoLocalizado[]; erro?: string }
   }
 
-  async abrirFicha(_participacaoId: string): Promise<{ ficha?: FichaLocalizada; erro?: string }> {
-    void _participacaoId
-    throw new AindaNaoNaApi('abrirFicha')
+  async abrirFicha(participacaoId: string): Promise<{ ficha?: FichaLocalizada; erro?: string }> {
+    const r = await this.pedir(`/v1/localizar/${encodeURIComponent(participacaoId)}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos abrir esta ficha.'))
+    return r.corpo as unknown as { ficha?: FichaLocalizada; erro?: string }
   }
 
   async registrarPresencaAssistida(
-    _participacaoId: string, _dados: BatidaAssistida,
+    participacaoId: string, dados: BatidaAssistida,
   ): Promise<{ nome?: string; etapa?: string; erro?: string }> {
-    void _participacaoId; void _dados
-    throw new AindaNaoNaApi('registrarPresencaAssistida')
+    const r = await this.pedir(`/v1/localizar/${encodeURIComponent(participacaoId)}/presenca`, {
+      metodo: 'POST',
+      corpo: dados,
+    })
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos registrar a presença.'))
+    return r.corpo as unknown as { nome?: string; etapa?: string; erro?: string }
   }
 
   // ─── Atividades ───────────────────────────────────────────────────────────

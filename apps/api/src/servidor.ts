@@ -29,6 +29,7 @@ import { registrarBatida } from './rotas/batidas.js'
 import { painelDaEquipe } from './rotas/equipe.js'
 import { painel } from './rotas/painel.js'
 import { conferirPorCpf, eventosParaEscanear, registrarPorQr } from './rotas/escanear.js'
+import { abrirFicha, localizarPessoa, registrarPresencaAssistida } from './rotas/ponto-assistido.js'
 import {
   consultarConvite, entrarNoEvento, meuFinanceiro, meuQr, meusDias,
   minhasParticipacoes, type FonteDeCampos,
@@ -225,6 +226,31 @@ export function criarServidor(amb: Ambiente) {
     return protegido(c, () => conferirPorCpf(
       amb.repo, c.get('pessoaId'), c.req.param('eventoId'), cpf ?? '',
     ))
+  })
+
+  // ── Registrar ponto por outra pessoa ────────────────────────────────────
+  app.get('/v1/localizar', async c =>
+    protegido(c, () => localizarPessoa(amb.repo, c.get('pessoaId'), c.req.query('termo') ?? '')))
+
+  app.get('/v1/localizar/:participacaoId', async c =>
+    protegido(c, () => abrirFicha(amb.repo, c.get('pessoaId'), c.req.param('participacaoId'))))
+
+  app.post('/v1/localizar/:participacaoId/presenca', async c => {
+    const corpo = await c.req.json<{
+      tipo?: string; fotoBase64?: string; lat?: number; lng?: number; dispositivo?: string; motivo?: string
+    }>()
+    const tipo = corpo.tipo
+    if (tipo !== 'entrada' && tipo !== 'meio' && tipo !== 'fim') {
+      return c.json({ erro: 'Etapa inválida.' }, 400)
+    }
+    return protegido(c, () => registrarPresencaAssistida(amb.repo, c.get('pessoaId'), c.req.param('participacaoId'), {
+      tipo,
+      fotoBase64: corpo.fotoBase64 ?? '',
+      lat: corpo.lat,
+      lng: corpo.lng,
+      dispositivo: corpo.dispositivo,
+      motivo: corpo.motivo,
+    }))
   })
 
   return app

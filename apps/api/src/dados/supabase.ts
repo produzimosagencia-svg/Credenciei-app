@@ -33,7 +33,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type {
   AtividadeBruta, DiaDeTrabalho, Evento, EventoComContagens, NovoRegistro, Participacao,
-  Perfil, Pessoa, Registro, Repositorio,
+  ParticipacaoParaLocalizar, Perfil, Pessoa, Registro, Repositorio,
 } from './repositorio.js'
 
 const soDigitos = (v: string | null | undefined) => (v ?? '').replace(/\D/g, '')
@@ -312,6 +312,53 @@ export class RepositorioSupabase implements Repositorio {
     })
   }
 
+  /**
+   * A mesma consulta de `localizarFuncionario` no site: `funcionarios` juntado
+   * a `fornecedores` e `eventos`, restrito a eventos ATIVOS — regularizar
+   * ponto de evento encerrado não é o caso de uso.
+   *
+   * LIMITE CONHECIDO: até 1000 linhas (teto do PostgREST) — mesma
+   * simplificação de `eventosComContagens`, acima. O site pagina com
+   * `buscarTudo`; aqui ainda não — Epic 13 (Escala), não desta fase.
+   */
+  async participacoesParaLocalizar(
+    escopo: { organizacaoId?: string | null; equipeId?: string },
+  ): Promise<ParticipacaoParaLocalizar[]> {
+    let query = this.db
+      .from('funcionarios')
+      .select(`${CAMPOS_FUNCIONARIO}, fornecedores!inner(id, nome, eventos!inner(id, nome, ativo, organizacao_id))`)
+      .eq('fornecedores.eventos.ativo', true)
+      .order('nome')
+
+    if (escopo.equipeId) query = query.eq('fornecedor_id', escopo.equipeId)
+    else if (escopo.organizacaoId !== undefined && escopo.organizacaoId !== null) {
+      query = query.eq('fornecedores.eventos.organizacao_id', escopo.organizacaoId)
+    }
+
+    const { data } = await query
+
+    return (data ?? []).map(f => {
+      const linha = f as unknown as LinhaFuncionario & {
+        fornecedores: { id: string; nome: string; eventos: { id: string; nome: string } }
+      }
+      return {
+        participacaoId: linha.id,
+        pessoaId: idDaPessoa(linha.cpf),
+        nome: linha.nome,
+        cpf: linha.cpf,
+        funcao: linha.cargo,
+        setorNome: linha.fornecedores.nome,
+        eventoId: linha.fornecedores.eventos.id,
+        eventoNome: linha.fornecedores.eventos.nome,
+        ativo: linha.ativo !== false,
+        // Mesma lacuna de `paraParticipacao`, abaixo: o supervisor de um
+        // setor vive em `perfis`, não em `funcionarios` — precisaria de uma
+        // segunda consulta que a Ficha ainda não pede o bastante para pagar.
+        supervisorNome: null,
+      }
+    })
+  }
+
   // ── Participação ──────────────────────────────────────────────────────────
 
   async participacoesDaPessoa(pessoaId: string): Promise<Participacao[]> {
@@ -440,6 +487,11 @@ export class RepositorioSupabase implements Repositorio {
 
   async apagarRegistro(id: string): Promise<void> {
     await this.db.from('registros').delete().eq('id', id)
+  }
+
+  async apagarRegistroDoTipo(participacaoId: string, tipo: 'entrada' | 'meio' | 'fim', dataRef: string): Promise<void> {
+    await this.db.from('registros').delete()
+      .eq('funcionario_id', participacaoId).eq('tipo', tipo).eq('data_ref', dataRef)
   }
 
   // ── Supervisor ────────────────────────────────────────────────────────────

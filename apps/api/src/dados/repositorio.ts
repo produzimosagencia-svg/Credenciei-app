@@ -107,6 +107,24 @@ export type AtividadeBruta = {
   em: string
 }
 
+/**
+ * Uma participação candidata do registro assistido — o que sobra depois de
+ * juntar pessoa + participação + evento, pronto para virar `CandidatoLocalizado`
+ * ou `FichaLocalizada` no contrato, sem a rota precisar saber o schema.
+ */
+export type ParticipacaoParaLocalizar = {
+  participacaoId: string
+  pessoaId: string
+  nome: string
+  cpf: string
+  funcao: string | null
+  setorNome: string
+  eventoId: string
+  eventoNome: string
+  ativo: boolean
+  supervisorNome: string | null
+}
+
 export type Participacao = {
   id: string
   pessoaId: string
@@ -177,6 +195,18 @@ export interface Repositorio {
   /** As últimas batidas dos eventos informados — o pulso da operação. */
   atividadeRecente(eventoIds: string[], limite: number): Promise<AtividadeBruta[]>
 
+  /**
+   * As participações candidatas do registro assistido, já dentro do escopo
+   * de quem procura — só eventos ATIVOS, a mesma régua do site: regularizar
+   * ponto de evento encerrado não é o caso de uso e só abriria espaço a erro.
+   *
+   * `organizacaoId: null` sem `equipeId` é o master: todas as organizações.
+   * Com `equipeId`, o recorte é a equipe de UM supervisor só.
+   */
+  participacoesParaLocalizar(
+    escopo: { organizacaoId?: string | null; equipeId?: string },
+  ): Promise<ParticipacaoParaLocalizar[]>
+
   // ── Participação ────────────────────────────────────────────────────────
   participacoesDaPessoa(pessoaId: string): Promise<Participacao[]>
   participacaoPorId(id: string): Promise<Participacao | null>
@@ -202,6 +232,14 @@ export interface Repositorio {
    * segredo: quem chama já sabe qual era antes de decidir apagar.
    */
   apagarRegistro(id: string): Promise<void>
+
+  /**
+   * Apaga a batida desta etapa, neste dia, se existir — o passo de
+   * "sobrescrever" do registro assistido. Escolher uma etapa que já tem
+   * registro é correção, não duplicata: apaga a antiga e quem chama grava a
+   * nova por cima, no mesmo espírito de `apagarRegistro`.
+   */
+  apagarRegistroDoTipo(participacaoId: string, tipo: 'entrada' | 'meio' | 'fim', dataRef: string): Promise<void>
 
   // ── Supervisor ──────────────────────────────────────────────────────────
   participacoesDaEquipe(equipeId: string): Promise<(Participacao & { pessoa: Pessoa })[]>

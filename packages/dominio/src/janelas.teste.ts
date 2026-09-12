@@ -12,7 +12,7 @@ import {
   diaBRT, janelaMeio, faseDoDia, faseAtualDoQR, avaliarEntradaSaida,
   conferirHorariosDoEvento, ehDiaPrincipal, horariosEsperados, periodoDoEvento,
   inferirMomentoDoScanner, type RegistroParaInferencia,
-  HORAS_ATE_MEIO, janelaDeOperacaoDoEvento,
+  HORAS_ATE_MEIO, janelaDeOperacaoDoEvento, diaDeReferenciaAssistida,
 } from './janelas.js'
 
 // ─── O fuso ─────────────────────────────────────────────────────────────────
@@ -183,6 +183,41 @@ test('dobra o turno: sai de manhã e volta de noite no mesmo dia — a entrada d
   ]
   const agora = new Date(new Date('2026-09-05T18:21:00-03:00').getTime() + FOLGA_MS)
   assert.deepEqual(inferirMomentoDoScanner(registros, '2026-09-05', agora), { momento: 'fim' })
+})
+
+// ─── O dia do registro assistido ────────────────────────────────────────────
+
+test('entrada assistida é sempre hoje, mesmo com um turno velho em aberto', () => {
+  const registros: RegistroParaInferencia[] = [
+    { id: 'r1', tipo: 'entrada', em: '2026-09-04T17:00:00-03:00', dataRef: '2026-09-04' },
+  ]
+  const agora = new Date('2026-09-05T08:00:00-03:00')
+  assert.equal(diaDeReferenciaAssistida(registros, 'entrada', '2026-09-05', agora), '2026-09-05')
+})
+
+test('meio/saída assistidos herdam o dia da entrada AINDA ABERTA', () => {
+  // Entrou 22h do dia 5, sem saída ainda — o supervisor lança a saída de
+  // madrugada pelo assistido: pertence ao dia 5, não ao dia 6 do relógio.
+  const registros: RegistroParaInferencia[] = [
+    { id: 'r1', tipo: 'entrada', em: '2026-09-05T22:00:00-03:00', dataRef: '2026-09-05' },
+  ]
+  const agora = new Date('2026-09-06T04:00:00-03:00')
+  assert.equal(diaDeReferenciaAssistida(registros, 'fim', '2026-09-06', agora), '2026-09-05')
+  assert.equal(diaDeReferenciaAssistida(registros, 'meio', '2026-09-06', agora), '2026-09-05')
+})
+
+test('o BUG que esta regra corrige: turno de ontem já fechado não puxa a entrada de hoje para trás', () => {
+  const registros: RegistroParaInferencia[] = [
+    { id: 'r1', tipo: 'entrada', em: '2026-09-04T17:00:00-03:00', dataRef: '2026-09-04' },
+    { id: 'r2', tipo: 'fim', em: '2026-09-04T20:00:00-03:00', dataRef: '2026-09-04' },
+  ]
+  const agora = new Date('2026-09-05T08:00:00-03:00')
+  assert.equal(diaDeReferenciaAssistida(registros, 'entrada', '2026-09-05', agora), '2026-09-05')
+})
+
+test('sem nenhum turno aberto, meio/saída assistidos caem em hoje', () => {
+  const agora = new Date('2026-09-05T08:00:00-03:00')
+  assert.equal(diaDeReferenciaAssistida([], 'fim', '2026-09-05', agora), '2026-09-05')
 })
 
 test('dia principal é a data de início do evento', () => {

@@ -312,6 +312,24 @@ test('escanear vai e volta pela API — eventos, e um crachá com assinatura err
   assert.equal(leitura.situacao, 'recusado')
 })
 
+test('registro assistido vai e volta pela API — localizar por CPF, abrir ficha, recusar sem foto', async () => {
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(r.sessao, r.erro)
+  m.guardarToken(r.sessao.token)
+
+  const achado = await m.cliente.localizarPessoa('12345678901')
+  assert.equal(achado.ficha?.nome, 'João da Silva')
+
+  const aberta = await m.cliente.abrirFicha(achado.ficha!.participacaoId)
+  assert.equal(aberta.ficha?.nome, 'João da Silva')
+
+  const semFoto = await m.cliente.registrarPresencaAssistida(achado.ficha!.participacaoId, {
+    tipo: 'entrada', fotoBase64: '',
+  })
+  assert.match(semFoto.erro ?? '', /foto do rosto é obrigatória/)
+})
+
 test('senha errada por HTTP devolve erro, não exceção', async () => {
   const m = montar()
   const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'errada')
@@ -352,7 +370,7 @@ test('o que a API não tem falha dizendo o nome, e não devolve vazio', async ()
     () => m.cliente.eventosParaVeiculos(),
     () => m.cliente.atividades('ev-1'),
     () => m.cliente.acessos(),
-    () => m.cliente.localizarPessoa('Silva'),
+    () => m.cliente.equipeDoSetor('setor-1'),
   ]) {
     await assert.rejects(chamar, AindaNaoNaApi)
   }
