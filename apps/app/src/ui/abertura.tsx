@@ -64,7 +64,10 @@ export function AberturaDoApp({ aoTerminar }: { aoTerminar: () => void }) {
       <VideoView
         player={player}
         style={e.video}
-        contentFit="cover"
+        // O vídeo é 16:9 (paisagem); "cover" enchia a tela ESTICANDO e
+        // cortando as bordas — o texto saía cortado dos dois lados. "contain"
+        // mostra o quadro inteiro, do tamanho real, centralizado.
+        contentFit="contain"
         nativeControls={false}
         pointerEvents="none"
       />
