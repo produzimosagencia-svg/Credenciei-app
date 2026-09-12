@@ -2,9 +2,22 @@
 //
 // ─── ESTA TELA É A DO SISTEMA WEB ───────────────────────────────────────────
 //
-// Fundo quase-preto arroxeado (#0a0918), a marca com o QR, "Entrar" em branco e
-// grande, campo claro sem borda, botão roxo. É a cópia da tela de
-// `c:\Dev\credenciei\app\login\page.tsx` — quem já usa o painel reconhece.
+// Fundo quase-preto (#0d0c0c), o ícone 3D da marca com o brilho laranja atrás,
+// cartão de vidro, campo translúcido sem borda visível, botão em degradê
+// laranja. É a cópia de `c:\Dev\credenciei\components\ui\modern-stunning-sign-in.tsx`
+// (a tela de login do site foi refeita nesse componente, 12/09/2026) — quem já
+// usa o painel reconhece.
+//
+// Simplificações, pelo mesmo motivo de sempre — RN não tem tradução direta e
+// barata para `radial-gradient`/`backdrop-blur` (ver `tema.ts`):
+//   • o brilho radial de fundo (duas manchas sutis) não existe aqui; fica só
+//     o brilho atrás do ícone, que é o elemento que mais chama atenção;
+//   • o brilho atrás do ícone é simulado com círculos concêntricos
+//     translúcidos, não um blur de verdade;
+//   • o cartão de vidro (gradiente sutil + blur) vira o mesmo degradê SEM
+//     blur — já é próximo o bastante sem custar nada de desempenho;
+//   • o texto "credenciada." é cor sólida, não o degradê em texto do site
+//     (RN não recorta gradiente em texto sem uma biblioteca à parte).
 //
 // ─── POR QUE HÁ DOIS CAMINHOS ───────────────────────────────────────────────
 //
@@ -18,20 +31,28 @@
 //                       R$ 4 mil por lote e e-mail muita gente não abre —
 //                       sobra o WhatsApp, que o sistema já usa.
 //
-// A escolha fica no topo, em dois botões. A alternativa seria adivinhar pelo
-// que a pessoa digitou (parece CPF? parece telefone?), e adivinhar errado
-// mandaria alguém para o caminho errado sem explicação.
+// A escolha fica no topo do cartão, em dois botões. A alternativa seria
+// adivinhar pelo que a pessoa digitou (parece CPF? parece telefone?), e
+// adivinhar errado mandaria alguém para o caminho errado sem explicação. O
+// site não tem este seletor — ele só atende quem tem conta de painel; aqui
+// os dois caminhos vivem na mesma tela, dentro do MESMO cartão.
 
 import { useState } from 'react'
 import { Redirect } from 'expo-router'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import {
+  Image, Linking, Pressable, ScrollView, StyleSheet, Text, View,
+} from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { LinearGradient } from 'expo-linear-gradient'
 import { mensagemDoErro } from '../src/dados/pedido'
 import { DEMONSTRACAO } from '../src/dados/cliente'
 import { useSessao } from '../src/sessao/contexto'
-import { Marca } from '../src/ui/marca'
+import { AberturaDoApp } from '../src/ui/abertura'
 import { Botao, Campo, CodigoSegmentado } from '../src/ui/componentes'
-import { espaco, PALETAS, raio, texto, tipo } from '../src/ui/tema'
+import { Icone } from '../src/ui/icone'
+import {
+  ALVO_MINIMO, espaco, PALETAS, raio, texto, tipo,
+} from '../src/ui/tema'
 import { TemaFixo } from '../src/ui/tema-contexto'
 
 /*
@@ -48,6 +69,12 @@ import { NOME_DO_PAPEL } from '@credenciei/dominio'
 import { mascararIdentificador } from '../src/campos'
 import { mascararTelefone, telefoneParaEnvio, telefoneValido } from '../src/telefone'
 
+/** Trocar quando o número for definido — mesmo comentário do site. */
+const WHATSAPP_SUPORTE = 'https://wa.me/5500000000000?text=Esqueci%20minha%20senha%20do%20Credenciei'
+
+/** `#A31B05 0% → #FF4A0F 60% → #FF8A4C 100%`, copiado do botão do site. */
+const DEGRADE_BOTAO = ['#A31B05', '#FF4A0F', '#FF8A4C'] as const
+
 type Caminho = 'painel' | 'equipe'
 type Etapa = 'telefone' | 'codigo'
 
@@ -61,10 +88,15 @@ export default function Entrar() {
 
   const [identificador, setIdentificador] = useState('')
   const [senha, setSenha] = useState('')
+  const [mostrarSenha, setMostrarSenha] = useState(false)
 
   const [etapa, setEtapa] = useState<Etapa>('telefone')
   const [telefone, setTelefone] = useState('')
   const [codigo, setCodigo] = useState('')
+
+  // A animação toca por cima da tela, que já está pronta por baixo — assim
+  // que termina (ou a pessoa toca a tela), some e revela o login.
+  const [mostrarAbertura, setMostrarAbertura] = useState(true)
 
   // Quem já tem sessão não vê esta tela. Declarativo, e não `router.replace`:
   // assim não existe o instante em que as duas telas disputam a navegação.
@@ -129,115 +161,144 @@ export default function Entrar() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={e.identidade}>
-          <Marca tamanho={36} />
-          <Text style={e.nomeDaMarca}>Credenciei</Text>
+        <View style={e.logoFora}>
+          <View style={[e.brilho, e.brilhoExterno]} />
+          <View style={[e.brilho, e.brilhoMedio]} />
+          <View style={[e.brilho, e.brilhoInterno]} />
+          {/* eslint-disable-next-line @typescript-eslint/no-require-imports */}
+          <Image source={require('../assets/marca/iso-3d.png')} style={e.logo} resizeMode="contain" />
         </View>
 
-        <Text style={e.titulo}>Entrar</Text>
-        <Text style={e.chamada}>
-          {caminho === 'painel'
-            ? 'Acesse o painel do seu evento'
-            : etapa === 'telefone'
-              ? 'Sua credencial e seu ponto, no celular'
-              : `Código enviado para ${telefone}`}
-        </Text>
-
-        <SeletorDeCaminho valor={caminho} aoTrocar={trocarCaminho} desabilitado={ocupado} />
-
-        {erro ? <Text style={e.erro}>{erro}</Text> : null}
-
-        {caminho === 'painel' ? (
-          <>
-            <Campo
-              escuro
-              rotulo="CPF ou e-mail"
-              value={identificador}
-              onChangeText={t => setIdentificador(mascararIdentificador(t))}
-              placeholder="000.000.000-00"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="username"
-            />
-            <Campo
-              escuro
-              rotulo="Senha"
-              value={senha}
-              onChangeText={setSenha}
-              placeholder="••••••••"
-              secureTextEntry
-              autoComplete="current-password"
-              onSubmitEditing={() => entrarComSenha()}
-              returnKeyType="go"
-            />
-            <Botao
-              titulo="Entrar"
-              onPress={() => entrarComSenha()}
-              ocupado={ocupado}
-              desabilitado={!identificador.trim() || !senha}
-            />
-          </>
-        ) : etapa === 'telefone' ? (
-          <>
-            <Campo
-              escuro
-              rotulo="Seu WhatsApp"
-              value={telefone}
-              onChangeText={t => setTelefone(mascararTelefone(t))}
-              placeholder="(27) 99999-9999"
-              keyboardType="phone-pad"
-              autoComplete="tel"
-              textContentType="telephoneNumber"
-              maxLength={15}
-            />
-            <Botao
-              titulo="Receber código no WhatsApp"
-              onPress={pedirCodigo}
-              ocupado={ocupado}
-              desabilitado={!telefoneValido(telefone)}
-            />
-          </>
-        ) : (
-          <>
-            <CodigoSegmentado valor={codigo} aoMudar={setCodigo} autoFoco />
-            <Botao
-              titulo="Entrar"
-              onPress={confirmarCodigo}
-              ocupado={ocupado}
-              desabilitado={codigo.length !== 6}
-            />
-            <View style={e.alternativas}>
-              <Botao titulo="Não chegou? Pedir de novo" onPress={pedirCodigo} tipo="fantasma" desabilitado={ocupado} />
-              <Botao
-                titulo="Usar outro número"
-                onPress={() => { setEtapa('telefone'); setErro(null) }}
-                tipo="fantasma"
-                desabilitado={ocupado}
-              />
-            </View>
-          </>
-        )}
-
-        {DEMONSTRACAO && caminho === 'painel' ? (
-          <ContasDeDemonstracao
-            desabilitado={ocupado}
-            aoEscolher={conta => {
-              setIdentificador(conta.email)
-              setSenha(SENHA_DE_DEMONSTRACAO)
-              void entrarComSenha(conta.email, SENHA_DE_DEMONSTRACAO)
-            }}
-          />
-        ) : null}
-
-        {DEMONSTRACAO && caminho === 'equipe' ? (
-          <Text style={e.demonstracao}>
-            Demonstração: qualquer número com DDD entra, e o código é sempre
-            123456.
+        <View style={e.cartao}>
+          <Text style={e.titulo}>
+            Toda a equipe do seu evento, <Text style={e.tituloAcento}>credenciada.</Text>
           </Text>
-        ) : null}
+          <Text style={e.chamada}>
+            {caminho === 'painel'
+              ? 'Entre para acessar o painel do seu evento'
+              : etapa === 'telefone'
+                ? 'Sua credencial e seu ponto, no celular'
+                : `Código enviado para ${telefone}`}
+          </Text>
+
+          <SeletorDeCaminho valor={caminho} aoTrocar={trocarCaminho} desabilitado={ocupado} />
+
+          {erro ? <Text style={e.erro}>{erro}</Text> : null}
+
+          {caminho === 'painel' ? (
+            <>
+              <Campo
+                escuro
+                value={identificador}
+                onChangeText={t => setIdentificador(mascararIdentificador(t))}
+                placeholder="CPF (supervisor) ou e-mail"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="username"
+              />
+              <View style={e.campoComOlho}>
+                <Campo
+                  escuro
+                  value={senha}
+                  onChangeText={setSenha}
+                  placeholder="Senha"
+                  secureTextEntry={!mostrarSenha}
+                  autoComplete="current-password"
+                  onSubmitEditing={() => entrarComSenha()}
+                  returnKeyType="go"
+                  style={e.campoComOlhoEntrada}
+                />
+                <Pressable
+                  onPress={() => setMostrarSenha(v => !v)}
+                  accessibilityRole="button"
+                  accessibilityLabel={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                  style={e.olho}
+                  hitSlop={8}
+                >
+                  <Icone nome={mostrarSenha ? 'EyeOff' : 'Eye'} tamanho={16} tom="rgba(255,255,255,0.40)" />
+                </Pressable>
+              </View>
+
+              <BotaoGradiente
+                titulo="Entrar"
+                onPress={() => entrarComSenha()}
+                ocupado={ocupado}
+                desabilitado={!identificador.trim() || !senha}
+              />
+
+              <Pressable
+                onPress={() => Linking.openURL(WHATSAPP_SUPORTE)}
+                accessibilityRole="link"
+                style={e.esqueciSenha}
+                hitSlop={8}
+              >
+                <Icone nome="MessageCircle" tamanho={14} tom="rgba(255,255,255,0.55)" />
+                <Text style={e.esqueciSenhaTexto}>Esqueci a senha</Text>
+              </Pressable>
+            </>
+          ) : etapa === 'telefone' ? (
+            <>
+              <Campo
+                escuro
+                value={telefone}
+                onChangeText={t => setTelefone(mascararTelefone(t))}
+                placeholder="(27) 99999-9999"
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                textContentType="telephoneNumber"
+                maxLength={15}
+              />
+              <Botao
+                titulo="Receber código no WhatsApp"
+                onPress={pedirCodigo}
+                ocupado={ocupado}
+                desabilitado={!telefoneValido(telefone)}
+              />
+            </>
+          ) : (
+            <>
+              <CodigoSegmentado valor={codigo} aoMudar={setCodigo} autoFoco />
+              <Botao
+                titulo="Entrar"
+                onPress={confirmarCodigo}
+                ocupado={ocupado}
+                desabilitado={codigo.length !== 6}
+              />
+              <View style={e.alternativas}>
+                <Botao titulo="Não chegou? Pedir de novo" onPress={pedirCodigo} tipo="fantasma" desabilitado={ocupado} />
+                <Botao
+                  titulo="Usar outro número"
+                  onPress={() => { setEtapa('telefone'); setErro(null) }}
+                  tipo="fantasma"
+                  desabilitado={ocupado}
+                />
+              </View>
+            </>
+          )}
+
+          {DEMONSTRACAO && caminho === 'painel' ? (
+            <ContasDeDemonstracao
+              desabilitado={ocupado}
+              aoEscolher={conta => {
+                setIdentificador(conta.email)
+                setSenha(SENHA_DE_DEMONSTRACAO)
+                void entrarComSenha(conta.email, SENHA_DE_DEMONSTRACAO)
+              }}
+            />
+          ) : null}
+
+          {DEMONSTRACAO && caminho === 'equipe' ? (
+            <Text style={e.demonstracao}>
+              Demonstração: qualquer número com DDD entra, e o código é sempre
+              123456.
+            </Text>
+          ) : null}
+        </View>
       </ScrollView>
 
       <Text style={e.rodape}>Credenciei © {new Date().getFullYear()} — Produzimos</Text>
+
+      {mostrarAbertura ? <AberturaDoApp aoTerminar={() => setMostrarAbertura(false)} /> : null}
     </View>
     </TemaFixo>
   )
@@ -285,6 +346,47 @@ function SeletorDeCaminho({
 }
 
 /**
+ * O botão "Entrar" — o único em degradê da tela inteira, copiado do site
+ * (`linear-gradient(135deg, #A31B05 0%, #FF4A0F 60%, #FF8A4C 100%)`). Não
+ * usa o `Botao` compartilhado porque nenhum outro lugar do app pede um
+ * botão em degradê — criar a variante ali para um uso só espalharia a régua
+ * sem necessidade.
+ */
+function BotaoGradiente({
+  titulo, onPress, ocupado, desabilitado,
+}: {
+  titulo: string
+  onPress: () => void
+  ocupado?: boolean
+  desabilitado?: boolean
+}) {
+  const travado = !!(ocupado || desabilitado)
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={travado}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: travado, busy: !!ocupado }}
+      style={({ pressed }) => [
+        e.botaoGradienteFora,
+        travado && e.botaoGradienteTravado,
+        !travado && pressed && e.afunda,
+      ]}
+    >
+      <LinearGradient
+        colors={DEGRADE_BOTAO}
+        locations={[0, 0.6, 1]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={e.botaoGradiente}
+      >
+        <Text style={e.botaoGradienteTexto}>{ocupado ? 'Entrando…' : titulo}</Text>
+      </LinearGradient>
+    </Pressable>
+  )
+}
+
+/**
  * As três contas de demonstração, com um toque para entrar.
  *
  * Existe porque a versão anterior escrevia "entre com master, admin ou
@@ -325,6 +427,8 @@ function ContasDeDemonstracao({
   )
 }
 
+const TAMANHO_LOGO = 116
+
 const e = StyleSheet.create({
   fora: {
     flex: 1,
@@ -335,11 +439,43 @@ const e = StyleSheet.create({
   miolo: { flex: 1 },
   mioloConteudo: { paddingBottom: espaco.gg },
 
-  identidade: { flexDirection: 'row', alignItems: 'center', gap: espaco.s, marginBottom: espaco.ggg },
-  nomeDaMarca: { fontFamily: tipo.forte, fontSize: 18, letterSpacing: -0.4, color: '#ffffff' },
+  // ─── O ícone, com o brilho atrás ──────────────────────────────────────────
+  logoFora: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: espaco.g,
+  },
+  logo: { width: TAMANHO_LOGO, height: TAMANHO_LOGO },
+  // Três círculos concêntricos, cada vez mais opacos para o centro — a
+  // aproximação sem blur do brilho radial do site atrás do ícone.
+  brilho: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,74,15,0.55)' },
+  brilhoExterno: { width: TAMANHO_LOGO * 2.2, height: TAMANHO_LOGO * 2.2, opacity: 0.12 },
+  brilhoMedio: { width: TAMANHO_LOGO * 1.6, height: TAMANHO_LOGO * 1.6, opacity: 0.18 },
+  brilhoInterno: { width: TAMANHO_LOGO * 1.1, height: TAMANHO_LOGO * 1.1, opacity: 0.22 },
 
-  titulo: { fontFamily: tipo.forte, fontSize: 30, lineHeight: 36, letterSpacing: -0.7, color: '#ffffff' },
-  chamada: { ...texto.base, color: cor.neutro400, marginTop: 6, marginBottom: espaco.gg },
+  // ─── O cartão de vidro ─────────────────────────────────────────────────────
+  cartao: {
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: espaco.gg,
+    paddingTop: espaco.ggg,
+    paddingBottom: espaco.gg,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 24 },
+    shadowOpacity: 0.5,
+    shadowRadius: 48,
+    elevation: 12,
+  },
+
+  titulo: {
+    fontFamily: tipo.extra, fontSize: 22, lineHeight: 27, letterSpacing: -0.4,
+    color: '#ffffff', textAlign: 'center',
+  },
+  tituloAcento: { color: cor.acento500 },
+  chamada: { ...texto.base, color: 'rgba(255,255,255,0.55)', marginTop: 8, marginBottom: espaco.gg, textAlign: 'center' },
 
   seletor: {
     flexDirection: 'row',
@@ -348,6 +484,7 @@ const e = StyleSheet.create({
     borderRadius: raio.peca,
     padding: espaco.xs,
     marginBottom: espaco.gg,
+    width: '100%',
   },
   seletorItem: {
     flex: 1,
@@ -360,6 +497,13 @@ const e = StyleSheet.create({
   seletorRotulo: { ...texto.corpoForte, color: cor.neutro400 },
   seletorRotuloAtivo: { color: '#ffffff' },
 
+  campoComOlho: { width: '100%', position: 'relative' },
+  campoComOlhoEntrada: { paddingRight: espaco.ggg },
+  olho: {
+    position: 'absolute', right: espaco.m, top: 0, height: ALVO_MINIMO,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
   /* O erro do site: texto claro sobre vermelho translúcido, com fio da cor. */
   erro: {
     ...texto.corpo,
@@ -371,9 +515,37 @@ const e = StyleSheet.create({
     paddingHorizontal: espaco.g,
     paddingVertical: 10,
     marginBottom: espaco.g,
+    width: '100%',
   },
 
-  alternativas: { marginTop: espaco.s, gap: espaco.xs },
+  afunda: { transform: [{ scale: 0.98 }] },
+
+  botaoGradienteFora: {
+    width: '100%',
+    borderRadius: raio.campo,
+    marginTop: espaco.xs,
+    shadowColor: '#FF4A0F',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  botaoGradienteTravado: { opacity: 0.5 },
+  botaoGradiente: {
+    minHeight: ALVO_MINIMO,
+    borderRadius: raio.campo,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  botaoGradienteTexto: { ...texto.base, fontFamily: tipo.forte, color: '#ffffff' },
+
+  esqueciSenha: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: espaco.m,
+  },
+  esqueciSenhaTexto: { ...texto.xs, fontFamily: tipo.regular, color: 'rgba(255,255,255,0.55)' },
+
+  alternativas: { marginTop: espaco.s, gap: espaco.xs, width: '100%' },
 
   demonstracao: {
     ...texto.xs,
@@ -381,9 +553,10 @@ const e = StyleSheet.create({
     color: cor.neutro500,
     marginTop: espaco.gg,
     lineHeight: 18,
+    textAlign: 'center',
   },
 
-  contas: { marginTop: espaco.gg },
+  contas: { marginTop: espaco.gg, width: '100%' },
   contasTitulo: { ...texto.etiqueta, color: cor.neutro500, marginBottom: espaco.s },
   conta: {
     borderWidth: 1,

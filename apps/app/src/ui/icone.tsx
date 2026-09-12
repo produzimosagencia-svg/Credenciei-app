@@ -33,6 +33,7 @@ import ClipboardPen from 'lucide-react-native/icons/clipboard-pen'
 import Clock from 'lucide-react-native/icons/clock'
 import Download from 'lucide-react-native/icons/download'
 import Ellipsis from 'lucide-react-native/icons/ellipsis'
+import Eye from 'lucide-react-native/icons/eye'
 import EyeOff from 'lucide-react-native/icons/eye-off'
 import FileDown from 'lucide-react-native/icons/file-down'
 import FileSpreadsheet from 'lucide-react-native/icons/file-spreadsheet'
@@ -92,6 +93,7 @@ const ICONES: Record<string, LucideIcon> = {
   ClipboardPen,
   Clock,
   Download,
+  Eye,
   EyeOff,
   FileDown,
   FileSpreadsheet,
