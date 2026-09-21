@@ -8,8 +8,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import {
-  alternarAtivacao, corrigirTelefone, excluirDaEquipe, fichaDaPessoa, marcarPagamento, moverDeSetor,
-  resolverContestacao, salvarValorAReceber, tirarDaEquipe, tornarSupervisor, trazerDeVolta,
+  alternarAtivacao, corrigirCpf, corrigirFuncao, corrigirTelefone, excluirDaEquipe, fichaDaPessoa,
+  marcarPagamento, moverDeSetor, resolverContestacao, salvarValorAReceber, tirarDaEquipe, tornarSupervisor,
+  trazerDeVolta,
 } from './ficha-da-pessoa.js'
 
 // ─── Leitura da ficha ───────────────────────────────────────────────────────
@@ -316,6 +317,92 @@ test('supervisor ativa/desativa a própria equipe; suporte e operador de portão
   for (const id of ['auth-suporte', 'auth-portao']) {
     assert.match((await alternarAtivacao(repo, id, participacao.id, true)).erro ?? '', /permissão/, id)
   }
+})
+
+// ─── Corrigir função ────────────────────────────────────────────────────────
+//
+// Achado comparando com o site (21/09/2026, `editarCargoFuncionario`).
+
+test('admin corrige a função, com espaço duplicado colapsado', async () => {
+  const { repo, admin, participacao } = cenarioHenriqueEJuliano()
+  const r = await corrigirFuncao(repo, admin.id, participacao.id, '  Auxiliar   de palco  ')
+  assert.deepEqual(r, {})
+  assert.equal((await fichaDaPessoa(repo, admin.id, participacao.id)).funcao, 'Auxiliar de palco')
+})
+
+test('função em branco é recusada', async () => {
+  const { repo, admin, participacao } = cenarioHenriqueEJuliano()
+  const r = await corrigirFuncao(repo, admin.id, participacao.id, '   ')
+  assert.match(r.erro ?? '', /não pode ficar em branco/)
+})
+
+test('função longa demais é recusada', async () => {
+  const { repo, admin, participacao } = cenarioHenriqueEJuliano()
+  const r = await corrigirFuncao(repo, admin.id, participacao.id, 'x'.repeat(61))
+  assert.match(r.erro ?? '', /muito longa/)
+})
+
+test('supervisor corrige a função da própria equipe; suporte e operador de portão não', async () => {
+  const { repo, participacao } = cenarioHenriqueEJuliano()
+  repo.perfis.push({ id: 'auth-sup', nome: 'Carlos', papel: 'supervisor', organizacaoId: 'org-1', ativo: true })
+  repo.equipes[0]!.supervisorPessoaId = 'auth-sup'
+  assert.deepEqual(await corrigirFuncao(repo, 'auth-sup', participacao.id, 'Roadie'), {})
+
+  repo.perfis.push({ id: 'auth-suporte', nome: 'Duda', papel: 'suporte', organizacaoId: 'org-1', ativo: true })
+  repo.perfis.push({ id: 'auth-portao', nome: 'Rui', papel: 'operador_portao', organizacaoId: 'org-1', ativo: true })
+  for (const id of ['auth-suporte', 'auth-portao']) {
+    assert.match((await corrigirFuncao(repo, id, participacao.id, 'Roadie')).erro ?? '', /permissão/, id)
+  }
+})
+
+// ─── Corrigir CPF ───────────────────────────────────────────────────────────
+//
+// Achado comparando com o site (21/09/2026, `editarCpfFuncionario`). Só
+// master aqui — o app ainda não modela `suporte_escopo`.
+
+test('master corrige o CPF, e a auditoria registra o antes e o depois formatados', async () => {
+  const { repo, master, participacao } = cenarioHenriqueEJuliano()
+  const r = await corrigirCpf(repo, master.id, participacao.id, '111.444.777-35')
+  assert.deepEqual(r, {})
+  assert.equal((await fichaDaPessoa(repo, master.id, participacao.id)).cpf, '11144477735')
+
+  const trilha = await repo.auditoria({ organizacaoId: 'org-1' })
+  const linha = trilha.find(l => l.acao === 'ALTERACAO_CPF')
+  assert.ok(linha)
+  assert.match(linha!.valorNovo ?? '', /111\.444\.777-35/)
+})
+
+test('CPF inválido é recusado, sem gravar nada', async () => {
+  const { repo, master, participacao } = cenarioHenriqueEJuliano()
+  const r = await corrigirCpf(repo, master.id, participacao.id, '111.111.111-11')
+  assert.match(r.erro ?? '', /CPF inválido/)
+})
+
+test('corrigir para o mesmo CPF é um no-op silencioso', async () => {
+  const { repo, master, participacao } = cenarioHenriqueEJuliano()
+  await corrigirCpf(repo, master.id, participacao.id, '111.444.777-35')
+  const antes = await repo.auditoria({ organizacaoId: 'org-1' })
+  assert.deepEqual(await corrigirCpf(repo, master.id, participacao.id, '111.444.777-35'), {})
+  const depois = await repo.auditoria({ organizacaoId: 'org-1' })
+  assert.equal(depois.length, antes.length)
+})
+
+test('CPF já usado por outra pessoa no MESMO evento é recusado', async () => {
+  const { repo, master, evento, participacao } = cenarioHenriqueEJuliano()
+  repo.pessoas.push({ id: 'pes-outra', nome: 'Bia Duarte', cpf: '98765432100', telefone: null, fotoPath: null })
+  repo.participacoes.push({
+    ...participacao, id: 'part-bia', pessoaId: 'pes-outra', qrToken: 'token-da-bia',
+  })
+  void evento
+
+  const r = await corrigirCpf(repo, master.id, participacao.id, '98765432100')
+  assert.match(r.erro ?? '', /já é de "Bia Duarte"/)
+})
+
+test('admin não corrige CPF — só master', async () => {
+  const { repo, admin, participacao } = cenarioHenriqueEJuliano()
+  const r = await corrigirCpf(repo, admin.id, participacao.id, '11144477735')
+  assert.match(r.erro ?? '', /Só o master/)
 })
 
 // ─── Excluir de vez ─────────────────────────────────────────────────────────

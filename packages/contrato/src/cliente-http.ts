@@ -736,6 +736,24 @@ export class ClienteHttp implements ClienteApi {
     return r.corpo as unknown as { erro?: string }
   }
 
+  async corrigirFuncao(participacaoId: string, funcao: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/funcao`, {
+      metodo: 'POST',
+      corpo: { funcao },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos corrigir a função.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async corrigirCpf(participacaoId: string, cpf: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/cpf`, {
+      metodo: 'POST',
+      corpo: { cpf },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos corrigir o CPF.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
   async resolverContestacao(id: string): Promise<{ erro?: string }> {
     const r = await this.pedir(`/v1/contestacoes/${encodeURIComponent(id)}/resolver`, { metodo: 'POST' })
     if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos resolver esta contestação.') }

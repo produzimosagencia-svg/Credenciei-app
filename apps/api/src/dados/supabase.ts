@@ -805,6 +805,13 @@ export class RepositorioSupabase implements Repositorio {
     if (error) throw new Error(`Não foi possível ${ativo ? 'ativar' : 'desativar'} esta pessoa.`)
   }
 
+  async corrigirFuncaoDaParticipacao(participacaoId: string, funcao: string): Promise<void> {
+    const { error } = await this.db.from('funcionarios')
+      .update({ cargo: funcao })
+      .eq('id', participacaoId)
+    if (error) throw new Error('Não foi possível corrigir a função.')
+  }
+
   async corrigirTelefoneDaParticipacao(participacaoId: string, telefone: string): Promise<void> {
     const { error } = await this.db.from('funcionarios')
       .update({ telefone })
@@ -827,6 +834,13 @@ export class RepositorioSupabase implements Repositorio {
   async excluirParticipacaoDeVez(participacaoId: string): Promise<void> {
     const { error } = await this.db.from('funcionarios').delete().eq('id', participacaoId)
     if (error) throw new Error('Não foi possível excluir esta pessoa.')
+  }
+
+  async corrigirCpfDaParticipacao(participacaoId: string, cpf: string): Promise<void> {
+    const { error } = await this.db.from('funcionarios')
+      .update({ cpf })
+      .eq('id', participacaoId)
+    if (error) throw new Error('Não foi possível corrigir o CPF.')
   }
 
   async participacaoPorCpfNoEvento(eventoId: string, cpf: string): Promise<{ nome: string; setorNome: string } | null> {

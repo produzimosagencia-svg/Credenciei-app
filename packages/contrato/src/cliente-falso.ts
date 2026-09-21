@@ -28,6 +28,7 @@ import {
   inferirMomentoDoScanner, janelaMeio, lerCodigoDeEvento, lerCodigoQR, liberacaoDoQR, PAPEIS_CONFIGURAVEIS,
   podeAcompanhar, podeEscanear, podeGerenciarEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
   podeGerenciarVeiculos, podeBloquearCpf, podeExcluir, podeExcluirDaEquipe, TOLERANCIA_DE_CPF, abreEm, conferenciaAberta,
+  validarCpf,
   type RegistroParaInferencia,
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
@@ -1026,6 +1027,10 @@ export class ClienteFalso implements ClienteApi {
   private telefones = new Map<string, string>()
   /** participacaoId → ativação mudada nesta sessão. Ausente usa a de mentira original. */
   private ativacoes = new Map<string, boolean>()
+  /** participacaoId → função/cargo corrigido nesta sessão. Ausente usa o de mentira original. */
+  private funcoes = new Map<string, string>()
+  /** participacaoId → CPF corrigido nesta sessão. Ausente usa o de mentira original. */
+  private cpfsCorrigidos = new Map<string, string>()
   /** participacaoId → contestações desta sessão, mais recente primeiro. */
   private contestacoes = new Map<string, {
     id: string; tipo: TipoBatida; dataRef: string; motivo: string; criadoEm: string; resolvida: boolean
@@ -2767,6 +2772,8 @@ export class ClienteFalso implements ClienteApi {
     const pessoas = equipeDoSetorDeMentira(setorId, achado.setor.pessoas).map(p => ({
       ...p,
       ativo: this.ativacoes.get(p.participacaoId) ?? p.ativo,
+      funcao: this.funcoes.get(p.participacaoId) ?? p.funcao,
+      cpf: this.cpfsCorrigidos.get(p.participacaoId) ?? p.cpf,
       valorReceber: achado.setor.valorPorPessoa ?? 0,
       temContestacaoAberta: (this.contestacoes.get(p.participacaoId) ?? []).some(c => !c.resolvida),
     }))
@@ -2840,11 +2847,11 @@ export class ClienteFalso implements ClienteApi {
     return {
       participacaoId,
       nome: pessoa.nome,
-      cpf: pessoa.cpf,
+      cpf: this.cpfsCorrigidos.get(participacaoId) ?? pessoa.cpf,
       telefone: this.telefones.get(participacaoId) ?? pessoa.telefone,
       fotoUrl: pessoa.fotoUrl,
       empresa: pessoa.empresa,
-      funcao: pessoa.funcao,
+      funcao: this.funcoes.get(participacaoId) ?? pessoa.funcao,
       eventoNome: evento.nome,
       setorId: setor.setorId,
       setorNome: setor.nome,
@@ -2869,6 +2876,7 @@ export class ClienteFalso implements ClienteApi {
       podeExcluirDaEquipe: podeExcluirDaEquipe(this.sessao?.papel),
       podeCorrigirTelefone: this.podeMexerNaEquipe(this.sessao?.papel),
       podeAtivarDesativar: this.podeMexerNaEquipe(this.sessao?.papel),
+      podeCorrigirCpf: ehMaster(this.sessao?.papel),
       contestacoesAbertas: (this.contestacoes.get(participacaoId) ?? [])
         .filter(c => !c.resolvida)
         .map(({ id, tipo, dataRef, motivo, criadoEm }) => ({ id, tipo, dataRef, motivo, criadoEm })),
@@ -2938,6 +2946,37 @@ export class ClienteFalso implements ClienteApi {
 
     if (!this.acharNoSetor(participacaoId)) return { erro: 'Não encontramos esta pessoa.' }
     this.ativacoes.set(participacaoId, ativo)
+    return {}
+  }
+
+  async corrigirFuncao(participacaoId: string, funcao: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(this.podeMexerNaEquipe, 'mexer na equipe')
+
+    if (!this.acharNoSetor(participacaoId)) return { erro: 'Não encontramos esta pessoa.' }
+    const nova = (funcao ?? '').trim().replace(/\s+/g, ' ')
+    if (!nova) return { erro: 'A função não pode ficar em branco.' }
+    if (nova.length > 60) return { erro: 'Função muito longa. Encurte.' }
+    this.funcoes.set(participacaoId, nova)
+    return {}
+  }
+
+  /**
+   * Sem a checagem de "outro cadastro já usa este CPF neste evento" que a
+   * API real faz — o poço de mentira já gera CPF único por pessoa, então
+   * esse conflito nunca acontece aqui de propósito. A régua já é coberta a
+   * fundo do lado da API real (`ficha-da-pessoa.teste.ts`).
+   */
+  async corrigirCpf(participacaoId: string, cpf: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    if (!ehMaster(this.sessao?.papel)) return { erro: 'Só o master corrige CPF.' }
+
+    if (!this.acharNoSetor(participacaoId)) return { erro: 'Não encontramos esta pessoa.' }
+    const novo = (cpf ?? '').replace(/\D/g, '')
+    if (!validarCpf(novo)) return { erro: 'CPF inválido. Confira os 11 dígitos.' }
+    this.cpfsCorrigidos.set(participacaoId, novo)
     return {}
   }
 

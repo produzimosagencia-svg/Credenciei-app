@@ -1944,6 +1944,78 @@ test('a ficha do supervisor mostra o botão de ativar/desativar — mesma régua
   assert.equal((await c.fichaDaPessoa(p.participacaoId)).podeAtivarDesativar, true)
 })
 
+// ─── Corrigir função ────────────────────────────────────────────────────────
+
+test('admin corrige a função, com espaço duplicado colapsado', async () => {
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+  assert.deepEqual(await c.corrigirFuncao(p.participacaoId, '  Segurança   Vip  '), {})
+  const equipe = await c.equipeDoSetor('s-1')
+  assert.equal(equipe.pessoas.find(x => x.participacaoId === p.participacaoId)?.funcao, 'Segurança Vip')
+})
+
+test('função em branco é recusada', async () => {
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+  const r = await c.corrigirFuncao(p.participacaoId, '   ')
+  assert.match(r.erro ?? '', /não pode ficar em branco/)
+})
+
+test('quem não pode mexer na equipe não corrige a função', async () => {
+  const c = new ClienteFalso({
+    sessaoInicial: {
+      token: 'tok-op', expiraEm: new Date(Date.now() + 999_999).toISOString(),
+      renovacao: 'ren-op', papel: 'operador_portao',
+    },
+  })
+  const p = await alguemDaEquipe(c)
+  await assert.rejects(c.corrigirFuncao(p.participacaoId, 'Segurança'), /permissão/)
+})
+
+test('a ficha do supervisor mostra o botão de corrigir função — mesma régua de corrigir telefone', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const p = await alguemDaEquipe(c)
+  assert.equal((await c.fichaDaPessoa(p.participacaoId)).podeCorrigirTelefone, true)
+})
+
+// ─── Corrigir CPF ───────────────────────────────────────────────────────────
+
+test('master corrige o CPF', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'master')
+  const p = await alguemDaEquipe(c)
+  assert.deepEqual(await c.corrigirCpf(p.participacaoId, '111.444.777-35'), {})
+  const equipe = await c.equipeDoSetor('s-1')
+  assert.equal(equipe.pessoas.find(x => x.participacaoId === p.participacaoId)?.cpf, '11144477735')
+})
+
+test('CPF inválido é recusado', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'master')
+  const p = await alguemDaEquipe(c)
+  const r = await c.corrigirCpf(p.participacaoId, '111.111.111-11')
+  assert.match(r.erro ?? '', /CPF inválido/)
+})
+
+test('admin não corrige CPF — só master', async () => {
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+  const r = await c.corrigirCpf(p.participacaoId, '11144477735')
+  assert.match(r.erro ?? '', /Só o master/)
+})
+
+test('a ficha mostra o botão de corrigir CPF só para o master', async () => {
+  const master = new ClienteFalso()
+  await entrarComo(master, 'master')
+  const pMaster = await alguemDaEquipe(master)
+  assert.equal((await master.fichaDaPessoa(pMaster.participacaoId)).podeCorrigirCpf, true)
+
+  const admin = await noPortao()
+  const pAdmin = await alguemDaEquipe(admin)
+  assert.equal((await admin.fichaDaPessoa(pAdmin.participacaoId)).podeCorrigirCpf, false)
+})
+
 // ─── Contestar batida ───────────────────────────────────────────────────────
 
 test('o colaborador contesta a própria batida, com motivo', async () => {

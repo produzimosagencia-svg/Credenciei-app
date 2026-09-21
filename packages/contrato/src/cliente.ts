@@ -442,6 +442,20 @@ export interface ClienteApi {
    */
   alternarAtivacao(participacaoId: string, ativo: boolean): Promise<{ erro?: string }>
   /**
+   * Corrige a função/cargo (texto livre) — cópia de `editarCargoFuncionario`
+   * no site, achada comparando a ficha da pessoa (21/09/2026). Mesma régua
+   * de `podeCorrigirTelefone` — reusa o mesmo sinalizador na ficha, não
+   * ganhou um `podeCorrigirFuncao` à parte por ser a régua idêntica.
+   */
+  corrigirFuncao(participacaoId: string, funcao: string): Promise<{ erro?: string }>
+  /**
+   * Corrige o CPF — cópia de `editarCpfFuncionario` no site, achada
+   * comparando a ficha da pessoa (21/09/2026). Só master: o app ainda não
+   * modela `suporte_escopo` pra deixar suporte corrigir dentro do escopo
+   * dele, como o site faz.
+   */
+  corrigirCpf(participacaoId: string, cpf: string): Promise<{ erro?: string }>
+  /**
    * Marca uma contestação como resolvida — não corrige a batida sozinha
    * (isso é lançar ponto manual, ou corrigir na planilha); só tira a
    * pendência da tela da equipe.

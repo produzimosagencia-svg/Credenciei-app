@@ -290,6 +290,10 @@ function AbaDeDados({
   const [motivoExclusao, setMotivoExclusao] = useState('')
   const [corrigindoTelefone, setCorrigindoTelefone] = useState(false)
   const [novoTelefone, setNovoTelefone] = useState(ficha.telefone ?? '')
+  const [corrigindoFuncao, setCorrigindoFuncao] = useState(false)
+  const [novaFuncao, setNovaFuncao] = useState(ficha.funcao ?? '')
+  const [corrigindoCpf, setCorrigindoCpf] = useState(false)
+  const [novoCpf, setNovoCpf] = useState(ficha.cpf)
 
   async function agir(acao: () => Promise<{ erro?: string }>) {
     setErro(null)
@@ -370,6 +374,84 @@ function AbaDeDados({
           <>
             <Respiro altura={espaco.s} />
             <Botao titulo="Corrigir telefone" onPress={() => setCorrigindoTelefone(true)} tipo="fantasma" />
+          </>
+        )
+      ) : null}
+
+      {/*
+        Corrigir função/cargo (texto livre) — achado comparando com o site
+        (21/09/2026, `editarCargoFuncionario`). Mesma régua de mexer na
+        equipe, por isso reusa `podeCorrigirTelefone`.
+      */}
+      {ficha.podeCorrigirTelefone ? (
+        corrigindoFuncao ? (
+          <>
+            <Respiro altura={espaco.s} />
+            <Campo
+              rotulo="Nova função"
+              value={novaFuncao}
+              onChangeText={setNovaFuncao}
+              placeholder="Ex.: Auxiliar de palco"
+            />
+            <Respiro altura={espaco.s} />
+            <Botao
+              titulo="Salvar função"
+              ocupado={ocupado}
+              onPress={() => agir(async () => {
+                const r = await cliente.corrigirFuncao(ficha.participacaoId, novaFuncao)
+                if (!r.erro) setCorrigindoFuncao(false)
+                return r
+              })}
+            />
+            <Respiro altura={espaco.s} />
+            <Botao titulo="Cancelar" onPress={() => setCorrigindoFuncao(false)} tipo="fantasma" />
+          </>
+        ) : (
+          <>
+            <Respiro altura={espaco.s} />
+            <Botao titulo="Corrigir função" onPress={() => setCorrigindoFuncao(true)} tipo="fantasma" />
+          </>
+        )
+      ) : null}
+
+      {/*
+        Corrigir CPF — achado comparando com o site (21/09/2026,
+        `editarCpfFuncionario`). Só master aqui: o site também deixa
+        suporte, dentro do escopo dele, que o app não modela.
+      */}
+      {ficha.podeCorrigirCpf ? (
+        corrigindoCpf ? (
+          <>
+            <Respiro altura={espaco.s} />
+            <Aviso tipo="aviso">
+              Corrigir o CPF muda a identidade do cadastro — confira com
+              cuidado antes de salvar.
+            </Aviso>
+            <Respiro altura={espaco.s} />
+            <Campo
+              rotulo="Novo CPF"
+              value={novoCpf}
+              onChangeText={setNovoCpf}
+              keyboardType="number-pad"
+              placeholder="000.000.000-00"
+            />
+            <Respiro altura={espaco.s} />
+            <Botao
+              titulo="Salvar CPF"
+              ocupado={ocupado}
+              onPress={() => agir(async () => {
+                const r = await cliente.corrigirCpf(ficha.participacaoId, novoCpf)
+                if (!r.erro) setCorrigindoCpf(false)
+                return r
+              })}
+            />
+            <Respiro altura={espaco.s} />
+            <Botao titulo="Cancelar" onPress={() => setCorrigindoCpf(false)} tipo="fantasma" />
+          </>
+        ) : (
+          <>
+            <Respiro altura={espaco.s} />
+            <Botao titulo="Corrigir CPF" onPress={() => setCorrigindoCpf(true)} tipo="fantasma" />
           </>
         )
       ) : null}

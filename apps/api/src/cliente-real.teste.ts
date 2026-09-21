@@ -603,6 +603,10 @@ test('as mutações da ficha (mover, pagamento, valor, tirar/trazer, excluir) v�
   assert.equal(telefone.erro, undefined, telefone.erro)
   assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).telefone, '27988887766')
 
+  const funcao = await m.cliente.corrigirFuncao(participacaoId, '  Segurança   Vip  ')
+  assert.equal(funcao.erro, undefined, funcao.erro)
+  assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).funcao, 'Segurança Vip')
+
   const desativou = await m.cliente.alternarAtivacao(participacaoId, false)
   assert.equal(desativou.erro, undefined, desativou.erro)
   assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).ativo, false)
@@ -619,6 +623,27 @@ test('as mutações da ficha (mover, pagamento, valor, tirar/trazer, excluir) v�
   const excluiu = await m.cliente.excluirDaEquipe(participacaoId, 'teste de ponta a ponta')
   assert.equal(excluiu.erro, undefined, excluiu.erro)
   await assert.rejects(m.cliente.fichaDaPessoa(participacaoId), /Não encontramos/)
+})
+
+test('master corrige o CPF pela API — admin é recusado', async () => {
+  const m = montar()
+  const loginAdmin = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(loginAdmin.sessao, loginAdmin.erro)
+  m.guardarToken(loginAdmin.sessao.token)
+
+  const equipe = await m.cliente.equipeDoSetor('eq-1')
+  const participacaoId = equipe.pessoas[0]!.participacaoId
+
+  const recusado = await m.cliente.corrigirCpf(participacaoId, '111.444.777-35')
+  assert.match(recusado.erro ?? '', /Só o master/)
+
+  const loginMaster = await m.cliente.entrarComSenha('juan@produzimos.com.br', 'segredo123')
+  assert.ok(loginMaster.sessao, loginMaster.erro)
+  m.guardarToken(loginMaster.sessao.token)
+
+  const corrigiu = await m.cliente.corrigirCpf(participacaoId, '111.444.777-35')
+  assert.equal(corrigiu.erro, undefined, corrigiu.erro)
+  assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).cpf, '11144477735')
 })
 
 test('contestar e resolver uma batida vão e voltam pela API', async () => {

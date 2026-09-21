@@ -51,8 +51,9 @@ import {
 } from './rotas/configurar-evento.js'
 import { baixarModelo, equipeDoSetor, exportarEquipe, importarPlanilha } from './rotas/setor.js'
 import {
-  alternarAtivacao, corrigirTelefone, excluirDaEquipe, fichaDaPessoa, marcarPagamento, moverDeSetor,
-  resolverContestacao, salvarValorAReceber, tirarDaEquipe, tornarSupervisor, trazerDeVolta,
+  alternarAtivacao, corrigirCpf, corrigirFuncao, corrigirTelefone, excluirDaEquipe, fichaDaPessoa,
+  marcarPagamento, moverDeSetor, resolverContestacao, salvarValorAReceber, tirarDaEquipe, tornarSupervisor,
+  trazerDeVolta,
 } from './rotas/ficha-da-pessoa.js'
 import {
   conferenciaDoSetor, conferenciasDoEvento, confirmarConferencia, planilhaDaConferencia, removerDaConferencia,
@@ -505,6 +506,16 @@ export function criarServidor(amb: Ambiente) {
   app.post('/v1/pessoas/:id/ativacao', async c => {
     const { ativo } = await c.req.json<{ ativo?: boolean }>()
     return protegido(c, () => alternarAtivacao(amb.repo, c.get('pessoaId'), c.req.param('id'), ativo === true))
+  })
+
+  app.post('/v1/pessoas/:id/funcao', async c => {
+    const { funcao } = await c.req.json<{ funcao?: string }>()
+    return protegido(c, () => corrigirFuncao(amb.repo, c.get('pessoaId'), c.req.param('id'), funcao ?? ''))
+  })
+
+  app.post('/v1/pessoas/:id/cpf', async c => {
+    const { cpf } = await c.req.json<{ cpf?: string }>()
+    return protegido(c, () => corrigirCpf(amb.repo, c.get('pessoaId'), c.req.param('id'), cpf ?? ''))
   })
 
   app.post('/v1/pessoas/:id/excluir', async c => {

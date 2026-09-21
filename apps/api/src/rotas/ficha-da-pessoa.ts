@@ -11,6 +11,7 @@
 
 import {
   diaBRT, ehMaster, formatCpf, podeAcompanhar, podeExcluirDaEquipe, podeGerenciarEventos, podeGerenciarUsuarios,
+  validarCpf,
 } from '@credenciei/dominio'
 import type { FichaDaPessoa } from '@credenciei/contrato'
 import type { Participacao, Perfil, Evento, Repositorio } from '../dados/repositorio.js'
@@ -118,6 +119,7 @@ export async function fichaDaPessoa(
     podeExcluirDaEquipe: podeExcluirDaEquipe(perfil.papel) && podeMexerNaEquipe(perfil, evento),
     podeCorrigirTelefone: podeMexerNaEquipe(perfil, evento),
     podeAtivarDesativar: podeMexerNaEquipe(perfil, evento),
+    podeCorrigirCpf: ehMaster(perfil.papel),
     contestacoesAbertas: contestacoesAbertas.map(c => ({
       id: c.id, tipo: c.tipo, dataRef: c.dataRef, motivo: c.motivo, criadoEm: c.criadoEm,
     })),
@@ -396,5 +398,64 @@ export async function resolverContestacao(
   }
 
   await repo.resolverContestacao(id, pessoaId)
+  return {}
+}
+
+/**
+ * Corrige a função/cargo (texto livre) — cópia de `editarCargoFuncionario`
+ * no site, achada comparando a ficha da pessoa (21/09/2026). Mesma régua
+ * de mexer na equipe; mesma validação do site: sem espaço duplicado, não
+ * pode ficar em branco, até 60 caracteres.
+ */
+export async function corrigirFuncao(
+  repo: Repositorio, pessoaId: string, participacaoId: string, funcaoBruta: string,
+): Promise<{ erro?: string }> {
+  const { perfil, evento } = await exigirAcessoAParticipacao(repo, pessoaId, participacaoId)
+  if (!podeMexerNaEquipe(perfil, evento)) {
+    return { erro: 'Você não tem permissão para corrigir a função desta pessoa.' }
+  }
+
+  const nova = (funcaoBruta ?? '').trim().replace(/\s+/g, ' ')
+  if (!nova) return { erro: 'A função não pode ficar em branco.' }
+  if (nova.length > 60) return { erro: 'Função muito longa. Encurte.' }
+
+  await repo.corrigirFuncaoDaParticipacao(participacaoId, nova)
+  return {}
+}
+
+/**
+ * Corrige o CPF — cópia de `editarCpfFuncionario` no site, achada
+ * comparando a ficha da pessoa (21/09/2026). Só master aqui: o site
+ * também deixa suporte corrigir dentro do escopo dele, mas o app ainda
+ * não modela `suporte_escopo` — mesmo motivo de `podeExcluirDaEquipe`.
+ */
+export async function corrigirCpf(
+  repo: Repositorio, pessoaId: string, participacaoId: string, cpfBruto: string,
+): Promise<{ erro?: string }> {
+  const { perfil, participacao, evento } = await exigirAcessoAParticipacao(repo, pessoaId, participacaoId)
+  if (!ehMaster(perfil.papel)) {
+    return { erro: 'Só o master corrige CPF.' }
+  }
+
+  const novo = (cpfBruto ?? '').replace(/\D/g, '')
+  if (!validarCpf(novo)) return { erro: 'CPF inválido. Confira os 11 dígitos.' }
+
+  const pessoa = await repo.pessoaPorId(participacao.pessoaId)
+  if (pessoa?.cpf === novo) return {}
+
+  const conflito = await repo.participacaoPorCpfNoEvento(evento.id, novo)
+  if (conflito) {
+    return {
+      erro: `Este CPF já é de "${conflito.nome}", no setor ${conflito.setorNome}. Se as duas linhas `
+        + 'forem a mesma pessoa, apague a duplicada antes de corrigir o CPF aqui.',
+    }
+  }
+
+  await repo.corrigirCpfDaParticipacao(participacaoId, novo)
+  await repo.registrarAuditoria({
+    autorId: pessoaId, autorNome: perfil.nome, acao: 'ALTERACAO_CPF', campoAlterado: 'CPF',
+    valorAnterior: formatCpf(pessoa?.cpf ?? ''), valorNovo: formatCpf(novo),
+    participacaoId, eventoId: evento.id, organizacaoId: evento.organizacaoId ?? undefined,
+  })
   return {}
 }

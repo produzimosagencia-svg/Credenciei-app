@@ -1027,6 +1027,12 @@ export type FichaDaPessoa = {
    * `suporte_escopo` modelado).
    */
   podeAtivarDesativar: boolean
+  /**
+   * Corrigir CPF — cópia de `editarCpfFuncionario` no site, achada
+   * comparando a ficha da pessoa (21/09/2026). Só master aqui (o site
+   * também deixa suporte, dentro do escopo dele, que o app não modela).
+   */
+  podeCorrigirCpf: boolean
 
   /**
    * O que a própria pessoa contestou (batida errada ou que faltou) e

@@ -457,9 +457,22 @@ export class RepositorioEmMemoria implements Repositorio {
     p.ativo = ativo
   }
 
+  async corrigirFuncaoDaParticipacao(participacaoId: string, funcao: string): Promise<void> {
+    const p = this.participacoes.find(x => x.id === participacaoId)
+    if (!p) throw new Error('Não encontramos esta pessoa.')
+    p.funcao = funcao
+  }
+
   async excluirParticipacaoDeVez(participacaoId: string): Promise<void> {
     this.participacoes = this.participacoes.filter(p => p.id !== participacaoId)
     this.registros = this.registros.filter(r => r.participacaoId !== participacaoId)
+  }
+
+  async corrigirCpfDaParticipacao(participacaoId: string, cpf: string): Promise<void> {
+    const p = this.participacoes.find(x => x.id === participacaoId)
+    if (!p) throw new Error('Não encontramos esta pessoa.')
+    const pessoa = this.pessoas.find(x => x.id === p.pessoaId)
+    if (pessoa) pessoa.cpf = cpf
   }
 
   async participacaoPorCpfNoEvento(eventoId: string, cpf: string): Promise<{ nome: string; setorNome: string } | null> {

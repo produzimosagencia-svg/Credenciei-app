@@ -440,6 +440,18 @@ export interface Repositorio {
    */
   alternarAtivacaoDaParticipacao(participacaoId: string, ativo: boolean): Promise<void>
   /**
+   * Corrige a função/cargo (texto livre) — cópia de `editarCargoFuncionario`
+   * no site, achada comparando a ficha da pessoa (21/09/2026).
+   */
+  corrigirFuncaoDaParticipacao(participacaoId: string, funcao: string): Promise<void>
+  /**
+   * Corrige o CPF — cópia de `editarCpfFuncionario` no site, achada
+   * comparando a ficha da pessoa (21/09/2026). Só master, aqui: o site
+   * também deixa suporte corrigir dentro do escopo dele, mas o app ainda
+   * não modela `suporte_escopo` — mesmo motivo de `podeExcluirDaEquipe`.
+   */
+  corrigirCpfDaParticipacao(participacaoId: string, cpf: string): Promise<void>
+  /**
    * Apaga de vez — cadastro e batidas, sem volta. Diferente de
    * `descredenciarParticipacao` ("tirar da equipe"), que é reversível.
    */
