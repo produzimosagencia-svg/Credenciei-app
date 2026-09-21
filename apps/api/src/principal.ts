@@ -138,6 +138,7 @@ const amb: Ambiente = {
   campos: async () => [],
   segredoQr,
   chavePublicaQrEd25519: chavePublicaQrEd25519(),
+  segredoManutencao: process.env.SEGREDO_MANUTENCAO || null,
   novoToken: () => randomBytes(16).toString('hex'),
   arquivos,
   siteUrl,

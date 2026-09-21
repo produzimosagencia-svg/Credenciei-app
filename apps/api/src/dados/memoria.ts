@@ -534,6 +534,25 @@ export class RepositorioEmMemoria implements Repositorio {
     this.registros = this.registros.filter(r => r.id !== id)
   }
 
+  async apagarFotosVencidas(diasDeRetencao: number, agora: Date): Promise<{ apagadas: number }> {
+    const corte = agora.getTime() - diasDeRetencao * 86_400_000
+    const fechado = (e: Evento) => {
+      const ref = e.dataFim ?? e.dataInicio
+      return !!ref && Date.parse(ref) < corte
+    }
+    const eventoIdsFechados = new Set(this.eventos.filter(fechado).map(e => e.id))
+
+    let apagadas = 0
+    for (const r of this.registros) {
+      if (!r.fotoPath) continue
+      const part = this.participacoes.find(p => p.id === r.participacaoId)
+      if (!part || !eventoIdsFechados.has(part.eventoId)) continue
+      r.fotoPath = null
+      apagadas++
+    }
+    return { apagadas }
+  }
+
   async apagarRegistroDoTipo(participacaoId: string, tipo: 'entrada' | 'meio' | 'fim', dataRef: string) {
     this.registros = this.registros.filter(
       r => !(r.participacaoId === participacaoId && r.tipo === tipo && r.dataRef === dataRef),

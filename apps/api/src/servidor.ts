@@ -28,6 +28,7 @@ import type { Repositorio } from './dados/repositorio.js'
 import type { Dependencias as DepSessao } from './rotas/sessao.js'
 import { entrar, entrarComSenha, pedirCodigo } from './rotas/sessao.js'
 import { contestarBatida, registrarBatida, registrarEntradaLivre } from './rotas/batidas.js'
+import { apagarFotosVencidas } from './rotas/manutencao.js'
 import { painelDaEquipe } from './rotas/equipe.js'
 import { painel } from './rotas/painel.js'
 import { conferirPorCpf, eventosParaEscanear, registrarPorQr } from './rotas/escanear.js'
@@ -99,6 +100,13 @@ export type Ambiente = {
   arquivos: Arquivos
   /** O domínio do site (credenciei-web) — para montar o link da portaria e do formulário do setor. */
   siteUrl: string
+  /**
+   * Protege as rotas de `/manutencao` — chamadas por um agendador externo
+   * (cron-job.org), nunca por uma pessoa logada, então não faz sentido
+   * pedir sessão. `null` desliga a rota (responde 404): sem segredo
+   * configurado, mais vale não expor nada do que expor sem proteção.
+   */
+  segredoManutencao: string | null
 }
 
 type Variaveis = { pessoaId: string; papel: Papel }
@@ -109,6 +117,18 @@ export function criarServidor(amb: Ambiente) {
   app.use('*', cors())
 
   app.get('/saude', c => c.json({ ok: true, em: new Date().toISOString() }))
+
+  /*
+   * Manutenção — fora de `/v1` de propósito, mesmo motivo do relatório
+   * abaixo: quem chama é um agendador externo, não uma pessoa com sessão.
+   * A proteção é um segredo compartilhado, não um token de login.
+   */
+  app.post('/manutencao/apagar-fotos-vencidas', async c => {
+    if (!amb.segredoManutencao) return c.notFound()
+    const recebido = c.req.header('X-Segredo-Manutencao') ?? ''
+    if (recebido !== amb.segredoManutencao) return c.json({ erro: 'Não autorizado.' }, 401)
+    return c.json(await apagarFotosVencidas(amb.repo))
+  })
 
   /*
    * O download de um relatório — de propósito, FORA de `/v1` e sem token de

@@ -96,6 +96,42 @@ o `node:crypto` real — não com um valor escrito à mão.
 
 ---
 
+## Onde a API roda de verdade
+
+Desde 21/09/2026 a API está publicada — antes disso ela só existia na
+máquina de quem desenvolvia, `npm run dev` local, sem nenhum jeito de o app
+falar com ela fora de casa.
+
+- **GitHub**: `https://github.com/produzimosagencia-svg/Credenciei-app` —
+  repositório **privado**, criado nesse dia especificamente para viabilizar
+  a publicação (reverte, só nesse ponto, a decisão antiga de "repositório
+  remoto: não criar" — o código continua visível só pra quem o Juan
+  convidar). Um `git push origin main` sobe o código; não há deploy
+  automático de outro lugar.
+- **Render** (plano gratuito): `https://credenciei-app.onrender.com` — puxa
+  direto do GitHub e publica sozinho a cada `git push` (auto-deploy). Build
+  command `npm install` (raiz do monorepo, resolve os pacotes `@credenciei/*`
+  via npm workspaces), start command `npm run start --workspace=@credenciei/api`
+  (script `start`, que roda `tsx src/principal.ts` — diferente do `dev`,
+  que usa `tsx watch` e não serve pra produção). Variáveis de ambiente
+  (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SEGREDO_QR`, e as do
+  WhatsApp) configuradas direto no painel do Render, nunca commitadas.
+- **UptimeRobot** (plano gratuito): visita `credenciei-app.onrender.com` a
+  cada 5 minutos. Existe só por causa de uma característica do plano
+  gratuito do Render — a instância "dorme" depois de 15 minutos sem uso, e
+  a próxima pessoa a abrir o app esperaria 30-60s ela acordar. Sem essa
+  visita periódica, isso aconteceria bem no meio de alguém tentando bater
+  ponto num evento de verdade. Se um dia isso ainda incomodar, a saída
+  definitiva é o plano pago do Render (~US$ 7/mês), que não dorme nunca.
+
+**Para MOSTRAR algo pro Juan a partir de agora**, o caminho mais simples
+passou a ser apontar o app pra API publicada, em vez de subir uma local:
+`EXPO_PUBLIC_API_URL=https://credenciei-app.onrender.com npm run web --workspace=@credenciei/app`.
+O caminho antigo (API local, seção acima) continua válido — é o que se usa
+quando a mudança sendo testada ainda não foi publicada.
+
+---
+
 ## Decisões travadas pelo Juan
 
 | Decisão | Escolha | Por quê |

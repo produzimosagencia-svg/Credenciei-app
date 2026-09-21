@@ -467,6 +467,14 @@ export interface Repositorio {
    * segredo: quem chama já sabe qual era antes de decidir apagar.
    */
   apagarRegistro(id: string): Promise<void>
+  /**
+   * Apaga do Storage a foto de todo registro de um evento já FECHADO há
+   * mais de `diasDeRetencao` dias (decisão do Juan, ADR 003: 90 dias) — só
+   * a imagem some, `foto_url` vira null; a batida em si (horário, GPS,
+   * quem registrou) permanece para sempre. "Fechado" é `dataFim` do
+   * evento, ou `dataInicio` quando não há fim configurado.
+   */
+  apagarFotosVencidas(diasDeRetencao: number, agora: Date): Promise<{ apagadas: number }>
 
   /**
    * Apaga a batida desta etapa, neste dia, se existir — o passo de

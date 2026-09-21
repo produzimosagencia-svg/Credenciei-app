@@ -1,6 +1,6 @@
 # Backlog
 
-**324 tasks · 200 no MVP · 197 concluídas (61%)**
+**324 tasks · 200 no MVP · 198 concluídas (61%)**
 
 **Só o MVP: 163 de 200 (82%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -108,10 +108,10 @@ Atualizado em 12/09/2026.
 
 As 18 epics agrupadas pela ordem em que fazem sentido — não por número.
 Cada fase soma exatamente as tasks restantes (Total − Feito) das epics que
-carrega; a soma das sete bate com as 123 que faltam no total (recalculado
-em 21/09, depois da Epic 7 fechar — antes disso já tinha sido corrigido em
-18/09 por um arrasto de alguma rodada anterior que não recalculava esta
-linha). Onde o resumo
+carrega; a soma das sete bate com as 122 que faltam no total (recalculado
+em 21/09, depois da Epic 7 fechar e a retenção de foto entrar — antes
+disso já tinha sido corrigido no mesmo dia por um arrasto de alguma rodada
+anterior que não recalculava esta linha). Onde o resumo
 não é mais fundo que "o que sobrou da epic" é porque a epic não foi
 detalhada tarefa a tarefa ainda — ver a tabela abaixo para o Feito/Total de
 cada uma.
@@ -121,7 +121,7 @@ cada uma.
 | 1 — Fechar o mapeamento | 17 | 3 | Restam só as três telas de WhatsApp (conversas, disparo, fluxos) — deliberadamente adiadas |
 | 2 — Ligar a API de verdade | 3, 17, 18 | 0 | **Completa.** Epic 3, Epic 18 e a Epic 17 inteira — organizações, veículos, bloqueio de CPF, base de funcionários, encontrar colaborador, relatórios (com planilha `.xlsx`/`.zip` de verdade), cartaz da portaria, criar setor e equipe do setor |
 | 3 — Fechar os ciclos pela metade | 2, 4, 6, 7, 8, 9, 10 | 33 | Sincronização com o site, QR (Ed25519, código giratório), histórico e polimento do supervisor. **Epic 8 fechou em 18/09** (7/7) e **Epic 7 fechou em 21/09** (13/13) — as duas remapeadas sem tarefa concreta sobrando |
-| 4 — Aguentar 20 mil pessoas | 13, 14 | 23 | Teste de carga, LGPD, retenção de dados |
+| 4 — Aguentar 20 mil pessoas | 13, 14 | 22 | Teste de carga, resto do LGPD. **Retenção de foto (90 dias) construída em 21/09** |
 | 5 — Publicar | 11, 16 | 30 | Push e as duas lojas — **bloqueado na conta Apple Developer** |
 | 6 — O banco de verdade | 1 | 13 | Rodar as três migrações — **bloqueado no banco de homologação** |
 | 7 — Depois do MVP | 12, 15 | 21 | Versão web e os últimos testes — por definição, o que "vem depois" |
@@ -149,7 +149,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 11 | Push | 1 | 12 | — | Registro do token do aparelho pronto; enviar depende da conta Apple (APNs) e de um projeto Firebase (FCM) — nenhum dos dois existe ainda; o MODELO do que notificar também depende de decisão do Juan |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
-| 14 | Segurança | 6 | 15 | — | Isolamento, limite e a trilha de auditoria feitos; falta LGPD e retenção |
+| 14 | Segurança | 7 | 15 | — | Isolamento, limite e a trilha de auditoria feitos. Retenção de foto (ADR 003, 90 dias) construída em 21/09 — estava só decidida desde 29/08, nunca tinha rotina nenhuma; falta o resto do LGPD |
 | 15 | Testes | 9 | 14 | — | 605 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 48 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09". Toda a epic fala com a API real agora: organizações, veículos, bloqueio de CPF, base de funcionários, encontrar colaborador, relatórios, cartaz da portaria, criar setor, equipe do setor, trocar senha, excluir acesso e criar acesso de admin — número não recontado por falta de lista tarefa a tarefa desta epic |
@@ -274,6 +274,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 - Limite de tentativas no código de evento e no login
 - Rotação do token de renovação
 - Isolamento por organização no Painel: admin só vê evento da própria — o mesmo isolamento que já existia entre setores, um nível acima
+- Retenção de foto do meio, 90 dias após o evento fechar (ADR 003), 21/09
 
 **Epic 15 — Testes**
 - 31 testes do app, sem emulador e sem rede
@@ -1094,6 +1095,30 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > offline + fila de leituras do scanner — a parte que resolve a portaria
 > sem internet de verdade), 5 (nada a fazer). Fica pra sessões futuras,
 > por decisão de escopo — é grande demais pra uma sessão só.
+>
+> **21/09/2026 — a API foi publicada pela primeira vez** (Render, plano
+> grátis, com UptimeRobot pra ela não dormir) — investigando "quais são os
+> próximos passos pra dia 12", descobri que ela nunca tinha sido publicada
+> em lugar nenhum, só rodava local. Juan achava que era a Vercel — era o
+> site, confusão fácil entre os dois nomes. Precisou criar repositório
+> **privado** no GitHub pra isso (reverte, só nesse ponto, a decisão antiga
+> de não ter remoto), e um script `start` novo na API (só existia `dev`,
+> que não serve pra produção). Documentado em detalhe no `CLAUDE.md`,
+> seção "Onde a API roda de verdade".
+>
+> **21/09/2026 — retenção de foto (ADR 003, 90 dias) construída.**
+> Verificando o que mais estava só decidido e nunca virou código, achei
+> que a decisão de apagar a foto do meio 90 dias após o evento fechar
+> (29/08/2026) nunca ganhou rotina nenhuma — a ADR já dizia "precisa de
+> rotina automática", e ninguém tinha voltado pra fazer isso. Construído
+> como uma rota fora de `/v1`, protegida por segredo compartilhado (não
+> sessão — quem chama é um agendador externo), pra um serviço grátis tipo
+> cron-job.org bater 1x por dia. Apaga só a IMAGEM do Storage e zera
+> `foto_url`; a batida (horário, GPS, quem registrou) nunca é tocada — 90
+> dias contam a partir do fechamento do evento (`dataFim`, ou `dataInicio`
+> quando não há fim configurado). 5 testes novos. **Epic 14 sobe de 6/15
+> para 7/15** — já estava contado dentro do "falta LGPD e retenção", não é
+> escopo novo, só deixou de faltar.
 
 ## Bloqueado, esperando o Juan
 

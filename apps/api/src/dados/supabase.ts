@@ -971,6 +971,39 @@ export class RepositorioSupabase implements Repositorio {
       .eq('funcionario_id', participacaoId).eq('tipo', tipo).eq('data_ref', dataRef)
   }
 
+  async apagarFotosVencidas(diasDeRetencao: number, agora: Date): Promise<{ apagadas: number }> {
+    const corte = new Date(agora.getTime() - diasDeRetencao * 86_400_000).toISOString()
+
+    // "Fechado" é data_fim; sem data_fim configurado, vale data_inicio —
+    // mesma régua de `periodoDoEvento` no domínio.
+    const { data: eventosFechados } = await this.db
+      .from('eventos')
+      .select('id')
+      .or(`data_fim.lt.${corte},and(data_fim.is.null,data_inicio.lt.${corte})`)
+    const eventoIds = (eventosFechados ?? []).map(e => e.id as string)
+    if (!eventoIds.length) return { apagadas: 0 }
+
+    const { data: comFoto } = await this.db
+      .from('registros')
+      .select('id, foto_url')
+      .in('evento_id', eventoIds)
+      .not('foto_url', 'is', null)
+    const linhas = comFoto ?? []
+    if (!linhas.length) return { apagadas: 0 }
+
+    const caminhos = linhas.map(l => l.foto_url as string)
+    const { error } = await this.db.storage.from(RepositorioSupabase.BUCKET_DE_FOTOS).remove(caminhos)
+    // Uma foto que já não existe no Storage (removida por fora, por exemplo)
+    // não pode travar a limpeza do resto — o objetivo é o `foto_url` sumir
+    // da linha de qualquer jeito.
+    if (error) console.error('[apagarFotosVencidas] falha ao remover do Storage', error.message)
+
+    const ids = linhas.map(l => l.id as string)
+    await this.db.from('registros').update({ foto_url: null }).in('id', ids)
+
+    return { apagadas: ids.length }
+  }
+
   // ── Supervisor ────────────────────────────────────────────────────────────
 
   async participacoesDaEquipe(equipeId: string) {

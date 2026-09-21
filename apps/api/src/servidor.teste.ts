@@ -14,7 +14,7 @@ import { ArquivosEmMemoria } from './arquivos.js'
 import { criarServidor, type Ambiente } from './servidor.js'
 import type { CodigoPendente, GuardaDeCodigos } from './rotas/sessao.js'
 
-function montar() {
+function montar(sobrepor: Partial<Ambiente> = {}) {
   const { repo, evento } = cenarioHenriqueEJuliano()
   repo.pessoas.push({
     id: 'pes-maria', nome: 'Maria Souza', cpf: '98765432100',
@@ -40,9 +40,11 @@ function montar() {
     ],
     segredoQr: 'segredo-de-teste',
     chavePublicaQrEd25519: null,
+    segredoManutencao: 'segredo-de-manutencao-teste',
     novoToken: () => `qr-${++n}`,
     arquivos: new ArquivosEmMemoria('http://api.local'),
     siteUrl: 'http://site.local',
+    ...sobrepor,
   }
 
   return { app: criarServidor(amb), repo, evento }
@@ -70,6 +72,88 @@ test('a API responde que está viva', async () => {
   const { app } = montar()
   const r = await app.request('/saude')
   assert.equal(r.status, 200)
+})
+
+// ─── Manutenção ─────────────────────────────────────────────────────────────
+//
+// Fora de /v1, sem sessão — quem chama é um agendador externo (cron-job.org),
+// não uma pessoa. A proteção é um segredo compartilhado no cabeçalho.
+
+test('sem o segredo certo, a rota de manutenção recusa', async () => {
+  const { app } = montar()
+  const semNada = await app.request('/manutencao/apagar-fotos-vencidas', { method: 'POST' })
+  assert.equal(semNada.status, 401)
+
+  const errado = await app.request('/manutencao/apagar-fotos-vencidas', {
+    method: 'POST',
+    headers: { 'X-Segredo-Manutencao': 'chute' },
+  })
+  assert.equal(errado.status, 401)
+})
+
+test('com o segredo certo, apaga a foto de evento fechado há mais de 90 dias', async () => {
+  const { app, repo, evento } = montar()
+  evento.dataFim = '2026-01-01T00:00:00-03:00' // bem mais de 90 dias no passado
+  repo.registros.push({
+    id: 'reg-foto-velha', participacaoId: 'part-joao', tipo: 'meio', dataRef: '2025-12-01',
+    registradoEm: '2025-12-01T12:00:00-03:00', recebidoEm: '2025-12-01T12:00:00-03:00',
+    fotoPath: 'ev-hj/part-joao/meio-2025-12-01.jpg', lat: null, lng: null, manual: false,
+  })
+
+  const r = await app.request('/manutencao/apagar-fotos-vencidas', {
+    method: 'POST',
+    headers: { 'X-Segredo-Manutencao': 'segredo-de-manutencao-teste' },
+  })
+  assert.equal(r.status, 200)
+  assert.deepEqual(await r.json(), { apagadas: 1 })
+
+  const depois = repo.registros.find(x => x.id === 'reg-foto-velha')
+  assert.equal(depois?.fotoPath, null, 'a foto some')
+  assert.equal(depois?.tipo, 'meio', 'a batida em si continua existindo')
+})
+
+test('evento fechado há menos de 90 dias mantém a foto', async () => {
+  const { app, repo, evento } = montar()
+  const ontem = new Date(Date.now() - 86_400_000).toISOString()
+  evento.dataFim = ontem
+  repo.registros.push({
+    id: 'reg-foto-recente', participacaoId: 'part-joao', tipo: 'meio', dataRef: '2026-09-05',
+    registradoEm: '2026-09-05T12:00:00-03:00', recebidoEm: '2026-09-05T12:00:00-03:00',
+    fotoPath: 'ev-hj/part-joao/meio-2026-09-05.jpg', lat: null, lng: null, manual: false,
+  })
+
+  const r = await app.request('/manutencao/apagar-fotos-vencidas', {
+    method: 'POST',
+    headers: { 'X-Segredo-Manutencao': 'segredo-de-manutencao-teste' },
+  })
+  assert.deepEqual(await r.json(), { apagadas: 0 })
+  assert.equal(repo.registros.find(x => x.id === 'reg-foto-recente')?.fotoPath, 'ev-hj/part-joao/meio-2026-09-05.jpg')
+})
+
+test('sem dataFim configurado, usa dataInicio como o fechamento', async () => {
+  const { app, repo, evento } = montar()
+  evento.dataFim = null
+  evento.dataInicio = '2026-01-01T18:30:00-03:00' // bem mais de 90 dias no passado
+  repo.registros.push({
+    id: 'reg-sem-datafim', participacaoId: 'part-joao', tipo: 'meio', dataRef: '2026-01-01',
+    registradoEm: '2026-01-01T20:00:00-03:00', recebidoEm: '2026-01-01T20:00:00-03:00',
+    fotoPath: 'ev-hj/part-joao/meio-2026-01-01.jpg', lat: null, lng: null, manual: false,
+  })
+
+  const r = await app.request('/manutencao/apagar-fotos-vencidas', {
+    method: 'POST',
+    headers: { 'X-Segredo-Manutencao': 'segredo-de-manutencao-teste' },
+  })
+  assert.deepEqual(await r.json(), { apagadas: 1 })
+})
+
+test('sem segredo configurado, a rota nem existe', async () => {
+  const { app } = montar({ segredoManutencao: null })
+  const r = await app.request('/manutencao/apagar-fotos-vencidas', {
+    method: 'POST',
+    headers: { 'X-Segredo-Manutencao': 'qualquer-coisa' },
+  })
+  assert.equal(r.status, 404)
 })
 
 // ─── Autenticação ───────────────────────────────────────────────────────────
