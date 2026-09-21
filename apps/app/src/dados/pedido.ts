@@ -5,7 +5,7 @@
 // erro fica girando para sempre num evento sem sinal, sem dizer nada e sem
 // oferecer "tentar de novo".
 
-import { useCallback, useEffect, useState, type DependencyList } from 'react'
+import { useCallback, useEffect, useRef, useState, type DependencyList } from 'react'
 
 export type Pedido<T> =
   | { estado: 'carregando' }
@@ -48,11 +48,26 @@ export function useValorComAtraso<T>(valor: T, atrasoMs = 350): T {
 export function usePedido<T>(
   buscar: () => Promise<T>,
   deps: DependencyList = [],
-): { pedido: Pedido<T>; recarregar: () => void } {
+): { pedido: Pedido<T>; recarregar: () => void; atualizarSemPiscar: () => void } {
   const [pedido, setPedido] = useState<Pedido<T>>({ estado: 'carregando' })
   const [tentativa, setTentativa] = useState(0)
+  const buscarAtual = useRef(buscar)
+  buscarAtual.current = buscar
 
   const recarregar = useCallback(() => setTentativa(t => t + 1), [])
+
+  /**
+   * Atualiza sem passar por "carregando" — para chamadas em segundo plano
+   * (o app voltou ao primeiro plano, um intervalo) que não podem fazer a
+   * tela inteira sumir e piscar de novo por um instante. Erro aqui é
+   * silencioso: os dados antigos na tela continuam válidos, e a próxima
+   * tentativa resolve sozinha. Identidade estável (sem depender de `deps`)
+   * de propósito, para dar pra usar dentro de um listener/intervalo que se
+   * inscreve uma vez só.
+   */
+  const atualizarSemPiscar = useCallback(() => {
+    buscarAtual.current().then(dados => setPedido({ estado: 'pronto', dados })).catch(() => {})
+  }, [])
 
   useEffect(() => {
     let vivo = true
@@ -67,5 +82,5 @@ export function usePedido<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, tentativa])
 
-  return { pedido, recarregar }
+  return { pedido, recarregar, atualizarSemPiscar }
 }

@@ -56,7 +56,7 @@ export default function Credencial() {
   const [erro, setErro] = useState<string | null>(null)
   const [registrandoLivre, setRegistrandoLivre] = useState(false)
 
-  const { pedido, recarregar } = usePedido(async () => {
+  const { pedido, recarregar, atualizarSemPiscar } = usePedido(async () => {
     const participacoes = await cliente.minhasParticipacoes()
     // A escolhida em "Meus eventos", se ainda existir; senão a que está
     // acontecendo; sem essa, a primeira — quem só tem evento futuro ainda
@@ -70,6 +70,32 @@ export default function Credencial() {
     ])
     return { participacao: p, qr, dias }
   }, [cliente, selecionada])
+
+  /*
+   * Sem isto, esta tela nunca se atualizava sozinha — cópia de
+   * `ManterAtualizado.tsx` no site, que existe por dois incidentes reais:
+   * o operador escaneia no portão e o celular continua mostrando "Registrar
+   * entrada" (a pessoa acha que não passou); e o meio libera 4h depois da
+   * entrada, mas quem deixou a tela aberta desde o credenciamento nunca via
+   * o cartão aparecer. `atualizarSemPiscar`, não `recarregar`: um
+   * `recarregar` a cada minuto faria o QR sumir e a tela inteira piscar de
+   * volta pro "carregando" bem na hora em que alguém pode estar
+   * apresentando o crachá no portão.
+   *
+   * Sem listener de rede (`online`) de propósito — este projeto não usa
+   * `NetInfo`, mesma decisão da fila de batidas (Epic 7): tentar e tratar a
+   * falha como transporte já basta, não precisa saber se está online antes.
+   * E sem agendar a virada exata da meia-noite como o site faz: o
+   * intervalo de 60s já corrige sozinho, com no máximo um minuto de atraso,
+   * enquanto o app estiver em primeiro plano.
+   */
+  useEffect(() => {
+    const assinatura = AppState.addEventListener('change', estado => {
+      if (estado === 'active') atualizarSemPiscar()
+    })
+    const id = setInterval(atualizarSemPiscar, 60_000)
+    return () => { assinatura.remove(); clearInterval(id) }
+  }, [atualizarSemPiscar])
 
   const dados = pedido.estado === 'pronto' ? pedido.dados : null
   const hoje = diaBRT(new Date())

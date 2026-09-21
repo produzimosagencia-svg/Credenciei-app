@@ -376,7 +376,7 @@ ganhou e que o app precisa espelhar — o procedimento para achá-los está em
 | **Histórico de batidas como aba do funcionário** | 31/08 | ✅ **Trazido.** É a tela "Meus dias" |
 | **"Não realizada" só quando é anomalia** | 31/08 | ✅ **Trazido.** Regra em `historico.ts`, com teste — ver abaixo |
 | **Admin move funcionário de setor** | 31/08 | ✅ **Trazido.** Ação na ficha da pessoa |
-| **Pendências do evento, com todos os dias** | 31/08 | Tela que o app ainda não tem |
+| **Pendências do evento, com todos os dias** | 31/08 | ✅ **Trazido, achado desatualizado em 21/09.** A reescrita de "Atividades" em 11/09/2026 já cobre exatamente isto — as mesmas 7 visões e o mesmo seletor de dia do site (`lib/presenca-visoes.ts` ↔ `cliente.atividades()`), só a linha desta tabela nunca tinha sido marcada |
 
 **A regra do "não realizada"**, para não repetir o erro quando eu montar a
 tabela de histórico: o selo vermelho existe para marcar ANOMALIA — a pessoa
@@ -1186,6 +1186,38 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > achados da comparação com o site sempre foram só 5 tasks novas (18 → 19,
 > não 18 → 20) — sobrou um ponto contado a mais por engano. **Epic 10 fecha
 > em 19/19**, sem nada por vir da comparação de 21/09.
+>
+> **21/09/2026 — "Minha credencial" nunca se atualizava sozinha, achado
+> comparando o autoatendimento do colaborador com o site.** Um agente
+> comparou o fluxo público do site (`credential/[token]/*`) com as telas
+> do colaborador no app e achou um gap real: a tela nunca refaz a busca
+> sozinha, só uma vez ao abrir. Três incidentes concretos que isso causa,
+> os mesmos que o site já resolveu com `ManterAtualizado.tsx`:
+>
+> - O operador escaneia no portão, mas o celular continua mostrando
+>   "Registrar entrada" — a pessoa acha que não passou e insiste.
+> - O "meio" libera 4h depois da entrada; quem deixou a tela aberta desde
+>   o credenciamento nunca via o cartão aparecer sozinho.
+> - A etapa vira à meia-noite (montagem → evento); quem não tocasse no
+>   celular ficava com o QR da etapa errada.
+>
+> Corrigido com `atualizarSemPiscar`, capacidade nova em `usePedido`
+> (`apps/app/src/dados/pedido.ts`) que busca de novo sem passar por
+> "carregando" — um `recarregar` comum faria o QR sumir e a tela piscar de
+> volta bem na hora em que alguém pode estar mostrando o crachá no
+> portão. Ligado em `credencial.tsx`: atualiza ao voltar ao primeiro
+> plano (`AppState` → `'active'`) e a cada 60s enquanto a tela está aberta
+> — o mesmo padrão do site (`visibilitychange`/intervalo), sem `NetInfo`
+> (decisão já tomada na Epic 7) e sem agendar a virada exata da meia-noite
+> como o site faz: o intervalo de 60s já corrige sozinho, com no máximo um
+> minuto de atraso. Verificado de verdade no navegador — a tela não pisca
+> nem trava disparando o evento de "voltou ao primeiro plano" repetidas
+> vezes. Sem teste automatizado: este projeto não testa hooks/componentes
+> React, só lógica pura — a régua de sempre é rodar e conferir na tela.
+>
+> Não é escopo novo — o autoatendimento do colaborador já estava contado
+> como pronto (Epic 8, 7/7); isto é uma correção de comportamento, não
+> uma task nova, e não muda nenhum Feito/Total.
 
 ## Bloqueado, esperando o Juan
 
