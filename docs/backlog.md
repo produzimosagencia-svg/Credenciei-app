@@ -1,6 +1,6 @@
 # Backlog
 
-**324 tasks · 200 no MVP · 198 concluídas (61%)**
+**325 tasks · 200 no MVP · 199 concluídas (61%)**
 
 **Só o MVP: 163 de 200 (82%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -149,7 +149,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 11 | Push | 1 | 12 | — | Registro do token do aparelho pronto; enviar depende da conta Apple (APNs) e de um projeto Firebase (FCM) — nenhum dos dois existe ainda; o MODELO do que notificar também depende de decisão do Juan |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
-| 14 | Segurança | 7 | 15 | — | Isolamento, limite e a trilha de auditoria feitos. Retenção de foto (ADR 003, 90 dias) construída em 21/09 — estava só decidida desde 29/08, nunca tinha rotina nenhuma; falta o resto do LGPD |
+| 14 | Segurança | 8 | 16 | — | Isolamento, limite e a trilha de auditoria feitos. Retenção de foto (ADR 003, 90 dias) e "excluir minha conta" (LGPD, direito ao esquecimento) construídos em 21/09 — escopo novo, decidido na hora com o Juan; falta o resto do LGPD |
 | 15 | Testes | 9 | 14 | — | 605 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 48 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09". Toda a epic fala com a API real agora: organizações, veículos, bloqueio de CPF, base de funcionários, encontrar colaborador, relatórios, cartaz da portaria, criar setor, equipe do setor, trocar senha, excluir acesso e criar acesso de admin — número não recontado por falta de lista tarefa a tarefa desta epic |
@@ -275,6 +275,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 - Rotação do token de renovação
 - Isolamento por organização no Painel: admin só vê evento da própria — o mesmo isolamento que já existia entre setores, um nível acima
 - Retenção de foto do meio, 90 dias após o evento fechar (ADR 003), 21/09
+- "Excluir minha conta" — LGPD, direito ao esquecimento, 21/09
 
 **Epic 15 — Testes**
 - 31 testes do app, sem emulador e sem rede
@@ -1119,6 +1120,31 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > quando não há fim configurado). 5 testes novos. **Epic 14 sobe de 6/15
 > para 7/15** — já estava contado dentro do "falta LGPD e retenção", não é
 > escopo novo, só deixou de faltar.
+>
+> **21/09/2026 — "excluir minha conta" construído (LGPD, direito ao
+> esquecimento).** Enquanto mapeava a Epic 4, achei que o colaborador não
+> tem NENHUM autoatendimento sobre a própria conta além de sair — nem
+> editar perfil, nem excluir. Decidido com o Juan na hora, em duas
+> perguntas que mudavam o desenho por completo:
+>
+> - **O que apaga**: só dado pessoal (nome, telefone, foto — viram
+>   anônimos). Histórico de ponto e valor a receber NUNCA são tocados —
+>   registro trabalhista (CLT) geralmente precisa ficar guardado por anos
+>   mesmo que a pessoa saia, e sem a chave PIX um pagamento pendente
+>   ficaria impossível de completar.
+> - **Alcance**: afeta TODOS os cadastros com o mesmo CPF, não só um — a
+>   pessoa pode estar espalhada em vários eventos (a migração 001, que
+>   uniria isso numa `pessoas` só, ainda não rodou em produção; decidido
+>   não esperar por ela).
+>
+> Rota nova (`POST /v1/minha-conta/excluir`), só para papel `colaborador`
+> (conta de painel recusa com 400); derruba toda sessão da pessoa, em
+> qualquer aparelho, depois de anonimizar (`Sessoes.encerrarTodasDaPessoa`,
+> método novo). UI em "Mais", numa seção "ZONA DE RISCO" com confirmação,
+> mesmo padrão visual de "Excluir de vez" na ficha da pessoa. 9 testes
+> novos (3 na API, 3 no `cliente-falso`, 3 no roteiro comparado falso×real).
+> **Epic 14 sobe de 7/15 para 8/16** — escopo novo, decidido na hora, não
+> estava contado em lugar nenhum antes.
 
 ## Bloqueado, esperando o Juan
 

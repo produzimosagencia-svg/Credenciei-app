@@ -302,6 +302,26 @@ test('o financeiro é só sobre os dias que a pessoa trabalhou', async () => {
   assert.equal(f.situacao, 'pendente')
 })
 
+// ─── Excluir minha conta ────────────────────────────────────────────────────
+
+test('colaborador exclui a própria conta, e a sessão morre', async () => {
+  const c = await logado()
+  assert.deepEqual(await c.excluirMinhaConta(), {})
+  await assert.rejects(() => c.minhasParticipacoes(), /Sessão expirada/)
+})
+
+test('conta de painel não usa esta ação', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'admin')
+  const r = await c.excluirMinhaConta()
+  assert.match(r.erro ?? '', /só para conta de colaborador/)
+})
+
+test('sem sessão, nem colaborador exclui', async () => {
+  const c = new ClienteFalso()
+  await assert.rejects(() => c.excluirMinhaConta(), /Sessão expirada/)
+})
+
 // ─── QR ─────────────────────────────────────────────────────────────────────
 
 test('o QR muda de etapa junto com o dia', async () => {

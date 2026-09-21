@@ -95,6 +95,14 @@ export class RepositorioEmMemoria implements Repositorio {
     return nova
   }
 
+  async excluirMinhaConta(pessoaId: string): Promise<void> {
+    const p = this.pessoas.find(x => x.id === pessoaId)
+    if (!p) return
+    p.nome = 'Pessoa excluída'
+    p.telefone = null
+    p.fotoPath = null
+  }
+
   async perfilPorId(id: string) {
     const p = this.perfis.find(x => x.id === id)
     if (!p) return null

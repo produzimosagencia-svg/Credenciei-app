@@ -47,7 +47,7 @@ function montar(sobrepor: Partial<Ambiente> = {}) {
     ...sobrepor,
   }
 
-  return { app: criarServidor(amb), repo, evento }
+  return { app: criarServidor(amb), repo, evento, amb }
 }
 
 /** Entra e devolve o cabeçalho pronto. */
@@ -353,4 +353,50 @@ test('renovar troca o token de renovação', async () => {
     body: JSON.stringify({ renovacao: sessao.renovacao }),
   })
   assert.equal(repetida.status, 401, 'o token antigo morre ao ser usado')
+})
+
+// ─── Excluir minha conta ────────────────────────────────────────────────────
+//
+// Autoatendimento do colaborador — LGPD, direito ao esquecimento. Decidido
+// com o Juan em 21/09/2026: anonimiza nome/telefone/foto, mas NUNCA toca
+// batida, valor a receber ou chave PIX (obrigação trabalhista + a pessoa
+// pode ainda ter um pagamento pendente).
+
+test('colaborador exclui a própria conta: fica anônimo, mas o histórico continua', async () => {
+  const { app, repo } = montar()
+  const cab = await autenticado(app)
+
+  const r = await app.request('/v1/minha-conta/excluir', { method: 'POST', headers: cab })
+  assert.equal(r.status, 200)
+  assert.deepEqual(await r.json(), {})
+
+  const pessoa = await repo.pessoaPorId('pes-joao')
+  assert.equal(pessoa?.nome, 'Pessoa excluída')
+  assert.equal(pessoa?.telefone, null)
+  assert.equal(pessoa?.fotoPath, null)
+
+  const participacao = await repo.participacaoPorId('part-joao')
+  assert.equal(participacao?.valorReceber, 150, 'valor a receber continua intacto')
+  assert.equal(participacao?.ativo, true, 'o vínculo com o evento continua ativo')
+})
+
+test('depois de excluir a conta, a sessão morre — em qualquer aparelho', async () => {
+  const { app } = montar()
+  const cab = await autenticado(app)
+
+  await app.request('/v1/minha-conta/excluir', { method: 'POST', headers: cab })
+
+  const depois = await app.request('/v1/eu', { headers: cab })
+  assert.equal(depois.status, 401)
+})
+
+test('conta de painel (admin/supervisor) não usa esta rota', async () => {
+  const { app, amb } = montar()
+  const sessao = await amb.sessoes.abrir('auth-admin', 'admin')
+
+  const r = await app.request('/v1/minha-conta/excluir', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${sessao.token}` },
+  })
+  assert.equal(r.status, 400)
 })

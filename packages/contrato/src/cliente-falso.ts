@@ -1346,6 +1346,17 @@ export class ClienteFalso implements ClienteApi {
     }
   }
 
+  async excluirMinhaConta(): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    if (this.quemEntrou.papel !== 'colaborador') {
+      return { erro: 'Esta ação é só para conta de colaborador.' }
+    }
+    this.quemEntrou = { nome: 'Pessoa excluída', papel: 'colaborador' }
+    this.sessao = null
+    return {}
+  }
+
   async meuQr(participacaoId: string) {
     await this.rede()
     this.exigirParticipacao(participacaoId)

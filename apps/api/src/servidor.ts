@@ -29,6 +29,7 @@ import type { Dependencias as DepSessao } from './rotas/sessao.js'
 import { entrar, entrarComSenha, pedirCodigo } from './rotas/sessao.js'
 import { contestarBatida, registrarBatida, registrarEntradaLivre } from './rotas/batidas.js'
 import { apagarFotosVencidas } from './rotas/manutencao.js'
+import { excluirMinhaConta } from './rotas/conta.js'
 import { painelDaEquipe } from './rotas/equipe.js'
 import { painel } from './rotas/painel.js'
 import { conferirPorCpf, eventosParaEscanear, registrarPorQr } from './rotas/escanear.js'
@@ -238,6 +239,13 @@ export function criarServidor(amb: Ambiente) {
       fotoUrl: null,
       papel: perfil.papel,
     })
+  })
+
+  app.post('/v1/minha-conta/excluir', async c => {
+    if (c.get('papel') !== 'colaborador') {
+      return c.json({ erro: 'Esta ação é só para conta de colaborador.' }, 400)
+    }
+    return c.json(await excluirMinhaConta(amb.repo, amb.sessoes, c.get('pessoaId')))
   })
 
   // ── Entrar num evento ───────────────────────────────────────────────────

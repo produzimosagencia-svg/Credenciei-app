@@ -319,6 +319,12 @@ export class ClienteHttp implements ClienteApi {
     return r.corpo as unknown as FinanceiroDaParticipacao
   }
 
+  async excluirMinhaConta(): Promise<{ erro?: string }> {
+    const r = await this.pedir('/v1/minha-conta/excluir', { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos excluir sua conta.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
   async meuQr(participacaoId: string) {
     const r = await this.pedir(`/v1/participacoes/${encodeURIComponent(participacaoId)}/qr`)
     if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos gerar seu QR.'))

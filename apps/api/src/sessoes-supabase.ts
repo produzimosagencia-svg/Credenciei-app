@@ -134,6 +134,11 @@ export class SessoesNoSupabase implements Sessoes {
     await this.db.from('app_sessoes').delete().eq('token', token)
   }
 
+  async encerrarTodasDaPessoa(pessoaId: string): Promise<void> {
+    for (const [token, v] of this.cache) if (v.pessoaId === pessoaId) this.cache.delete(token)
+    await this.db.from('app_sessoes').delete().eq('pessoa_id', pessoaId)
+  }
+
   /** Remove o que já venceu — sem isto a tabela cresce para sempre. Chamar periodicamente. */
   async limpar(): Promise<number> {
     const { data } = await this.db

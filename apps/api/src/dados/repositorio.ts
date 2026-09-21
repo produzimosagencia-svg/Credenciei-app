@@ -266,6 +266,21 @@ export interface Repositorio {
   /** A conferência pelo CPF, no portão, resolve por aqui. */
   pessoaPorCpf(cpf: string): Promise<Pessoa | null>
   criarPessoa(p: Omit<Pessoa, 'id'>): Promise<Pessoa>
+  /**
+   * "Excluir minha conta" — autoatendimento do colaborador, decidido com o
+   * Juan em 21/09/2026. Anonimiza nome, telefone e foto em TODOS os
+   * cadastros com o mesmo CPF (a pessoa pode estar espalhada em vários
+   * eventos — a migração 001, que uniria isso numa `pessoas` só, ainda não
+   * rodou em produção). O CPF em si NÃO é apagado: é a chave que amarra
+   * tudo isso, e apagá-la impediria achar de novo estas linhas se um dia
+   * precisar (auditoria, obrigação trabalhista).
+   *
+   * O que NUNCA é tocado: batidas (`registros`), valor a receber e chave
+   * PIX — histórico de ponto e pagamento tem que sobreviver à exclusão de
+   * conta, por obrigação trabalhista (CLT), e sem a chave PIX um valor
+   * ainda pendente ficaria impossível de pagar.
+   */
+  excluirMinhaConta(pessoaId: string): Promise<void>
 
   /** Quem tem conta de painel, pelo id do Supabase Auth. */
   perfilPorId(id: string): Promise<Perfil | null>

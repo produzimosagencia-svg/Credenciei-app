@@ -48,6 +48,12 @@ export interface Sessoes {
   renovar(renovacao: string): Promise<SessaoAberta | null>
   /** Sair, ou aparelho perdido. */
   encerrar(token: string): Promise<void>
+  /**
+   * Derruba TODAS as sessões da pessoa, de qualquer aparelho — usado só ao
+   * excluir a conta: continuar deixando entrar de um aparelho já logado
+   * enquanto o cadastro está sendo anonimizado não faria sentido.
+   */
+  encerrarTodasDaPessoa(pessoaId: string): Promise<void>
 }
 
 type Registro = { pessoaId: string; papel: Papel; expiraEm: number }
@@ -109,6 +115,12 @@ export class SessoesEmMemoria implements Sessoes {
 
   async encerrar(token: string): Promise<void> {
     this.acessos.delete(token)
+  }
+
+  async encerrarTodasDaPessoa(pessoaId: string): Promise<void> {
+    for (const mapa of [this.acessos, this.renovacoes]) {
+      for (const [k, v] of mapa) if (v.pessoaId === pessoaId) mapa.delete(k)
+    }
   }
 
   /** Remove o que já venceu — sem isto o mapa cresce para sempre. */

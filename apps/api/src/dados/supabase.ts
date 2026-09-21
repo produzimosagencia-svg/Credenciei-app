@@ -199,6 +199,23 @@ export class RepositorioSupabase implements Repositorio {
     }
   }
 
+  async excluirMinhaConta(pessoaId: string): Promise<void> {
+    const cpf = cpfDoId(pessoaId)
+    if (!cpf) return
+
+    /*
+     * `foto_perfil_path` é escrito pelo SITE (este app nunca sobe essa
+     * foto — só a selfie do meio, num bucket e esquema de caminho
+     * diferentes). Por isso aqui só o CAMPO é limpo, sem tentar apagar
+     * nada do Storage: não temos como confirmar o bucket/caminho de algo
+     * que nunca escrevemos, e arriscar apagar o arquivo errado é pior do
+     * que deixar um arquivo órfão sem nome nenhum apontando pra ele.
+     */
+    await this.db.from('funcionarios')
+      .update({ nome: 'Pessoa excluída', telefone: null, foto_perfil_path: null })
+      .eq('cpf', cpf)
+  }
+
   async criarPessoa(): Promise<Pessoa> {
     /*
      * Não dá para criar pessoa sem evento no modelo antigo.

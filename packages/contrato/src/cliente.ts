@@ -72,6 +72,15 @@ export interface ClienteApi {
   meusDias(participacaoId: string): Promise<DiaDaParticipacao[]>
   meuFinanceiro(participacaoId: string): Promise<FinanceiroDaParticipacao>
   /**
+   * "Excluir minha conta" — LGPD, direito ao esquecimento. Decidido com o
+   * Juan em 21/09/2026: anonimiza nome, telefone e foto, mas NUNCA toca
+   * batida, valor a receber ou chave PIX — histórico de ponto e pagamento
+   * sobrevive por obrigação trabalhista (CLT), e um valor ainda pendente
+   * ficaria impossível de pagar sem a chave PIX. Derruba a sessão em
+   * qualquer aparelho — só faz sentido pra conta de colaborador.
+   */
+  excluirMinhaConta(): Promise<{ erro?: string }>
+  /**
    * O código do QR para a etapa de hoje daquele evento.
    *
    * `liberado` decide se a tela mostra o QR ou o embaça — decisão do Juan,

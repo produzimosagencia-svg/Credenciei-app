@@ -166,6 +166,26 @@ test('o financeiro é o da própria pessoa', async () => {
   assert.equal(typeof f.diasTrabalhados, 'number')
 })
 
+test('excluir minha conta vai e volta pela API — anonimiza e derruba a sessão', async () => {
+  const m = montar()
+  await entrar(m)
+
+  const r = await m.cliente.excluirMinhaConta()
+  assert.deepEqual(r, {})
+
+  await assert.rejects(m.cliente.minhasParticipacoes(), /Sessão expirada/)
+})
+
+test('conta de painel não usa excluirMinhaConta — API real recusa', async () => {
+  const m = montar()
+  const login = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
+
+  const r = await m.cliente.excluirMinhaConta()
+  assert.match(r.erro ?? '', /só para conta de colaborador/)
+})
+
 // ─── A tradução que sustenta a fila offline ─────────────────────────────────
 
 test('batida aceita volta como registrada', async () => {

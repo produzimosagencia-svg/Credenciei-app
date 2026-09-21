@@ -9,16 +9,16 @@
 // só o dono da plataforma enxerga.
 
 import { useRouter } from 'expo-router'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { NOME_DO_PAPEL } from '@credenciei/dominio'
-import { usePedido } from '../../src/dados/pedido'
+import { mensagemDoErro, usePedido } from '../../src/dados/pedido'
 import { useSessao } from '../../src/sessao/contexto'
 import { useAlvoDePermissao } from '../../src/navegacao/alvo-de-permissao'
 import { menuDe, type ItemDoMenu } from '../../src/navegacao/menu'
 import { Icone } from '../../src/ui/icone'
 import {
-  Botao, Cartao, Etiqueta, Legenda, Respiro, Selo, Separador, Tela, TituloDaTela,
+  Aviso, Botao, Cartao, Etiqueta, Legenda, Respiro, Selo, Separador, Tela, TituloDaTela,
 } from '../../src/ui/componentes'
 import { espaco, raio, texto, tipo } from '../../src/ui/tema'
 import { useTema, type Tokens } from '../../src/ui/tema-contexto'
@@ -30,6 +30,9 @@ export default function Mais() {
   const alvo = useAlvoDePermissao()
   const { cor, uso, modo, alternar } = useTema()
   const e = useEstilos()
+  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false)
+  const [excluindo, setExcluindo] = useState(false)
+  const [erroDeExclusao, setErroDeExclusao] = useState<string | null>(null)
 
   const grupos = menuDe(alvo ?? sessao?.papel ?? 'colaborador')
 
@@ -105,6 +108,66 @@ export default function Mais() {
       <Respiro altura={espaco.m} />
       <Botao titulo="Sair da conta" onPress={() => { void sair() }} tipo="secundario" />
 
+      {/*
+        Só para colaborador — conta de painel (admin/supervisor) não tem
+        este autoatendimento, a API recusaria mesmo se a tela deixasse
+        tocar. LGPD, direito ao esquecimento, decidido com o Juan em
+        21/09/2026: apaga nome/telefone/foto, mas NUNCA o histórico de
+        ponto ou o valor a receber — isso sobrevive por obrigação
+        trabalhista, e um pagamento pendente ficaria impossível sem a
+        chave PIX.
+      */}
+      {sessao?.papel === 'colaborador' ? (
+        <>
+          <Respiro altura={espaco.g} />
+          <Separador />
+          <Text style={e.secaoRisco}>ZONA DE RISCO</Text>
+          <Respiro altura={espaco.s} />
+
+          {!confirmandoExclusao ? (
+            <Botao
+              titulo="Excluir minha conta"
+              tipo="fantasma"
+              onPress={() => setConfirmandoExclusao(true)}
+            />
+          ) : (
+            <>
+              <Aviso tipo="erro">
+                Seu nome, telefone e foto são apagados para sempre — não tem
+                como desfazer. Seus dias trabalhados e valores a receber
+                continuam guardados, para o fechamento do evento.
+              </Aviso>
+              {erroDeExclusao ? (
+                <>
+                  <Respiro altura={espaco.s} />
+                  <Aviso tipo="erro">{erroDeExclusao}</Aviso>
+                </>
+              ) : null}
+              <Respiro altura={espaco.s} />
+              <Botao
+                titulo="Confirmar exclusão"
+                ocupado={excluindo}
+                onPress={async () => {
+                  setErroDeExclusao(null)
+                  setExcluindo(true)
+                  try {
+                    const r = await cliente.excluirMinhaConta()
+                    if (r.erro) return setErroDeExclusao(r.erro)
+                    await sair()
+                  } catch (err) {
+                    setErroDeExclusao(mensagemDoErro(err))
+                  } finally {
+                    setExcluindo(false)
+                  }
+                }}
+              />
+              <Respiro altura={espaco.s} />
+              <Botao titulo="Cancelar" tipo="fantasma" onPress={() => setConfirmandoExclusao(false)} />
+            </>
+          )}
+        </>
+      ) : null}
+
       <Respiro />
       <Legenda>Credenciei · Produzimos</Legenda>
     </Tela>
@@ -164,6 +227,8 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
     iniciaisTexto: { ...texto.corpoForte, color: cor.acento700 },
     pessoaTexto: { flex: 1, minWidth: 0 },
     nome: { ...texto.tituloCartao, color: uso.tinta },
+
+    secaoRisco: { ...texto.etiqueta, color: uso.tintaFraca },
 
     linha: {
       flexDirection: 'row',
