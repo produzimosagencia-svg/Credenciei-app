@@ -23,11 +23,11 @@
 // falso e real não passa despercebida.
 
 import {
-  avaliarEntradaSaida, conferirHorariosDoEvento, diaBRT, distanciaEntreCpfs, ehMaster,
+  avaliarEntradaSaida, CAPACIDADES, chaveDaPermissao, conferirHorariosDoEvento, diaBRT, distanciaEntreCpfs, ehMaster,
   faseAtualDoQR, faseConfere, faseDoDia, formatarBR, formatCpf, gerarCodigoQR,
-  inferirMomentoDoScanner, janelaMeio, lerCodigoDeEvento, lerCodigoQR, podeAcompanhar,
-  podeEscanear, podeGerenciarEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
-  podeGerenciarVeiculos, podeBloquearCpf, TOLERANCIA_DE_CPF, abreEm, conferenciaAberta,
+  inferirMomentoDoScanner, janelaMeio, lerCodigoDeEvento, lerCodigoQR, liberacaoDoQR, PAPEIS_CONFIGURAVEIS,
+  podeAcompanhar, podeEscanear, podeGerenciarEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
+  podeGerenciarVeiculos, podeBloquearCpf, podeExcluir, podeExcluirDaEquipe, TOLERANCIA_DE_CPF, abreEm, conferenciaAberta,
   type RegistroParaInferencia,
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
@@ -37,9 +37,9 @@ import type {
   ConviteDoEvento, DadosDeNovoEvento, DiaDaParticipacao, EdicaoDoEvento, EnvioDeBatida,
   EquipeDoSetor, Eu, EventoComSetores, EventoDetalhado, EventoEscaneavel,
   FichaDaPessoa, FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao,
-  LinhaPresenca,
+  IndicadorDoPainel, LinhaPresenca,
   ListaDeAcessos, Notificacao, NovoAcesso, Painel, PainelDaEquipe,
-  PessoaDoSetor, Portaria, ResultadoDaImportacao,
+  PessoaDoSetor, Portaria, ResultadoDaImportacao, LinkCadastroIndividual,
   BaseDeFuncionarios, BuscaRegional, DadosDeNovaOrganizacao, EventoParaAtribuir,
   FichaDaPessoaNaBase, ListaDeOrganizacoes,
   Organizacao, PainelDoWhatsApp, PessoaDaBase, PessoaRegional,
@@ -47,9 +47,10 @@ import type {
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, StatusDaEtapa, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, Veiculo, VeiculosDoEvento, CpfBloqueado,
-  ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
+  ConferenciaDoSetor, LinhaConferencia, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
   DadosParaLancarPonto, BuscaDeColaboradores,
   DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte, SuporteAcesso, ConfiguracaoDoMeio,
+  ConfiguracoesDePermissao, ExcecaoDePermissao, LinhaDeAuditoria, MinhasPermissoes,
 } from './tipos.js'
 import { VISOES_DE_ATIVIDADE } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
@@ -176,6 +177,40 @@ const EVENTOS_DO_PAINEL = [
  */
 const ORGANIZACAO_DO_ADMIN_DE_MENTIRA = 'org-1'
 
+/**
+ * As exceções de "Funções ligadas" por organização — camada 2 de
+ * `capacidade()`. Nasce vazia: toda capacidade se comporta pelo padrão do
+ * código até alguém mexer na tela de Configurações.
+ */
+const PERMISSOES_ORGANIZACAO_DE_MENTIRA: ExcecaoDePermissao[] = []
+
+/**
+ * A trilha de auditoria — cópia do `alteracoes_cadastro` do site. Nasce com
+ * algumas linhas de demonstração (pra tela não abrir vazia), e ganha uma
+ * nova toda vez que uma das ações auditadas é chamada — mesma régua da API
+ * de verdade, ver `registrarAuditoria` nos dois lados.
+ */
+const AUDITORIA_DE_MENTIRA: LinhaDeAuditoria[] = [
+  {
+    id: 'aud-seed-1', quando: '2026-09-10T22:07:22-03:00', autorNome: 'Marina Alves',
+    acao: 'ALTERACAO_SUPERVISOR', campoAlterado: 'Supervisor do setor Segurança',
+    valorAnterior: null, valorNovo: 'Carlos Silva — CPF 111.222.333-44 (acesso novo)',
+    motivo: null, eventoId: 'ev-1', eventoNome: 'Henrique e Juliano - Kleber Andrade',
+  },
+  {
+    id: 'aud-seed-2', quando: '2026-09-11T09:15:00-03:00', autorNome: 'Juan Muzy',
+    acao: 'ALTERACAO_PERMISSAO', campoAlterado: 'Supervisor · Escanear QR',
+    valorAnterior: null, valorNovo: 'Liberado',
+    motivo: null, eventoId: null, eventoNome: null,
+  },
+  {
+    id: 'aud-seed-3', quando: '2026-09-12T14:32:00-03:00', autorNome: 'Marina Alves',
+    acao: 'BLOQUEIO_CPF', campoAlterado: 'CPF bloqueado',
+    valorAnterior: null, valorNovo: '999.888.777-66',
+    motivo: 'Tentou se cadastrar sem estar escalado', eventoId: 'ev-1', eventoNome: 'Henrique e Juliano - Kleber Andrade',
+  },
+]
+
 export type ContaDeDemonstracao = {
   nome: string
   papel: Papel
@@ -287,62 +322,67 @@ const ACESSOS_DE_MENTIRA: {
   papel: Papel
   ativo: boolean
   setorNome: string | null
+  telefone: string | null
   eventos: number
   criadoEm: string
   expiraEm: string | null
   /** O override da aba "Funções ligadas" — ver `Acesso.permissoesUsuario`. */
   permissoesUsuario: Record<string, boolean>
 }[] = [
-  { id: 'u-1', nome: 'Juan Muzy', identificador: 'juan@produzimos.com.br', papel: 'master', ativo: true, setorNome: null, eventos: 3, criadoEm: '2025-11-04T10:00:00-03:00', expiraEm: null, permissoesUsuario: {} },
-  { id: 'u-2', nome: 'Marina Alves', identificador: 'marina@produzimos.com.br', papel: 'admin', ativo: true, setorNome: null, eventos: 3, criadoEm: '2026-02-17T09:30:00-03:00', expiraEm: null, permissoesUsuario: {} },
-  { id: 'u-3', nome: 'Carlos Silva', identificador: 'carlos@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Produção', eventos: 1, criadoEm: '2026-06-02T14:12:00-03:00', expiraEm: null, permissoesUsuario: {} },
-  { id: 'u-4', nome: 'Débora Antunes', identificador: 'debora@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Camarim', eventos: 1, criadoEm: '2026-07-21T11:45:00-03:00', expiraEm: null, permissoesUsuario: {} },
-  { id: 'u-5', nome: 'Fábio Queiroz', identificador: 'fabio@produzimos.com.br', papel: 'supervisor', ativo: false, setorNome: 'Portaria', eventos: 2, criadoEm: '2025-12-09T16:20:00-03:00', expiraEm: null, permissoesUsuario: {} },
+  { id: 'u-1', nome: 'Juan Muzy', identificador: 'juan@produzimos.com.br', papel: 'master', ativo: true, setorNome: null, telefone: null, eventos: 3, criadoEm: '2025-11-04T10:00:00-03:00', expiraEm: null, permissoesUsuario: {} },
+  { id: 'u-2', nome: 'Marina Alves', identificador: 'marina@produzimos.com.br', papel: 'admin', ativo: true, setorNome: null, telefone: null, eventos: 3, criadoEm: '2026-02-17T09:30:00-03:00', expiraEm: null, permissoesUsuario: {} },
+  { id: 'u-3', nome: 'Carlos Silva', identificador: 'carlos@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Produção', telefone: '27999990001', eventos: 1, criadoEm: '2026-06-02T14:12:00-03:00', expiraEm: null, permissoesUsuario: {} },
+  { id: 'u-4', nome: 'Débora Antunes', identificador: 'debora@produzimos.com.br', papel: 'supervisor', ativo: true, setorNome: 'Camarim', telefone: '27999990002', eventos: 1, criadoEm: '2026-07-21T11:45:00-03:00', expiraEm: null, permissoesUsuario: {} },
+  { id: 'u-5', nome: 'Fábio Queiroz', identificador: 'fabio@produzimos.com.br', papel: 'supervisor', ativo: false, setorNome: 'Portaria', telefone: '27999990003', eventos: 2, criadoEm: '2025-12-09T16:20:00-03:00', expiraEm: null, permissoesUsuario: {} },
   {
     id: 'u-6', nome: 'Rogério Batista', identificador: 'rogerio@produzimos.com.br', papel: 'operador_portao',
-    ativo: true, setorNome: null, eventos: 1, criadoEm: '2026-08-10T09:00:00-03:00', expiraEm: null, permissoesUsuario: {},
+    ativo: true, setorNome: null, telefone: '27999990004', eventos: 1, criadoEm: '2026-08-10T09:00:00-03:00', expiraEm: null, permissoesUsuario: {},
   },
   // Com expiração de propósito: é o caso que a tela precisa saber mostrar.
   {
     id: 'u-7', nome: 'Renata Souza', identificador: 'renata@produzimos.com.br', papel: 'suporte',
-    ativo: true, setorNome: null, eventos: 1, criadoEm: '2026-09-01T10:00:00-03:00', expiraEm: '2026-09-30', permissoesUsuario: {},
+    ativo: true, setorNome: null, telefone: '27999990005', eventos: 1, criadoEm: '2026-09-01T10:00:00-03:00', expiraEm: '2026-09-30', permissoesUsuario: {},
   },
 ]
 
 /**
  * Os setores de cada evento. Todo supervisor nasce preso a um deles.
  *
- * Os números são desiguais de propósito: um setor cheio, um pela metade, um
- * vazio e um sem teto definido. Com todos iguais, a barra de progresso e o
- * estado vazio nunca apareceriam durante o desenvolvimento.
+ * Os números são desiguais de propósito: um setor cheio, um pela metade e um
+ * vazio. Com todos iguais, o estado vazio nunca apareceria durante o
+ * desenvolvimento.
  */
 const SETORES_DE_MENTIRA: Record<string, {
   setorId: string
   nome: string
   pessoas: number
-  estimado: number | null
   valorPorPessoa: number | null
   token: string
-  supervisores: { id: string; nome: string; ativo: boolean }[]
+  supervisores: {
+    id: string; nome: string; ativo: boolean; telefone: string | null
+    permissoesUsuario?: Record<string, boolean>
+  }[]
   /**
    * Pede a confirmação do meio? Nasce desligado — ver `ConfiguracaoDoMeio` e
    * `lib/meio.ts` no site: só faz sentido em equipe paga por pessoa.
    */
   exigeMeio: boolean
+  /** Falso = setor não aceita cadastro novo. Nasce ligado, como no site. */
+  linkAtivo: boolean
 }[]> = {
   'ev-1': [
-    { setorId: 's-1', nome: 'Produção', pessoas: 18, estimado: 20, valorPorPessoa: 150, token: 'f-prod-1', supervisores: [{ id: 'u-3', nome: 'Carlos Silva', ativo: true }], exigeMeio: true },
-    { setorId: 's-2', nome: 'Portaria', pessoas: 12, estimado: 12, valorPorPessoa: 140, token: 'f-port-1', supervisores: [], exigeMeio: false },
-    { setorId: 's-3', nome: 'Bar', pessoas: 7, estimado: 15, valorPorPessoa: 160, token: 'f-bar-1', supervisores: [], exigeMeio: true },
-    { setorId: 's-4', nome: 'Camarim', pessoas: 4, estimado: null, valorPorPessoa: 180, token: 'f-cam-1', supervisores: [{ id: 'u-4', nome: 'Débora Antunes', ativo: true }], exigeMeio: false },
-    { setorId: 's-5', nome: 'Limpeza', pessoas: 0, estimado: 8, valorPorPessoa: null, token: 'f-limp-1', supervisores: [], exigeMeio: false },
+    { setorId: 's-1', nome: 'Produção', pessoas: 18, valorPorPessoa: 150, token: 'f-prod-1', supervisores: [{ id: 'u-3', nome: 'Carlos Silva', ativo: true, telefone: '27999990001' }], exigeMeio: true, linkAtivo: true },
+    { setorId: 's-2', nome: 'Portaria', pessoas: 12, valorPorPessoa: 140, token: 'f-port-1', supervisores: [], exigeMeio: false, linkAtivo: true },
+    { setorId: 's-3', nome: 'Bar', pessoas: 7, valorPorPessoa: 160, token: 'f-bar-1', supervisores: [], exigeMeio: true, linkAtivo: true },
+    { setorId: 's-4', nome: 'Camarim', pessoas: 4, valorPorPessoa: 180, token: 'f-cam-1', supervisores: [{ id: 'u-4', nome: 'Débora Antunes', ativo: true, telefone: '27999990002' }], exigeMeio: false, linkAtivo: true },
+    { setorId: 's-5', nome: 'Limpeza', pessoas: 0, valorPorPessoa: null, token: 'f-limp-1', supervisores: [], exigeMeio: false, linkAtivo: true },
   ],
   'ev-2': [
-    { setorId: 's-6', nome: 'Produção', pessoas: 2, estimado: 2, valorPorPessoa: 150, token: 'f-prod-2', supervisores: [{ id: 'u-3', nome: 'Carlos Silva', ativo: true }], exigeMeio: false },
-    { setorId: 's-7', nome: 'Portaria', pessoas: 1, estimado: 1, valorPorPessoa: 140, token: 'f-port-2', supervisores: [], exigeMeio: false },
+    { setorId: 's-6', nome: 'Produção', pessoas: 2, valorPorPessoa: 150, token: 'f-prod-2', supervisores: [{ id: 'u-3', nome: 'Carlos Silva', ativo: true, telefone: '27999990001' }], exigeMeio: false, linkAtivo: true },
+    { setorId: 's-7', nome: 'Portaria', pessoas: 1, valorPorPessoa: 140, token: 'f-port-2', supervisores: [], exigeMeio: false, linkAtivo: true },
   ],
   'ev-3': [
-    { setorId: 's-8', nome: 'Produção', pessoas: 2, estimado: 2, valorPorPessoa: 150, token: 'f-prod-3', supervisores: [], exigeMeio: false },
+    { setorId: 's-8', nome: 'Produção', pessoas: 2, valorPorPessoa: 150, token: 'f-prod-3', supervisores: [], exigeMeio: false, linkAtivo: true },
   ],
 }
 
@@ -389,6 +429,13 @@ const PORTARIA_DE_MENTIRA: Record<string, { aberta: boolean; token: string | nul
   'ev-2': { aberta: false, token: null, cadastrados: 0 },
   'ev-3': { aberta: false, token: '9b1c74e2a05f4e0b8d3a6f21c7e40a55', cadastrados: 4 },
 }
+
+/**
+ * O interruptor de "Cadastro por link" do evento inteiro — separado da
+ * portaria e dos setores de propósito, mesmo raciocínio do comentário
+ * acima: mexe em coisas que sobrevivem à sessão de quem testa.
+ */
+const CADASTRO_SUSPENSO_DE_MENTIRA = new Set<string>()
 
 /** Onde o cartaz da portaria aponta. É o endereço que vai impresso. */
 const ENDERECO_DA_PORTARIA = 'https://credenciei.vercel.app/portaria'
@@ -532,6 +579,10 @@ function equipeDoSetorDeMentira(setorId: string, quantas: number): PessoaDoSetor
       statusEntrada: 'aberto' as StatusDaEtapa,
       statusMeio: 'aberto' as StatusDaEtapa,
       statusFim: 'aberto' as StatusDaEtapa,
+      // O padrão de mentira nasce sem contestação — `equipeDoSetor` sobrepõe
+      // com o estado de verdade da sessão (`this.contestacoes`), do mesmo
+      // jeito que já faz com telefone/pagamento/valor.
+      temContestacaoAberta: false,
     }
   })
 }
@@ -950,6 +1001,16 @@ export class ClienteFalso implements ClienteApi {
   private pagamentos = new Map<string, string>()
   private valores = new Map<string, number>()
   private movidos = new Map<string, string>()
+  /** participacaoId → quando foi tirada da equipe ("descredenciada"). Ausente = credenciada. */
+  private descredenciados = new Map<string, string>()
+  /** participacaoId excluído de vez — nunca mais aparece em `acharNoSetor`. */
+  private excluidosDeVez = new Set<string>()
+  /** Telefone corrigido nesta sessão — ausente usa o de mentira original. */
+  private telefones = new Map<string, string>()
+  /** participacaoId → contestações desta sessão, mais recente primeiro. */
+  private contestacoes = new Map<string, {
+    id: string; tipo: TipoBatida; dataRef: string; motivo: string; criadoEm: string; resolvida: boolean
+  }[]>()
 
   constructor(c: ComportamentoFalso = {}) {
     this.atrasoMs = c.atrasoMs ?? 0
@@ -1047,6 +1108,116 @@ export class ClienteFalso implements ClienteApi {
     }
   }
 
+  /** A da organização mescla POR CIMA da da plataforma — mesma regra do site e da API. */
+  private mapaDeExcecoes(organizacaoId: string | null): Record<string, boolean> {
+    const mapa: Record<string, boolean> = {}
+    for (const e of PERMISSOES_ORGANIZACAO_DE_MENTIRA) {
+      if (e.organizacaoId === null) mapa[chaveDaPermissao(e.papel, e.chave)] = e.permitido
+    }
+    if (organizacaoId) {
+      for (const e of PERMISSOES_ORGANIZACAO_DE_MENTIRA) {
+        if (e.organizacaoId === organizacaoId) mapa[chaveDaPermissao(e.papel, e.chave)] = e.permitido
+      }
+    }
+    return mapa
+  }
+
+  async minhasPermissoes(): Promise<MinhasPermissoes> {
+    await this.rede()
+    this.exigirSessao()
+    const meuAcesso = ACESSOS_DE_MENTIRA.find(a => a.nome === this.quemEntrou.nome)
+    return {
+      permissoesUsuario: meuAcesso?.permissoesUsuario ?? {},
+      permissoesOrganizacao: this.mapaDeExcecoes(ehMaster(this.quemEntrou.papel) ? null : ORGANIZACAO_DO_ADMIN_DE_MENTIRA),
+    }
+  }
+
+  /** Cópia do site's `registrarAuditoria` — chamado por toda ação sensível já wireada. */
+  private registrarAuditoria(entrada: {
+    acao: string
+    campoAlterado?: string | null
+    valorAnterior?: string | null
+    valorNovo?: string | null
+    motivo?: string | null
+    eventoId?: string | null
+  }) {
+    AUDITORIA_DE_MENTIRA.unshift({
+      id: `aud-${AUDITORIA_DE_MENTIRA.length + 1}`,
+      quando: new Date(this.agora()).toISOString(),
+      autorNome: this.quemEntrou.nome,
+      acao: entrada.acao,
+      campoAlterado: entrada.campoAlterado ?? null,
+      valorAnterior: entrada.valorAnterior ?? null,
+      valorNovo: entrada.valorNovo ?? null,
+      motivo: entrada.motivo ?? null,
+      eventoId: entrada.eventoId ?? null,
+      eventoNome: entrada.eventoId
+        ? (EVENTOS_DO_PAINEL.find(e => e.eventoId === entrada.eventoId)?.nome ?? null)
+        : null,
+    })
+  }
+
+  async auditoria(filtro?: { eventoId?: string; dias?: number }): Promise<LinhaDeAuditoria[]> {
+    await this.rede()
+    this.exigirSessao()
+    if (!(podeGerenciarUsuarios(this.quemEntrou.papel) || this.quemEntrou.papel === 'suporte')) {
+      throw new Error('Você não tem permissão para ver a trilha de auditoria.')
+    }
+
+    // Mesmo escopo do site: suporte só vê o que ele mesmo fez. O fake não
+    // modela organização por acesso individual (ver `ORGANIZACAO_DO_ADMIN_DE_MENTIRA`),
+    // então master/admin veem a mesma trilha inteira — a régua de organização
+    // é a mesma simplificação já assumida no resto deste cliente.
+    let linhas = this.quemEntrou.papel === 'suporte'
+      ? AUDITORIA_DE_MENTIRA.filter(a => a.autorNome === this.quemEntrou.nome)
+      : AUDITORIA_DE_MENTIRA
+
+    if (filtro?.eventoId) linhas = linhas.filter(a => a.eventoId === filtro.eventoId)
+    if (filtro?.dias !== undefined) {
+      const desde = new Date(this.agora() - filtro.dias * 24 * 60 * 60_000).toISOString()
+      linhas = linhas.filter(a => a.quando >= desde)
+    }
+    return linhas.slice(0, 200)
+  }
+
+  async permissoesDaOrganizacao(organizacaoId: string | null): Promise<ConfiguracoesDePermissao> {
+    await this.rede()
+    this.exigirSessao()
+    if (!ehMaster(this.quemEntrou.papel)) throw new Error('Só o master configura permissões.')
+    return {
+      organizacoes: ORGANIZACOES_DE_MENTIRA.map(o => ({ organizacaoId: o.organizacaoId, nome: o.nome })),
+      salvas: PERMISSOES_ORGANIZACAO_DE_MENTIRA.filter(e => e.organizacaoId === organizacaoId),
+    }
+  }
+
+  async salvarPermissaoDaOrganizacao(
+    organizacaoId: string | null, papel: Papel, chave: string, permitido: boolean | null,
+  ): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    if (!ehMaster(this.quemEntrou.papel)) return { erro: 'Só o master configura permissões.' }
+
+    if (!PAPEIS_CONFIGURAVEIS.includes(papel)) return { erro: 'Este tipo de acesso não é configurável.' }
+    if (!CAPACIDADES.some(c => c.chave === chave)) return { erro: 'Permissão desconhecida.' }
+    if (organizacaoId && !ORGANIZACOES_DE_MENTIRA.some(o => o.organizacaoId === organizacaoId)) {
+      return { erro: 'Organização não encontrada.' }
+    }
+
+    const i = PERMISSOES_ORGANIZACAO_DE_MENTIRA.findIndex(
+      e => e.organizacaoId === organizacaoId && e.papel === papel && e.chave === chave,
+    )
+    if (i >= 0) PERMISSOES_ORGANIZACAO_DE_MENTIRA.splice(i, 1)
+    if (permitido !== null) PERMISSOES_ORGANIZACAO_DE_MENTIRA.push({ organizacaoId, papel, chave, permitido })
+
+    const capacidade = CAPACIDADES.find(c => c.chave === chave)
+    this.registrarAuditoria({
+      acao: 'ALTERACAO_PERMISSAO',
+      campoAlterado: `${papel} · ${capacidade?.nome ?? chave}`,
+      valorNovo: permitido === null ? 'Voltou ao padrão do sistema' : permitido ? 'Liberado' : 'Bloqueado',
+    })
+    return {}
+  }
+
   // ── Entrar num evento ─────────────────────────────────────────────────────
 
   async consultarConvite(codigo: string) {
@@ -1137,14 +1308,20 @@ export class ClienteFalso implements ClienteApi {
       return {
         data: d.data,
         etapa: faseDoDia(d.data, diaBRT(EVENTO.dataInicio)),
+        // Nenhum dia de mentira nasce cancelado — o cenário fixo não modela isso.
+        cancelado: false,
         entrada,
+        // O cenário de mentira não distingue batida assistida da própria — sempre falso.
+        entradaAssistida: false,
         meioEsperado: janela?.inicio ?? null,
         meio,
+        meioAssistido: false,
         meioAtrasoMin:
           meio && janela && new Date(meio) > new Date(janela.fim)
             ? Math.round((Date.parse(meio) - Date.parse(janela.fim)) / 60_000)
             : null,
         saida: pega('fim'),
+        saidaAssistida: false,
         compareceu: !!entrada,
         horas: entrada && pega('fim')
           ? Math.round(((Date.parse(pega('fim')!) - Date.parse(entrada)) / 3600e3) * 100) / 100
@@ -1165,16 +1342,25 @@ export class ClienteFalso implements ClienteApi {
       valorPrevisto: trabalhados * 150,
       situacao: 'pendente',
       pagoEm: null,
+      chavePix: null,
     }
   }
 
   async meuQr(participacaoId: string) {
     await this.rede()
     this.exigirParticipacao(participacaoId)
+    const agora = new Date(this.agora())
     // `faseAtualDoQR`, não `faseDoDia` — mesmo motivo do `meuQr` da API real.
-    const etapa = faseAtualDoQR(new Date(this.agora()), EVENTO.dataInicio, EVENTO.dataFim)
+    const etapa = faseAtualDoQR(agora, EVENTO.dataInicio, EVENTO.dataFim)
     const { codigo } = gerarCodigoQR(SEGREDO_DE_MENTIRA, 'token-do-qr', etapa)
-    return { codigo, etapa }
+
+    // Mesma régua da API real — ver o comentário em `rotas/eventos.ts`.
+    const dia = DIAS.find(d => d.data === diaBRT(agora)) ?? null
+    const { liberado, liberaEm } = !dia
+      ? { liberado: true, liberaEm: null }
+      : liberacaoDoQR(EVENTO, { tipo: dia.tipo, cancelado: false }, agora)
+
+    return { codigo, etapa, liberado, liberaEm }
   }
 
   // ── Bater ponto ───────────────────────────────────────────────────────────
@@ -1280,6 +1466,25 @@ export class ClienteFalso implements ClienteApi {
     return { situacao: 'registrado', em: registradoEm }
   }
 
+  async contestarBatida(
+    participacaoId: string, tipo: TipoBatida, dataRef: string, motivo: string,
+  ): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirParticipacao(participacaoId)
+
+    if (!(motivo ?? '').trim()) return { erro: 'Escreva o que está errado — sem isso, quem for resolver não sabe por onde começar.' }
+
+    const lista = this.contestacoes.get(participacaoId) ?? []
+    lista.unshift({
+      id: `cont-${participacaoId}-${lista.length}`,
+      tipo, dataRef, motivo: motivo.trim(),
+      criadoEm: new Date(this.agora()).toISOString(),
+      resolvida: false,
+    })
+    this.contestacoes.set(participacaoId, lista)
+    return {}
+  }
+
   /** Monta a sessão inteira e reinicia o giro do token longo. */
   private abrirSessao(papel: Papel): Sessao {
     this.renovacaoValida = 'renovacao-de-mentira'
@@ -1329,41 +1534,79 @@ export class ClienteFalso implements ClienteApi {
     const equipe = meus.reduce((a, e) => a + e.equipe, 0)
     const presentes = meus.reduce((a, e) => a + e.presentes, 0)
 
+    /*
+     * O master vê OUTRA pergunta — "como vai o negócio", não "como está o
+     * evento agora". Mesma régua da API de verdade, ver `rotas/painel.ts`.
+     */
+    const indicadores: IndicadorDoPainel[] = ehMaster(papel)
+      ? [
+          {
+            chave: 'eventos_ativos',
+            rotulo: 'Eventos ativos',
+            valor: meus.length,
+            sub: `de ${meus.length} no total`,
+            tom: 'acento',
+          },
+          {
+            chave: 'funcionarios_na_base',
+            rotulo: 'Funcionários na base',
+            valor: BASE_DE_MENTIRA.length,
+            sub: 'pessoas distintas, por CPF',
+            tom: 'sucesso',
+          },
+          {
+            chave: 'valor_cobrado',
+            rotulo: 'Valor cobrado nos eventos',
+            valor: 'R$ 3.150,00',
+            sub: 'combinado com a equipe, nos eventos ativos',
+            tom: 'aviso',
+          },
+          {
+            chave: 'custo_whatsapp',
+            rotulo: 'Custo de disparo (WhatsApp)',
+            valor: 'R$ 168,07',
+            sub: 'últimos 30 dias',
+            tom: 'info',
+          },
+        ]
+      : [
+          {
+            chave: 'eventos_ativos',
+            rotulo: 'Eventos ativos',
+            valor: meus.length,
+            sub: `de ${meus.length} no total`,
+            tom: 'acento',
+          },
+          {
+            chave: 'presentes',
+            rotulo: 'Presentes agora',
+            valor: presentes,
+            sub: equipe ? `de ${equipe} na equipe` : 'equipe não cadastrada',
+            tom: 'sucesso',
+          },
+          {
+            chave: 'nao_chegaram',
+            rotulo: 'Ainda não chegaram',
+            valor: Math.max(0, equipe - presentes),
+            tom: 'aviso',
+          },
+          {
+            chave: 'batidas',
+            rotulo: 'Batidas na janela',
+            valor: this.batidas.length,
+            sub: 'entrada, meio e saída',
+            tom: 'info',
+          },
+        ]
+
     return {
       data: new Date(this.agora()).toISOString(),
-      indicadores: [
-        {
-          chave: 'eventos_ativos',
-          rotulo: 'Eventos ativos',
-          valor: meus.length,
-          sub: `de ${meus.length} no total`,
-          tom: 'acento',
-        },
-        {
-          chave: 'presentes',
-          rotulo: 'Presentes agora',
-          valor: presentes,
-          sub: equipe ? `de ${equipe} na equipe` : 'equipe não cadastrada',
-          tom: 'sucesso',
-        },
-        {
-          chave: 'nao_chegaram',
-          rotulo: 'Ainda não chegaram',
-          valor: Math.max(0, equipe - presentes),
-          tom: 'aviso',
-        },
-        {
-          chave: 'batidas',
-          rotulo: 'Batidas na janela',
-          valor: this.batidas.length,
-          sub: 'entrada, meio e saída',
-          tom: 'info',
-        },
-      ],
+      indicadores,
       eventos: meus,
       atividade: ATIVIDADE_DE_MENTIRA,
       legendaDaJanela:
         'Henrique e Juliano - Kleber Andrade · das 07:00 de 05/09/2026 às 08:00 de 06/09/2026',
+      batidasNaJanela: this.batidas.length,
     }
   }
 
@@ -1456,6 +1699,11 @@ export class ClienteFalso implements ClienteApi {
       const i = lista.findIndex(r => r.id === decisao.reabrir.registroId)
       if (i >= 0) lista.splice(i, 1)
       this.etapasDe(pessoa.id).delete('fim')
+      this.registrarAuditoria({
+        acao: 'REABERTURA_TURNO', campoAlterado: `Turno de ${pessoa.nome}`,
+        valorAnterior: `Saída às ${formatarBR(decisao.reabrir.em, 'hora')}`, valorNovo: 'Desfeita — turno reaberto',
+        eventoId,
+      })
       return {
         situacao: 'reaberto',
         pessoa: resumo,
@@ -1620,6 +1868,16 @@ export class ClienteFalso implements ClienteApi {
      * correção, não duplicata.
      */
     this.etapasDe(pessoa.id).set(dados.tipo, new Date(this.agora()).toISOString())
+
+    // Entrada/saída ganham ação própria; "meio" reaproveita CORRECAO_PONTO —
+    // mesma régua da API de verdade.
+    const ACAO_POR_ETAPA: Record<TipoBatida, string> = {
+      entrada: 'REGISTRO_ENTRADA_ASSISTIDA', fim: 'REGISTRO_SAIDA_ASSISTIDA', meio: 'CORRECAO_PONTO',
+    }
+    this.registrarAuditoria({
+      acao: ACAO_POR_ETAPA[dados.tipo], campoAlterado: `${ROTULO_DA_ETAPA[dados.tipo]} de ${pessoa.nome}`,
+      valorNovo: new Date(this.agora()).toISOString(),
+    })
     return { nome: pessoa.nome, etapa: ROTULO_DA_ETAPA[dados.tipo] }
   }
 
@@ -1694,6 +1952,15 @@ export class ClienteFalso implements ClienteApi {
       throw new Error(`Você não tem permissão para ${oQue}.`)
     }
   }
+
+  /**
+   * Mutações do financeiro/situação da equipe — mesma régua da API de
+   * verdade (`podeMexerNaEquipe`, em `rotas/ficha-da-pessoa.ts`): supervisor
+   * do próprio setor, ou quem gerencia eventos da organização. Diferente de
+   * `moverDeSetor`, que fica só em `podeGerenciarEventos` de propósito (ver
+   * "Limitações conhecidas" no CLAUDE.md).
+   */
+  private podeMexerNaEquipe = (papel?: string) => podeGerenciarEventos(papel) || papel === 'supervisor'
 
   // ── Atividades do evento ──────────────────────────────────────────────────
 
@@ -1924,7 +2191,7 @@ export class ClienteFalso implements ClienteApi {
 
   // ── O evento por dentro ───────────────────────────────────────────────────
 
-  async evento(eventoId: string): Promise<EventoDetalhado> {
+  async evento(eventoId: string, dia?: string): Promise<EventoDetalhado> {
     await this.rede()
     this.exigirSessao()
     this.exigirPoder(podeGerenciarEventos, 'abrir a configuração do evento')
@@ -1936,17 +2203,21 @@ export class ClienteFalso implements ClienteApi {
     const totalPessoas = setores.reduce((a, s) => a + s.pessoas, 0)
 
     /*
-     * O progresso conta PESSOAS, não batidas.
-     *
-     * Quem bateu entrada duas vezes continua sendo uma pessoa que entrou. A
-     * pergunta da tela é "quantos dos 109 já passaram por cada etapa", e ela só
-     * faz sentido contando gente.
+     * O servidor de mentira não guarda batida por DIA (`batidasDaEquipe` é um
+     * total só, sem data) — os números abaixo não mudam ao trocar de dia,
+     * diferente da API de verdade. Suficiente pra navegar a tela; a conta
+     * certa é testada contra `RepositorioEmMemoria`, não aqui.
      */
+    const diasDaOperacao = eventoId === 'ev-1' ? DIAS.map(d => d.data) : [base.dataInicio]
+    const diaEscolhido = dia && diasDaOperacao.includes(dia) ? dia : diasDaOperacao[diasDaOperacao.length - 1]!
+
     const porEtapa = (etapa: TipoBatida) =>
       [...this.batidasDaEquipe.values()].filter(e => e.has(etapa)).length
 
     const entraram = porEtapa('entrada')
     const sairam = porEtapa('fim')
+    const meio = porEtapa('meio')
+    const pct = (v: number) => (totalPessoas > 0 ? Math.round((v / totalPessoas) * 100) : 0)
 
     return {
       eventoId: base.eventoId,
@@ -1956,30 +2227,74 @@ export class ClienteFalso implements ClienteApi {
       dataInicio: base.dataInicio,
       dataFim: null,
       diasDePreparacao: eventoId === 'ev-1' ? DIAS.filter(d => d.tipo === 'preparacao').length : 0,
+      diasDaOperacao,
+      diaEscolhido,
       indicadores: [
-        { chave: 'setores', rotulo: 'Setores', valor: setores.length, tom: 'acento' },
-        { chave: 'funcionarios', rotulo: 'Funcionários', valor: totalPessoas, tom: 'info' },
+        { chave: 'funcionarios_do_evento', rotulo: 'Funcionários do evento', valor: totalPessoas, tom: 'acento' },
+        { chave: 'presentes_no_momento', rotulo: 'Presentes no momento', valor: Math.max(0, entraram - sairam), tom: 'sucesso' },
         {
-          chave: 'presentes',
-          rotulo: 'Presentes agora',
-          valor: Math.max(0, entraram - sairam),
-          tom: 'sucesso',
+          chave: 'entradas_hoje', rotulo: 'Entradas hoje', valor: `${entraram}/${totalPessoas}`,
+          sub: `${pct(entraram)}% da equipe`, tom: 'acento',
         },
         {
-          chave: 'nao_chegaram',
-          rotulo: 'Ainda não chegaram',
-          valor: Math.max(0, totalPessoas - entraram),
-          tom: 'aviso',
+          chave: 'batida_do_meio_hoje', rotulo: 'Batida do meio hoje', valor: `${meio}/${totalPessoas}`,
+          sub: `${pct(meio)}% da equipe`, tom: 'info',
         },
-      ],
-      progresso: [
-        { etapa: 'entrada', feitos: entraram, total: totalPessoas },
-        { etapa: 'meio', feitos: porEtapa('meio'), total: totalPessoas },
-        { etapa: 'fim', feitos: sairam, total: totalPessoas },
+        {
+          chave: 'saidas_hoje', rotulo: 'Saídas hoje', valor: `${sairam}/${totalPessoas}`,
+          sub: `${pct(sairam)}% da equipe`, tom: 'aviso',
+        },
       ],
       portaria: this.portariaDe(eventoId),
+      cadastroSuspenso: CADASTRO_SUSPENSO_DE_MENTIRA.has(eventoId),
       setores,
       totalPessoas,
+    }
+  }
+
+  async alternarCadastroPorLink(eventoId: string, suspenso: boolean): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'suspender o cadastro por link')
+
+    const base = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+    if (!base) return { erro: 'Não encontramos este evento.' }
+
+    if (suspenso) CADASTRO_SUSPENSO_DE_MENTIRA.add(eventoId)
+    else CADASTRO_SUSPENSO_DE_MENTIRA.delete(eventoId)
+    return {}
+  }
+
+  async criarLinkCadastroIndividual(
+    eventoId: string, setorId: string,
+  ): Promise<{ resultado?: LinkCadastroIndividual; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    if (!ehMaster(this.sessao?.papel)) {
+      throw new Error('Só o acesso master pode reabrir um cadastro individual.')
+    }
+
+    const base = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+    if (!base) throw new Error('Não encontramos este evento.')
+
+    const setor = (SETORES_DE_MENTIRA[eventoId] ?? []).find(s => s.setorId === setorId)
+    if (!setor) return { erro: 'Setor não encontrado neste evento.' }
+
+    const token = Math.random().toString(36).slice(2)
+    const expiraEm = new Date(this.agora() + 48 * 60 * 60 * 1000).toISOString()
+
+    this.registrarAuditoria({
+      acao: 'REABERTURA_CADASTRO_INDIVIDUAL', campoAlterado: `Cadastro individual — ${setor.nome}`,
+      valorNovo: 'Reaberto por 48h', eventoId,
+    })
+
+    return {
+      resultado: {
+        link: `${ENDERECO_DO_FORMULARIO}/${setor.token}?individual=${encodeURIComponent(token)}`,
+        expiraEm,
+        setorNome: setor.nome,
+        eventoNome: base.nome,
+      },
     }
   }
 
@@ -2020,7 +2335,6 @@ export class ClienteFalso implements ClienteApi {
     eventoId: string,
     dados: {
       nome: string
-      estimado?: number | null
       valorPorPessoa?: number | null
       supervisor: { nome: string; cpf: string; telefone: string }
       exigeMeio?: boolean
@@ -2065,6 +2379,7 @@ export class ClienteFalso implements ClienteApi {
       papel: 'supervisor' as const,
       ativo: true,
       setorNome: nome,
+      telefone: supTelefone,
       eventos: 1,
       criadoEm: new Date(this.agora()).toISOString(),
       expiraEm: null,
@@ -2077,14 +2392,136 @@ export class ClienteFalso implements ClienteApi {
       setorId: `s-${Math.random().toString(16).slice(2, 8)}`,
       nome,
       pessoas: 0,
-      estimado: dados.estimado ?? null,
       valorPorPessoa: dados.valorPorPessoa ?? null,
       token: `f-${Math.random().toString(16).slice(2, 8)}`,
-      supervisores: [{ id: supervisor.id, nome: supervisor.nome, ativo: supervisor.ativo }],
+      supervisores: [{ id: supervisor.id, nome: supervisor.nome, ativo: supervisor.ativo, telefone: supTelefone }],
       exigeMeio: dados.exigeMeio === true,
+      linkAtivo: true,
     }
     lista.push(novo)
     return { setor: this.paraSetor(novo) }
+  }
+
+  private acharSetor(setorId: string): (typeof SETORES_DE_MENTIRA)[string][number] | null {
+    for (const setores of Object.values(SETORES_DE_MENTIRA)) {
+      const setor = setores.find(x => x.setorId === setorId)
+      if (setor) return setor
+    }
+    return null
+  }
+
+  async editarSetor(
+    setorId: string,
+    dados: { nome: string; valorPorPessoa?: number | null; exigeMeio?: boolean },
+  ): Promise<{ setor?: SetorDetalhado; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'editar setor')
+
+    const nome = (dados.nome ?? '').trim()
+    if (nome.length < 2) return { erro: 'Dê um nome ao setor.' }
+
+    const setor = this.acharSetor(setorId)
+    if (!setor) return { erro: 'Não encontramos este setor.' }
+
+    setor.nome = nome
+    setor.valorPorPessoa = dados.valorPorPessoa ?? null
+    setor.exigeMeio = dados.exigeMeio === true
+    return { setor: this.paraSetor(setor) }
+  }
+
+  async alternarLinkDoSetor(setorId: string, ativo: boolean): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'ligar/desligar o link deste setor')
+
+    const setor = this.acharSetor(setorId)
+    if (!setor) return { erro: 'Não encontramos este setor.' }
+    setor.linkAtivo = ativo
+    return {}
+  }
+
+  async excluirSetor(setorId: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'excluir setor')
+    if (!podeExcluir(this.quemEntrou.papel)) {
+      return { erro: 'Apenas o master pode excluir. Você pode desativar, que é reversível.' }
+    }
+
+    const setor = this.acharSetor(setorId)
+    if (!setor) return { erro: 'Não encontramos este setor.' }
+    if (setor.supervisores.length > 0) {
+      return { erro: 'Este setor tem supervisores vinculados. Exclua ou realoque os supervisores antes de excluir o setor.' }
+    }
+
+    for (const lista of Object.values(SETORES_DE_MENTIRA)) {
+      const indice = lista.findIndex(x => x.setorId === setorId)
+      if (indice !== -1) { lista.splice(indice, 1); break }
+    }
+    return {}
+  }
+
+  /**
+   * Adiciona um supervisor a um setor que já existe — mesma regra de CPF do
+   * `criarSetor` (reaproveita login se a pessoa já supervisiona algo em
+   * outro lugar), sem criar setor nenhum.
+   */
+  async adicionarSupervisor(
+    setorId: string, dados: { nome: string; cpf: string; telefone: string },
+  ): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarEventos, 'adicionar supervisor')
+
+    const setor = this.acharSetor(setorId)
+    if (!setor) return { erro: 'Não encontramos este setor.' }
+
+    const nome = (dados.nome ?? '').trim()
+    const cpf = (dados.cpf ?? '').replace(/\D/g, '')
+    const telefone = (dados.telefone ?? '').replace(/\D/g, '')
+    if (nome.length < 3) return { erro: 'Digite o nome completo do supervisor.' }
+    if (cpf.length !== 11) return { erro: 'O CPF do supervisor precisa ter 11 dígitos.' }
+    if (telefone.length < 10) return { erro: 'Digite o WhatsApp do supervisor, com DDD.' }
+
+    const existente = ACESSOS_DE_MENTIRA.find(
+      a => a.papel === 'supervisor' && a.identificador.replace(/\D/g, '') === cpf,
+    )
+    if (existente) {
+      existente.setorNome = setor.nome
+      if (!setor.supervisores.some(s => s.id === existente.id)) {
+        setor.supervisores.push({ id: existente.id, nome: existente.nome, ativo: existente.ativo, telefone })
+      }
+      // Sem `eventoId` aqui — `acharSetor` não devolve de qual evento é o
+      // setor, e o fake não tem uma busca reversa pronta pra isto.
+      this.registrarAuditoria({
+        acao: 'ALTERACAO_SUPERVISOR', campoAlterado: `Supervisor do setor ${setor.nome}`,
+        valorNovo: `${nome} — CPF ${formatCpf(cpf)} (já era supervisor, ganhou mais este setor)`,
+      })
+      return {}
+    }
+
+    const novo = {
+      id: `u-${ACESSOS_DE_MENTIRA.length + 1}`,
+      nome,
+      identificador: formatCpf(cpf),
+      papel: 'supervisor' as const,
+      ativo: true,
+      setorNome: setor.nome,
+      telefone,
+      eventos: 1,
+      criadoEm: new Date(this.agora()).toISOString(),
+      expiraEm: null,
+      souEu: false,
+      permissoesUsuario: {},
+    }
+    ACESSOS_DE_MENTIRA.push(novo)
+    setor.supervisores.push({ id: novo.id, nome, ativo: true, telefone })
+    this.registrarAuditoria({
+      acao: 'ALTERACAO_SUPERVISOR', campoAlterado: `Supervisor do setor ${setor.nome}`,
+      valorNovo: `${nome} — CPF ${formatCpf(cpf)} (acesso novo)`,
+    })
+    return {}
   }
 
   /**
@@ -2239,6 +2676,7 @@ export class ClienteFalso implements ClienteApi {
 
     const diaPrincipal = diaBRT(base.dataInicio)
     const pedidos = new Set(dias.filter(d => d !== diaPrincipal))
+    const requisitados = pedidos.size
 
     /*
      * Dia com batida é PRESERVADO mesmo vindo desmarcado.
@@ -2252,8 +2690,10 @@ export class ClienteFalso implements ClienteApi {
     for (const d of preservados) pedidos.add(d)
 
     cfg.preparacao = [...pedidos].sort()
+    // "dias" é só o que foi PEDIDO, nunca a contagem final (que já inclui os
+    // preservados) — mesma régua da API real, ver `configurar-evento.ts`.
     const resultado: ResultadoDosDias = {
-      dias: cfg.preparacao.length,
+      dias: requisitados,
       preservados: preservados.length,
     }
     return { resultado }
@@ -2273,9 +2713,10 @@ export class ClienteFalso implements ClienteApi {
       setorId: s.setorId,
       nome: s.nome,
       pessoas: s.pessoas,
-      estimado: s.estimado,
       valorPorPessoa: s.valorPorPessoa,
       linkDoFormulario: `${ENDERECO_DO_FORMULARIO}/${s.token}`,
+      linkAtivo: s.linkAtivo,
+      exigeMeio: s.exigeMeio,
       supervisores: s.supervisores,
     }
   }
@@ -2296,11 +2737,13 @@ export class ClienteFalso implements ClienteApi {
     const pessoas = equipeDoSetorDeMentira(setorId, achado.setor.pessoas).map(p => ({
       ...p,
       valorReceber: achado.setor.valorPorPessoa ?? 0,
+      temContestacaoAberta: (this.contestacoes.get(p.participacaoId) ?? []).some(c => !c.resolvida),
     }))
 
     const contar = (campo: 'entrada' | 'meio' | 'fim') => pessoas.filter(p => p[campo]).length
     const comPendencia = pessoas.filter(
-      p => p.statusEntrada === 'fechado' || p.statusMeio === 'fechado' || p.statusFim === 'fechado',
+      p => p.statusEntrada === 'fechado' || p.statusMeio === 'fechado' || p.statusFim === 'fechado'
+        || p.temContestacaoAberta,
     ).length
     const aReceber = pessoas.reduce((a, p) => a + p.valorReceber, 0)
 
@@ -2349,11 +2792,15 @@ export class ClienteFalso implements ClienteApi {
     const dias: DiaDaParticipacao[] = datas.map(data => ({
       data,
       etapa: faseDoDia(data, diaPrincipal),
+      cancelado: false,
       entrada: null,
+      entradaAssistida: false,
       meioEsperado: null,
       meio: null,
+      meioAssistido: false,
       meioAtrasoMin: null,
       saida: null,
+      saidaAssistida: false,
       compareceu: false,
       horas: null,
       meioExigido: setor.exigeMeio && !semMeio.has(data),
@@ -2363,7 +2810,7 @@ export class ClienteFalso implements ClienteApi {
       participacaoId,
       nome: pessoa.nome,
       cpf: pessoa.cpf,
-      telefone: pessoa.telefone,
+      telefone: this.telefones.get(participacaoId) ?? pessoa.telefone,
       fotoUrl: pessoa.fotoUrl,
       empresa: pessoa.empresa,
       funcao: pessoa.funcao,
@@ -2371,6 +2818,7 @@ export class ClienteFalso implements ClienteApi {
       setorId: setor.setorId,
       setorNome: setor.nome,
       ativo: pessoa.ativo,
+      descredenciadoEm: this.descredenciados.get(participacaoId) ?? null,
       valorReceber: this.valores.get(participacaoId) ?? pessoa.valorReceber,
       pago: this.pagamentos.has(participacaoId),
       pagoEm: this.pagamentos.get(participacaoId) ?? null,
@@ -2382,7 +2830,89 @@ export class ClienteFalso implements ClienteApi {
         .map(x => ({ setorId: x.setorId, nome: x.nome })),
       podeMover: podeGerenciarEventos(this.sessao?.papel),
       podeTornarSupervisor: podeGerenciarUsuarios(this.sessao?.papel),
+      podeExcluirDaEquipe: podeExcluirDaEquipe(this.sessao?.papel),
+      podeCorrigirTelefone: this.podeMexerNaEquipe(this.sessao?.papel),
+      contestacoesAbertas: (this.contestacoes.get(participacaoId) ?? [])
+        .filter(c => !c.resolvida)
+        .map(({ id, tipo, dataRef, motivo, criadoEm }) => ({ id, tipo, dataRef, motivo, criadoEm })),
     }
+  }
+
+  /** "Tirar da equipe" — descredencia, sem apagar nada. Reversível por `trazerDeVolta`. */
+  async tirarDaEquipe(participacaoId: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(this.podeMexerNaEquipe, 'mexer na equipe')
+
+    if (!this.acharNoSetor(participacaoId)) return { erro: 'Não encontramos esta pessoa.' }
+    if (!this.descredenciados.has(participacaoId)) {
+      this.descredenciados.set(participacaoId, new Date(this.agora()).toISOString())
+    }
+    return {}
+  }
+
+  /** Desfaz um "tirar da equipe". */
+  async trazerDeVolta(participacaoId: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(this.podeMexerNaEquipe, 'mexer na equipe')
+
+    if (!this.acharNoSetor(participacaoId)) return { erro: 'Não encontramos esta pessoa.' }
+    this.descredenciados.delete(participacaoId)
+    return {}
+  }
+
+  /** Exclui de vez — cadastro e batidas, sem volta. */
+  async excluirDaEquipe(participacaoId: string, _motivo?: string): Promise<{ erro?: string }> {
+    void _motivo
+    await this.rede()
+    this.exigirSessao()
+    if (!podeExcluirDaEquipe(this.sessao?.papel)) {
+      return { erro: 'Você não pode excluir. Use "Tirar da equipe", que preserva o histórico.' }
+    }
+
+    const achado = this.acharNoSetor(participacaoId)
+    if (!achado) return { erro: 'Não encontramos esta pessoa.' }
+    achado.setor.pessoas = Math.max(0, achado.setor.pessoas - 1)
+    this.excluidosDeVez.add(participacaoId)
+    return {}
+  }
+
+  /** Corrige o telefone vinculado a esta participação. */
+  async corrigirTelefone(participacaoId: string, telefone: string, _motivo?: string): Promise<{ erro?: string }> {
+    void _motivo
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(this.podeMexerNaEquipe, 'mexer na equipe')
+
+    if (!this.acharNoSetor(participacaoId)) return { erro: 'Não encontramos esta pessoa.' }
+    const novo = (telefone ?? '').replace(/\D/g, '')
+    if (novo.length < 10 || novo.length > 13) {
+      return { erro: 'Telefone inválido. Informe com DDD — ex.: (27) 99999-9999.' }
+    }
+    this.telefones.set(participacaoId, novo)
+    return {}
+  }
+
+  async resolverContestacao(id: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    /*
+     * Sem `exigirPoder` (que lança) de propósito: a API de verdade devolve
+     * `{ erro }` pra permissão negada aqui — quem busca a contestação
+     * primeiro (`contestacaoPorId`) já sabe o dono antes de checar
+     * `podeMexerNaEquipe`, então nunca precisa de uma exceção pra isso. Ver
+     * `resolverContestacao` em `apps/api/src/rotas/ficha-da-pessoa.ts`.
+     */
+    if (!this.podeMexerNaEquipe(this.sessao?.papel)) {
+      return { erro: 'Você não tem permissão para resolver esta contestação.' }
+    }
+
+    for (const lista of this.contestacoes.values()) {
+      const alvo = lista.find(c => c.id === id)
+      if (alvo) { alvo.resolvida = true; return {} }
+    }
+    return { erro: 'Não encontramos esta contestação.' }
   }
 
   async moverDeSetor(participacaoId: string, setorId: string) {
@@ -2422,6 +2952,7 @@ export class ClienteFalso implements ClienteApi {
       id: `u-${achado.pessoa.participacaoId}`,
       nome: achado.pessoa.nome,
       ativo: true,
+      telefone: telefone.replace(/\D/g, ''),
     })
     return {}
   }
@@ -2429,7 +2960,7 @@ export class ClienteFalso implements ClienteApi {
   async marcarPagamento(participacaoId: string, pago: boolean) {
     await this.rede()
     this.exigirSessao()
-    this.exigirPoder(podeGerenciarEventos, 'mexer no pagamento')
+    this.exigirPoder(this.podeMexerNaEquipe, 'mexer no pagamento')
 
     if (!this.acharNoSetor(participacaoId)) return { erro: 'Não encontramos esta pessoa.' }
     // Desfazer é tão necessário quanto marcar: marcar errado acontece, e sem o
@@ -2442,7 +2973,7 @@ export class ClienteFalso implements ClienteApi {
   async salvarValorAReceber(participacaoId: string, valor: number) {
     await this.rede()
     this.exigirSessao()
-    this.exigirPoder(podeGerenciarEventos, 'mexer no valor')
+    this.exigirPoder(this.podeMexerNaEquipe, 'mexer no valor')
 
     if (!this.acharNoSetor(participacaoId)) return { erro: 'Não encontramos esta pessoa.' }
     if (!Number.isFinite(valor) || valor < 0) return { erro: 'O valor precisa ser zero ou mais.' }
@@ -2451,8 +2982,9 @@ export class ClienteFalso implements ClienteApi {
     return {}
   }
 
-  /** Acha a pessoa em qualquer setor de qualquer evento. */
+  /** Acha a pessoa em qualquer setor de qualquer evento — nunca quem já foi excluído de vez. */
   private acharNoSetor(participacaoId: string) {
+    if (this.excluidosDeVez.has(participacaoId)) return null
     for (const [eventoId, setores] of Object.entries(SETORES_DE_MENTIRA)) {
       for (const setor of setores) {
         const equipe = equipeDoSetorDeMentira(setor.setorId, setor.pessoas)
@@ -2565,6 +3097,93 @@ export class ClienteFalso implements ClienteApi {
     }
 
     alvo.ativo = ativo
+    this.registrarAuditoria({
+      acao: 'ALTERACAO_SUPERVISOR', campoAlterado: `Status do acesso de ${alvo.nome}`,
+      valorNovo: ativo ? 'Ativo' : 'Inativo',
+    })
+    return {}
+  }
+
+  async trocarSenhaDoAcesso(id: string, novaSenha: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarUsuarios, 'trocar senhas')
+
+    const eu = ACESSOS_DE_MENTIRA.find(a => a.nome === this.quemEntrou.nome)
+    if (id === eu?.id) return { erro: 'Para trocar a própria senha, use as configurações da conta.' }
+    if (!novaSenha || novaSenha.length < 6) return { erro: 'A senha precisa ter ao menos 6 caracteres.' }
+
+    const alvo = ACESSOS_DE_MENTIRA.find(a => a.id === id)
+    if (!alvo || !this.acessosNoAlcance(alvo) || (!ehMaster(this.quemEntrou.papel) && alvo.papel === 'master')) {
+      return { erro: 'Não encontramos este acesso.' }
+    }
+
+    this.registrarAuditoria({ acao: 'RESET_SENHA', campoAlterado: `Senha de ${alvo.nome}` })
+    return {}
+  }
+
+  /**
+   * Muda nome, telefone e situação de um acesso já existente — sem CPF nem
+   * senha, que têm caminho próprio (`trocarSenhaDoAcesso`; o CPF não muda).
+   */
+  async editarSupervisor(
+    id: string,
+    dados: { nome: string; telefone: string; ativo: boolean; permissoesUsuario?: Record<string, boolean> },
+  ): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarUsuarios, 'editar supervisor')
+
+    const alvo = ACESSOS_DE_MENTIRA.find(a => a.id === id)
+    if (!alvo || !this.acessosNoAlcance(alvo)) return { erro: 'Não encontramos este acesso.' }
+
+    const nome = (dados.nome ?? '').trim()
+    const telefone = (dados.telefone ?? '').replace(/\D/g, '')
+    if (nome.length < 3) return { erro: 'Digite o nome completo da pessoa.' }
+    if (telefone.length < 10 || telefone.length > 13) {
+      return { erro: 'Informe um telefone válido para enviar o acesso pelo WhatsApp.' }
+    }
+
+    alvo.nome = nome
+    alvo.ativo = dados.ativo === true
+    alvo.telefone = telefone
+    // Omitir mantém o que já estava — outra tela pode ter decidido antes.
+    if (dados.permissoesUsuario !== undefined) alvo.permissoesUsuario = dados.permissoesUsuario
+
+    for (const setores of Object.values(SETORES_DE_MENTIRA)) {
+      for (const s of setores) {
+        const sup = s.supervisores.find(x => x.id === id)
+        if (sup) {
+          sup.nome = nome
+          sup.ativo = dados.ativo === true
+          sup.telefone = telefone
+          if (dados.permissoesUsuario !== undefined) sup.permissoesUsuario = dados.permissoesUsuario
+        }
+      }
+    }
+    this.registrarAuditoria({ acao: 'ALTERACAO_SUPERVISOR', campoAlterado: `Dados de ${alvo.nome}`, valorNovo: nome })
+    return {}
+  }
+
+  async excluirAcesso(id: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    // Quem não gerencia usuários (supervisor, colaborador) nem abre esta
+    // tela — isso é permissão de verdade, e lança. Quem gerencia mas não é
+    // master (admin) PODE estar aqui, só não pode apagar — por isso é
+    // resposta, não exceção, igual à API de verdade.
+    this.exigirPoder(podeGerenciarUsuarios, 'excluir acessos')
+    if (!podeExcluir(this.quemEntrou.papel)) {
+      return { erro: 'Só o master exclui acessos. Você pode desativar, que bloqueia o login sem perder o histórico.' }
+    }
+
+    const eu = ACESSOS_DE_MENTIRA.find(a => a.nome === this.quemEntrou.nome)
+    if (id === eu?.id) return { erro: 'Você não pode excluir o próprio acesso.' }
+
+    const indice = ACESSOS_DE_MENTIRA.findIndex(a => a.id === id)
+    if (indice === -1) return { erro: 'Não encontramos este acesso.' }
+
+    ACESSOS_DE_MENTIRA.splice(indice, 1)
     return {}
   }
 
@@ -2583,14 +3202,81 @@ export class ClienteFalso implements ClienteApi {
     }))
   }
 
+  async operadoresDoEvento(eventoId: string): Promise<Acesso[]> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarUsuarios, 'ver os operadores de portão')
+
+    const base = EVENTOS_DO_PAINEL.find(e => e.eventoId === eventoId)
+    if (!base) throw new Error('Não encontramos este evento.')
+
+    const eu = ACESSOS_DE_MENTIRA.find(a => a.nome === this.quemEntrou.nome)
+    return ACESSOS_DE_MENTIRA
+      .filter(a => a.papel === 'operador_portao')
+      .map(a => ({ ...a, souEu: a.id === eu?.id }))
+  }
+
   async criarAcesso(dados: NovoAcesso) {
     await this.rede()
     this.exigirSessao()
     this.exigirPoder(podeGerenciarUsuarios, 'criar acessos')
 
+    const funcao = dados.funcao ?? 'supervisor'
+
+    /*
+     * Admin é preso à ORGANIZAÇÃO, não a um evento — entra por e-mail e
+     * senha, nunca por CPF. Master escolhe a organização; o admin só
+     * adiciona outro admin na própria (mesma régua de `adicionarAdmin` no
+     * site — trazido em 12/09/2026).
+     */
+    if (funcao === 'admin') {
+      const nomeAdmin = (dados.nome ?? '').trim()
+      const email = (dados.email ?? '').trim().toLowerCase()
+      const senha = (dados.senha ?? '').trim()
+
+      if (nomeAdmin.length < 3) return { erro: 'Digite o nome completo da pessoa.' }
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        return { erro: 'Informe um e-mail válido — é por ele que o admin entra.' }
+      }
+      if (senha.length < 6) return { erro: 'A senha precisa ter ao menos 6 caracteres.' }
+
+      // Uma organização só, no cenário de mentira — quem não é master cai
+      // sempre nela, igual a `acessosNoAlcance`.
+      const organizacaoId = ehMaster(this.sessao?.papel)
+        ? (dados.organizacaoId ?? '')
+        : ORGANIZACOES_DE_MENTIRA[0]?.organizacaoId ?? ''
+      if (!organizacaoId) return { erro: 'Escolha a organização deste admin.' }
+      if (!ORGANIZACOES_DE_MENTIRA.some(o => o.organizacaoId === organizacaoId)) {
+        return { erro: 'Organização não encontrada.' }
+      }
+      if (ACESSOS_DE_MENTIRA.some(a => a.identificador.toLowerCase() === email)) {
+        return { erro: 'Já existe um acesso com este e-mail.' }
+      }
+
+      const novo: Acesso = {
+        id: `u-${ACESSOS_DE_MENTIRA.length + 1}`,
+        nome: nomeAdmin,
+        identificador: email,
+        papel: 'admin',
+        ativo: dados.ativo,
+        setorNome: null,
+        telefone: null,
+        eventos: 1,
+        criadoEm: new Date(this.agora()).toISOString(),
+        expiraEm: null,
+        souEu: false,
+        permissoesUsuario: dados.permissoesUsuario ?? {},
+      }
+      ACESSOS_DE_MENTIRA.push({ ...novo })
+      this.registrarAuditoria({
+        acao: 'ALTERACAO_SUPERVISOR', campoAlterado: `Admin da organização ${ORGANIZACOES_DE_MENTIRA.find(o => o.organizacaoId === organizacaoId)?.nome ?? ''}`,
+        valorNovo: `${nomeAdmin} — ${email} (acesso novo)`,
+      })
+      return { acesso: novo }
+    }
+
     const nome = (dados.nome ?? '').trim()
     const cpf = (dados.cpf ?? '').replace(/\D/g, '')
-    const funcao = dados.funcao ?? 'supervisor'
 
     if (nome.length < 3) return { erro: 'Digite o nome completo da pessoa.' }
     if (cpf.length !== 11) return { erro: 'O CPF precisa ter 11 dígitos.' }
@@ -2629,6 +3315,7 @@ export class ClienteFalso implements ClienteApi {
       papel: funcao,
       ativo: dados.ativo,
       setorNome: setor?.nome ?? null,
+      telefone: (dados.telefone ?? '').replace(/\D/g, '') || null,
       eventos: 1,
       criadoEm: new Date(this.agora()).toISOString(),
       expiraEm: funcao === 'suporte' ? (dados.expiraEm ?? null) : null,
@@ -2637,6 +3324,11 @@ export class ClienteFalso implements ClienteApi {
     }
 
     ACESSOS_DE_MENTIRA.push({ ...novo })
+    this.registrarAuditoria({
+      acao: 'ALTERACAO_SUPERVISOR',
+      campoAlterado: setor ? `Supervisor do setor ${setor.nome}` : `Acesso de ${funcao}`,
+      valorNovo: `${nome} — CPF ${formatCpf(cpf)} (acesso novo)`,
+    })
     return { acesso: novo }
   }
 
@@ -2749,6 +3441,7 @@ export class ClienteFalso implements ClienteApi {
         },
       ],
       pessoas: pessoas.map(({ cidade, trabalhou, ...p }) => { void cidade; void trabalhou; return p }),
+      encontrados: pessoas.length,
       total: BASE_DE_MENTIRA.length,
     }
   }
@@ -2888,9 +3581,9 @@ export class ClienteFalso implements ClienteApi {
       return { erro: `${pessoa.nome} já está neste evento. Uma pessoa só entra uma vez por evento.` }
     }
 
-    // O setor bateu o teto: entra mesmo assim, mas bloqueada — quem decide se
-    // abre uma vaga a mais é quem administra o setor, não esta tela.
-    const noTeto = entrada.setor.estimado !== null && entrada.setor.pessoas >= entrada.setor.estimado
+    // Sem teto de vaga por setor: a produção removeu esse limite do sistema
+    // web, então a pessoa sempre entra ATIVA (mesma regra em
+    // `apps/api/src/rotas/base-de-funcionarios.ts`).
     entrada.setor.pessoas += 1
 
     const nova: TrabalhoDaPessoa = {
@@ -2904,7 +3597,7 @@ export class ClienteFalso implements ClienteApi {
       cargo: pessoa.funcao ?? '',
       data: evento.dataInicio,
       dataFim: evento.dataInicio,
-      ativo: !noTeto,
+      ativo: true,
       etapas: [],
       compareceu: false,
       podeAbrirEvento: true,
@@ -2915,7 +3608,7 @@ export class ClienteFalso implements ClienteApi {
       resultado: {
         evento: evento.nome,
         setor: entrada.setor.nome,
-        ativo: !noTeto,
+        ativo: true,
         semTelefone: !pessoa.telefone,
       },
     }
@@ -3229,6 +3922,10 @@ export class ClienteFalso implements ClienteApi {
       bloqueadoPor: this.quemEntrou.nome,
     })
 
+    this.registrarAuditoria({
+      acao: 'BLOQUEIO_CPF', campoAlterado: 'CPF bloqueado', valorNovo: formatCpf(cpf),
+      motivo: (motivo ?? '').trim() || null, eventoId,
+    })
     return { cpf }
   }
 
@@ -3243,7 +3940,11 @@ export class ClienteFalso implements ClienteApi {
     const i = lista?.findIndex(b => b.id === bloqueioId) ?? -1
     if (!lista || i < 0) return { erro: 'Bloqueio não encontrado.' }
 
+    const alvo = lista[i]!
     lista.splice(i, 1)
+    this.registrarAuditoria({
+      acao: 'DESBLOQUEIO_CPF', campoAlterado: 'CPF desbloqueado', valorNovo: formatCpf(alvo.cpf), eventoId,
+    })
     return {}
   }
 
@@ -3281,6 +3982,33 @@ export class ClienteFalso implements ClienteApi {
     }
     if (!podeBloquearCpf(papel)) throw new Error('Você não tem permissão para conferir esta equipe.')
     return achado
+  }
+
+  /** A visão geral do organizador: todos os setores, quem já confirmou. */
+  async conferenciasDoEvento(eventoId: string): Promise<LinhaConferencia[]> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeAcompanhar, 'ver as conferências')
+
+    const setores = SETORES_DE_MENTIRA[eventoId]
+    if (!setores) throw new Error('Não encontramos este evento.')
+
+    // Setor sem supervisor nem entra — mesma régua do site e da API real.
+    return setores
+      .filter(s => s.supervisores.length > 0)
+      .map(s => {
+        const conf = this.conferenciasConfirmadas.get(s.setorId)
+        return {
+          setorId: s.setorId,
+          setorNome: s.nome,
+          supervisorNome: s.supervisores[0]?.nome ?? null,
+          temSupervisor: true,
+          status: (conf ? 'confirmada' : 'pendente') as 'pendente' | 'confirmada',
+          confirmadaEm: conf?.confirmadaEm ?? null,
+          totalMantidos: conf?.totalMantidos ?? null,
+          totalRemovidos: conf?.totalRemovidos ?? null,
+        }
+      })
   }
 
   async conferenciaDoSetor(setorId: string): Promise<ConferenciaDoSetor> {
@@ -3338,13 +4066,28 @@ export class ClienteFalso implements ClienteApi {
     }
 
     const totalRemovidos = this.removidosDaConferencia.get(setorId)?.size ?? 0
+    const totalMantidos = setor.pessoas - totalRemovidos
     this.conferenciasConfirmadas.set(setorId, {
       confirmadaEm: new Date(this.agora()).toISOString(),
       confirmadaPorNome: this.quemEntrou.nome,
-      totalMantidos: setor.pessoas - totalRemovidos,
+      totalMantidos,
       totalRemovidos,
     })
+    this.registrarAuditoria({
+      acao: 'DESCREDENCIAMENTO', campoAlterado: `Conferência de equipe — ${setor.nome}`,
+      valorNovo: `${totalMantidos} mantido(s), ${totalRemovidos} removido(s)`, eventoId,
+    })
     return {}
+  }
+
+  /** O CSV da equipe do setor — pro botão "Baixar planilha" da tela de conferência. */
+  async planilhaDaConferencia(setorId: string): Promise<ArquivoDePlanilha> {
+    await this.rede()
+    const { setor } = this.exigirAcessoAoSetor(setorId)
+    return {
+      nome: `equipe-${setor.nome}.csv`,
+      url: `${ENDERECO_DE_ARQUIVOS}/conferencia/${setorId}/planilha`,
+    }
   }
 
   // ── Relatórios ───────────────────────────────────────────────────────────
@@ -3791,6 +4534,15 @@ export class ClienteFalso implements ClienteApi {
     // que a criação/edição fazem ao gravar "válido até").
     alvo.ativo = false
     alvo.acessoExpiraEm = diaBRT(new Date(this.agora() - 24 * 60 * 60 * 1000))
+    return {}
+  }
+
+  // ── Push ──────────────────────────────────────────────────────────────────
+
+  async registrarTokenDePush(_token: string, _plataforma: 'ios' | 'android'): Promise<{ erro?: string }> {
+    void _token; void _plataforma
+    await this.rede()
+    this.exigirSessao()
     return {}
   }
 

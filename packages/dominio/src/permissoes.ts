@@ -48,6 +48,67 @@ export type Papel =
   | 'cliente'
   | 'colaborador'
 
+/**
+ * O que se pergunta a uma função de capacidade: um papel, ou o acesso
+ * inteiro — cópia de `AlvoPermissao` em `c:\Dev\credenciei\lib\permissions.ts`.
+ *
+ * Passar o ACESSO é o que faz a resposta considerar o que a organização ligou
+ * ou desligou na tela de Configurações (`permissoesOrganizacao`) e o que foi
+ * decidido para este acesso especificamente (`permissoesUsuario`). Passar só
+ * o papel continua valendo — é o padrão do código, sem exceção nenhuma.
+ */
+export type AlvoPermissao =
+  | string
+  | {
+      papel?: string | null
+      /** Exceções da ORGANIZAÇÃO, chaveadas por `papel:chave` — ver `permissoes_organizacao`. */
+      permissoesOrganizacao?: Record<string, boolean> | null
+      /** Overrides deste ACESSO, chaveados só por `chave` — ver `perfis.permissoes_usuario`. */
+      permissoesUsuario?: Record<string, boolean> | null
+    }
+  | null
+  | undefined
+
+export const chaveDaPermissao = (papel: string, chave: string) => `${papel}:${chave}`
+
+/** O papel puro, venha o alvo como string ou como o acesso inteiro. */
+export function papelDoAlvo(alvo?: AlvoPermissao): string | undefined {
+  return typeof alvo === 'string' ? alvo : (alvo?.papel ?? undefined)
+}
+
+/**
+ * Resolve uma capacidade em três camadas, da mais específica pra mais geral:
+ *
+ *   1. override do próprio ACESSO      (permissoesUsuario[chave])
+ *   2. exceção da ORGANIZAÇÃO          (permissoesOrganizacao[papel:chave])
+ *   3. padrão do código                (a função `padrao(papel)`)
+ *
+ * A primeira que tiver um booleano vence. Ausência em todas = comportamento
+ * de sempre.
+ *
+ * MASTER NUNCA É AFETADO — mesmo raciocínio do site: uma tela de permissões
+ * capaz de tirar do master a permissão de abrir a própria tela de permissões
+ * se tranca sozinha, e a saída seria mexer direto no banco.
+ */
+function resolver(alvo: AlvoPermissao, chave: string, padrao: (papel?: string) => boolean): boolean {
+  const papel = papelDoAlvo(alvo)
+  if (papel === 'master') return padrao(papel)
+
+  if (typeof alvo !== 'string') {
+    const doAcesso = alvo?.permissoesUsuario?.[chave]
+    if (typeof doAcesso === 'boolean') return doAcesso
+  }
+
+  const excecoes = typeof alvo === 'string' ? null : alvo?.permissoesOrganizacao
+  const excecao = papel ? excecoes?.[chaveDaPermissao(papel, chave)] : undefined
+  return typeof excecao === 'boolean' ? excecao : padrao(papel)
+}
+
+/** Fábrica das capacidades do catálogo: cada uma é "o padrão do código + a exceção". */
+function capacidade(chave: string, padrao: (papel?: string) => boolean) {
+  return (alvo?: AlvoPermissao) => resolver(alvo, chave, padrao)
+}
+
 export const NOME_DO_PAPEL: Record<Papel, string> = {
   master: 'Master',
   admin: 'Administrador',
@@ -107,10 +168,14 @@ export const podeExcluir = (papel?: string) => papel === 'master'
  * `operador_portao` existe exatamente para ser o posto de credenciamento:
  * escaneia, mas não gerencia nada — ver `podeGerenciarEventos`, que ele NÃO
  * satisfaz. Trazido do site em 11/09/2026.
+ *
+ * É uma `capacidade` (não um `papel?: string => boolean` cru) desde
+ * 13/09/2026: entra no catálogo de "Funções ligadas" (`capacidades.ts`), e
+ * por isso precisa resolver as 3 camadas — usuário, organização, código.
  */
-export const podeEscanear = (papel?: string) =>
+export const podeEscanear = capacidade('escanear', papel =>
   papel === 'master' || papel === 'admin' || papel === 'gerente' || papel === 'cliente'
-  || papel === 'operador_portao'
+  || papel === 'operador_portao')
 
 /**
  * Pode ACOMPANHAR a operação: atividades, pendências, histórico e a tela de
@@ -119,9 +184,14 @@ export const podeEscanear = (papel?: string) =>
  * Separado de `podeEscanear` porque são coisas diferentes: uma é registrar
  * presença, a outra é olhar quem já registrou. Tirar o scanner do supervisor
  * não pode cegá-lo em relação à própria equipe — é disso que ele cuida.
+ *
+ * O padrão reaproveita `podeEscanear`, mas com o PAPEL cru (`podeEscanear`
+ * chamada aqui dentro só olha a camada 3): cada interruptor da tela de
+ * Configurações é independente — liberar "escanear" pra um papel não libera
+ * "acompanhar" por tabela.
  */
-export const podeAcompanhar = (papel?: string) =>
-  podeEscanear(papel) || papel === 'supervisor' || papel === 'suporte'
+export const podeAcompanhar = capacidade('acompanhar', papel =>
+  podeEscanear(papel) || papel === 'supervisor' || papel === 'suporte')
 
 /**
  * Pode cadastrar/excluir VEÍCULOS autorizados a entrar no evento.
@@ -131,8 +201,8 @@ export const podeAcompanhar = (papel?: string) =>
  * portão. Entra `suporte`, que é justamente quem conserta a operação no
  * dia. Trazido do site em 11/09/2026.
  */
-export const podeGerenciarVeiculos = (papel?: string) =>
-  papel === 'master' || papel === 'admin' || papel === 'suporte'
+export const podeGerenciarVeiculos = capacidade('gerenciar_veiculos', papel =>
+  papel === 'master' || papel === 'admin' || papel === 'suporte')
 
 /**
  * Pode bloquear/liberar um CPF NESTE evento — supervisor, quem gerencia
@@ -147,3 +217,17 @@ export const podeGerenciarVeiculos = (papel?: string) =>
  */
 export const podeBloquearCpf = (papel?: string) =>
   podeGerenciarEventos(papel) || papel === 'supervisor' || papel === 'suporte'
+
+/**
+ * Pode EXCLUIR alguém da equipe de vez — apaga o cadastro e as batidas,
+ * sem volta. Diferente de "tirar da equipe" (descredenciar), que é
+ * reversível e todo mundo que gerencia a equipe já pode fazer.
+ *
+ * O catálogo do site (`podeExcluirDaEquipe`) também lista suporte, mas a
+ * rota que usa essa capacidade lá (`exigirAcessoFuncionarios`) não tem
+ * nenhum caminho para suporte passar — na prática, só master, admin e
+ * supervisor (do próprio setor) chegam a este botão. Copiado o
+ * comportamento real, não a lista nominal.
+ */
+export const podeExcluirDaEquipe = (papel?: string) =>
+  papel === 'master' || papel === 'admin' || papel === 'supervisor'

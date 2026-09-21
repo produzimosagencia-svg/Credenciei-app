@@ -14,6 +14,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { NOME_DO_PAPEL } from '@credenciei/dominio'
 import { usePedido } from '../../src/dados/pedido'
 import { useSessao } from '../../src/sessao/contexto'
+import { useAlvoDePermissao } from '../../src/navegacao/alvo-de-permissao'
 import { menuDe, type ItemDoMenu } from '../../src/navegacao/menu'
 import { Icone } from '../../src/ui/icone'
 import {
@@ -26,10 +27,11 @@ export default function Mais() {
   const router = useRouter()
   const { cliente, sessao, sair } = useSessao()
   const { pedido } = usePedido(() => cliente.eu(), [cliente])
+  const alvo = useAlvoDePermissao()
   const { cor, uso, modo, alternar } = useTema()
   const e = useEstilos()
 
-  const grupos = menuDe(sessao?.papel ?? 'colaborador')
+  const grupos = menuDe(alvo ?? sessao?.papel ?? 'colaborador')
 
   return (
     <Tela>

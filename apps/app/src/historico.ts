@@ -7,12 +7,13 @@
 
 import type { DiaDaParticipacao } from '@credenciei/contrato'
 
-export type StatusDoDia = 'presente' | 'ausente' | 'incompleto'
+export type StatusDoDia = 'presente' | 'ausente' | 'incompleto' | 'cancelado'
 
 export const NOME_DO_STATUS: Record<StatusDoDia, string> = {
   presente: 'Presente',
   ausente: 'Ausente',
   incompleto: 'Incompleto',
+  cancelado: 'Cancelado',
 }
 
 /**
@@ -22,8 +23,13 @@ export const NOME_DO_STATUS: Record<StatusDoDia, string> = {
  * que se lê de relance no fechamento. Quem não bateu entrada não esteve lá;
  * quem bateu as três esteve o dia inteiro; o resto ficou pelo meio, e é
  * justamente esse resto que muda pagamento e precisa ser visto.
+ *
+ * Cancelado vem antes de tudo — o produtor desmarcou o expediente depois de
+ * ele existir, e "ausente" soaria como falta de quem nunca teve dia nenhum
+ * pra faltar. Mesma régua do site (`lib/historico.ts` → `StatusDoDia`).
  */
 export function statusDoDia(dia: DiaDaParticipacao): StatusDoDia {
+  if (dia.cancelado) return 'cancelado'
   if (!dia.entrada) return 'ausente'
   if (dia.entrada && dia.meio && dia.saida) return 'presente'
   return 'incompleto'
@@ -47,10 +53,17 @@ export function statusDoDia(dia: DiaDaParticipacao): StatusDoDia {
  * o aviso forte continua, porque ali ele diz algo que o selo do dia não disse.
  */
 export function celulaSilenciosa(dia: DiaDaParticipacao): boolean {
-  return statusDoDia(dia) === 'ausente'
+  const status = statusDoDia(dia)
+  return status === 'ausente' || status === 'cancelado'
 }
 
 export type ResumoDoHistorico = {
+  /**
+   * Quantos dias a pessoa tinha pra trabalhar — todos MENOS os cancelados.
+   * Sem este número, "faltou 3" não diz nada: faltou de quantos? Mesma
+   * régua do site (`lib/historico.ts` → `resumo.diasEscalados`).
+   */
+  diasEscalados: number
   diasTrabalhados: number
   diasFaltados: number
   diasIncompletos: number
@@ -66,13 +79,17 @@ export type ResumoDoHistorico = {
 }
 
 export function resumoDoHistorico(dias: DiaDaParticipacao[]): ResumoDoHistorico {
+  // Dia cancelado não conta como escalado — o produtor desmarcou o
+  // expediente, então ninguém faltou a ele. Mesma régua do site.
+  const valem = dias.filter(d => !d.cancelado)
+
   let trabalhados = 0
   let faltados = 0
   let incompletos = 0
   let horas = 0
   const batidas = { entrada: 0, meio: 0, fim: 0 }
 
-  for (const dia of dias) {
+  for (const dia of valem) {
     if (dia.entrada) batidas.entrada += 1
     if (dia.meio) batidas.meio += 1
     if (dia.saida) batidas.fim += 1
@@ -89,6 +106,7 @@ export function resumoDoHistorico(dias: DiaDaParticipacao[]): ResumoDoHistorico 
   // Uma casa decimal: hora de evento não tem precisão de segundo, e "8.42h" na
   // tela do pagamento sugere uma exatidão que o dado não tem.
   return {
+    diasEscalados: valem.length,
     diasTrabalhados: trabalhados,
     diasFaltados: faltados,
     diasIncompletos: incompletos,

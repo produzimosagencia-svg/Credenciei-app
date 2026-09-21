@@ -11,15 +11,34 @@ precisa, quanto custa, qual a alternativa e o que você recomenda.
 
 ---
 
-## 🚫 A regra que não se quebra
+## 🔁 Os dois sistemas andam juntos
 
-**NÃO TOQUE em `c:\Dev\credenciei`.**
+`c:\Dev\credenciei` é o sistema em produção, com eventos reais acontecendo —
+isso nunca deixou de ser verdade. Mas desde 13/09/2026 (decisão
+`docs/decisoes/008`) a autorização para editá-lo é **permanente**: não é mais
+preciso pedir permissão a cada arquivo antes de mudar o site, como era a regra
+anterior.
 
-É o sistema em produção, com eventos reais acontecendo. O Juan foi enfático
-mais de uma vez. Arquivos vêm por **cópia**, nunca por movimentação, e
-qualquer alteração lá exige autorização explícita dele, pedida na hora.
+**A obrigação que vem junto: todo ajuste de REGRA DE NEGÓCIO, NOVO ESCOPO ou
+FUNCIONALIDADE feito de um lado precisa ser refletido no outro, e vice-versa.**
+Não é mais só trazer do site para o app — os dois compartilham o mesmo banco e
+podem estar servindo o mesmo evento no mesmo minuto. O procedimento de
+comparação (fontes copiadas, diff, teste) está em
+`docs/decisoes/007-sincronizar-com-o-sistema-web.md` e vale nos dois sentidos.
 
-Isso vale inclusive quando parecer óbvio ou pequeno.
+**Layout e visual ficam de fora dessa obrigação** (confirmado por Juan em
+13/09/2026) — isso continua de mão única, site → app, como já diz a seção "O
+visual não é escolha nossa" mais abaixo. A obrigação de ida-e-volta é sobre
+regra, escopo e funcionalidade, não sobre cor, espaçamento ou desenho de tela.
+
+Continua valendo, mesmo com a autorização mais fácil:
+- Ler e entender o porquê da regra atual antes de mudar — nunca "simplificar"
+  sem saber de que erro real ela nasceu.
+- Testar antes de considerar terminado, dos dois lados.
+- Avisar o Juan do que mudou e por quê, mesmo sem precisar pedir permissão
+  antes.
+- Telas não se copiam (Next.js × React Native) — o que se sincroniza é a
+  regra.
 
 ---
 
@@ -38,22 +57,37 @@ uma regra só.
 ## O que já está construído
 
 ```
-packages/dominio     a regra de negócio, pura — 85 testes
+packages/dominio     a regra de negócio, pura — 118 testes
 packages/offline     a fila de batidas sem internet — 22 testes
-packages/contrato    o que o app pode pedir + servidor falso — 221 testes
-apps/api             a API HTTP completa — 192 testes
-apps/app             o aplicativo, em React Native + Expo — 85 testes
-db/migracoes         três migrações escritas, NENHUMA executada
+packages/contrato    o que o app pode pedir + servidor falso — 252 testes
+apps/api             a API HTTP completa — 446 testes
+apps/app             o aplicativo, em React Native + Expo — 96 testes
+db/migracoes         sete migrações escritas; 002, 004, 005 e 007 já executadas
 ```
 
-**605 testes.** `npm run verificar` roda tipos e testes de
+**934 testes.** `npm run verificar` roda tipos e testes de
 tudo, sem banco e sem rede. Só `npm run teste` NÃO confere tipos — o `tsx` não
 olha para eles.
 
 Para VER o app: `npm run web --workspace=@credenciei/app` abre no navegador, sem
 instalar nada. No celular, `npm run start --workspace=@credenciei/app` gera um QR
-para o aplicativo **Expo Go** (grátis, na loja). O app fala hoje com o servidor
-falso, e ele se anuncia como demonstração na própria tela.
+para o aplicativo **Expo Go** (grátis, na loja). Sozinho, o app fala com o
+servidor falso, e ele se anuncia como demonstração na própria tela.
+
+**Para MOSTRAR algo pro Juan (screenshot, tela rodando), isso não serve —
+precisa ser dado real do banco compartilhado, nunca inventado** (decisão de
+13/09/2026: ele viu um evento de mentira com 41 pessoas e achou que era o
+evento de verdade, que tem ~2000). Suba a API de verdade
+(`npm run dev --workspace=@credenciei/api`, porta do `PORT` em
+`apps/api/.env`) e aponte o app pra ela:
+`EXPO_PUBLIC_API_URL=http://localhost:<porta> npm run web --workspace=@credenciei/app`.
+Entre pelo caminho "Tenho conta" (e-mail/CPF + senha) — nunca "Sou da
+equipe" (WhatsApp), que dispara mensagem de verdade
+(`enviarCodigoPeloWhatsapp`) pro número digitado. Testar um botão de ação
+nessa configuração GRAVA de verdade no banco de produção — autorizado pelo
+Juan, mas evite ações destrutivas ou que avisem gente real sem avisar antes.
+O cliente-falso continua existindo para os testes automatizados; a régua
+acima é só para o que aparece na tela do Juan.
 
 O commit mais importante é o primeiro: a assinatura do QR do pacote novo
 **bate byte a byte** com a que o sistema web produz hoje. Se divergisse, toda
@@ -146,11 +180,22 @@ o erro volta.
 
 ## Limitações conhecidas, obrigatórias antes de produção
 
-- **Sessões e limite de tentativas vivem na memória do processo.** Reiniciar
-  desconecta todo mundo; com várias instâncias cada uma conta separado. As
-  interfaces já estão certas — trocar por tabela é substituir a implementação.
-- **A conta fica amarrada ao número de WhatsApp.** Quem troca de número perde o
-  acesso e o histórico. Falta um caminho de recuperação.
+- **Sessões e limite de tentativas já não vivem mais na memória do processo.**
+  `SessoesNoSupabase` (12/09/2026, migração `004-sessoes-em-tabela.sql`,
+  tabela `app_sessoes`) e `LimiteNoSupabase` (12/09/2026, migração
+  `005-limite-de-tentativas.sql`, tabela `app_limites`) substituem as duas
+  implementações em memória — sobrevivem a reiniciar a API, e mais de uma
+  instância conta junto. As duas usam o MESMO cliente Supabase dedicado
+  (`semSessao`, em `principal.ts`), separado do que faz `signInWithPassword`
+  — ver o comentário lá: reusar o cliente de login para operações de service
+  role quebra por RLS, já aconteceu.
+- **A conta fica amarrada ao número de WhatsApp.** Quem troca de número perde
+  o acesso — mas não o histórico: desde 14/09/2026 (decisão do Juan) quem
+  administra corrige o telefone na ficha da pessoa (`corrigirTelefone`,
+  cópia do site's `editarTelefoneFuncionario` — inclusive o efeito de
+  atualizar mensagens do WhatsApp ainda não enviadas na fila do site). É
+  suporte manual (a pessoa avisa, alguém troca), não autoatendimento — essa
+  foi a escolha dele, não uma limitação técnica.
 - **Se a conta de WhatsApp for restringida** (já aconteceu neste projeto), o
   login para junto com os avisos. Ponto único de falha.
 - **`created_at` guarda o horário da batida** e não há coluna separada para o
@@ -160,13 +205,21 @@ o erro volta.
   manda o convite de senha por WhatsApp.** No site é isso que torna a conta
   utilizável; sem ele, quem acabou de ser criado não tem como entrar até
   alguém redefinir a senha por fora (Supabase Studio).
+- **Um supervisor só enxerga UM setor por vez no app — o que ele viu por
+  último.** Se "criar setor" reaproveita um CPF que já supervisiona outro
+  setor do mesmo evento (o app grava certo no banco: `supervisor_setores`
+  ganha os dois, sem apagar o anterior — ver `reatribuirSupervisorAoSetor`
+  em `dados/supabase.ts`), a tela "Minha equipe" dele passa a mostrar o
+  setor NOVO, não os dois. É o mesmo bug que o site já teve e corrigiu com
+  uma tela de trocar de setor; aqui falta essa tela — só o dado já está
+  certo, esperando por ela.
 
 ---
 
 ## Como acompanhar
 
 O Juan pede status assim: *"como estamos?"*. Responda com **percentual real do
-backlog** (332 tasks, 211 no MVP) — e o do MVP é o que responde "quando dá para usar"; `npm run backlog` calcula os dois — nunca invente número. A Epic 3 (API v1) está completa: login (`entrarComSenha`), Painel (`painel()`), Escanear QR (`registrarPorQr`, `conferirPorCpf`), Ponto assistido (`localizarPessoa`, `abrirFicha`, `registrarPresencaAssistida`), Atividades (`eventosParaAcompanhar`, `atividades`) e Acessos (`acessos`, `mudarSituacaoDoAcesso`, `eventosComSetores`, `criarAcesso`) já são reais na API, ligados pelo `ClienteHttp`; falta configurar evento (Epic 18) e a Plataforma, que ainda usam o servidor falso — ver a Fase 2 em `docs/backlog.md`. O que está feito por
+backlog** (332 tasks, 211 no MVP) — e o do MVP é o que responde "quando dá para usar"; `npm run backlog` calcula os dois — nunca invente número. **A Fase 2 ("Ligar a API de verdade") está completa, Epic 17 inteira inclusive.** Epic 3, Epic 18 e a Epic 17 completa — Organizações, Veículos, Bloqueio de CPF, Base de funcionários, Encontrar colaborador, Relatórios (planilha `.xlsx`/`.zip` gerada de verdade, com `exceljs`/`jszip`), cartaz da portaria, criar setor e equipe do setor — já são reais na API, ligados pelo `ClienteHttp`. O teto de vaga por setor (`estimado`) saiu do app inteiro para bater com o site, que já não tem mais esse limite. O que falta é o que a Fase 3 lista: sincronizar com o site, recuperação de conta, e QR (Ed25519) — a foto da batida e os relatórios (`.xlsx`/`.zip`) já saíram da memória do processo e sobem de verdade ao Storage (12/09/2026: `presencas` para a foto, `app-relatorios` — bucket novo, criado por este app — para o relatório, com URL assinada). Ver `docs/backlog.md`. O que está feito por
 epic está em `docs/backlog.md`.
 
 Ao terminar um dia de trabalho, ele espera um resumo: feito, alterado, testado,
@@ -209,7 +262,7 @@ Cada tela lê a cor de dentro do componente, via `useTema()`
 (`apps/app/src/ui/tema-contexto.tsx`) — nunca importando `cor`/`uso`/`sombra`
 como constante do módulo, porque esses três variam com o tema e um
 `StyleSheet.create` de nível de módulo só roda uma vez. O resto
-(`texto`, `tipo`, `espaco`, `raio`, `gradiente`, `corDaEtapa`, `eventoAoVivo`)
+(`texto`, `tipo`, `espaco`, `raio`, `corDoIndicador`, `corDaEtapa`, `eventoAoVivo`)
 é igual nos dois temas e continua sendo import direto de `tema.ts`. Ver
 `apps/app/src/ui/ficha-da-pessoa.tsx` como referência do padrão em um arquivo
 com vários componentes.
@@ -230,5 +283,6 @@ docs/contexto.md                    a história completa: como chegamos aqui
 docs/decisoes/                      uma decisão por arquivo, com o motivo
 docs/credenciei-web-estado-atual.md o site em 11/09/2026 — leia antes de assumir
                                      que uma tela ou regra antiga ainda vale
-db/migracoes/                       SQL escrito, não executado — leia o cabeçalho antes
+db/migracoes/                       maioria escrita, não executada — leia o cabeçalho antes
+                                     de rodar qualquer uma (002, 004, 005 e 007 já rodaram)
 ```

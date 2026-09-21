@@ -19,6 +19,8 @@
 import type { ColorValue } from 'react-native'
 import type { LucideIcon } from 'lucide-react-native'
 import Activity from 'lucide-react-native/icons/activity'
+import ArrowLeftRight from 'lucide-react-native/icons/arrow-left-right'
+import ArrowRight from 'lucide-react-native/icons/arrow-right'
 import Building2 from 'lucide-react-native/icons/building-2'
 import Camera from 'lucide-react-native/icons/camera'
 import CameraOff from 'lucide-react-native/icons/camera-off'
@@ -29,6 +31,7 @@ import Check from 'lucide-react-native/icons/check'
 import ChevronLeft from 'lucide-react-native/icons/chevron-left'
 import ChevronRight from 'lucide-react-native/icons/chevron-right'
 import ClipboardCheck from 'lucide-react-native/icons/clipboard-check'
+import ClipboardList from 'lucide-react-native/icons/clipboard-list'
 import ClipboardPen from 'lucide-react-native/icons/clipboard-pen'
 import Clock from 'lucide-react-native/icons/clock'
 import Download from 'lucide-react-native/icons/download'
@@ -41,13 +44,18 @@ import FileUp from 'lucide-react-native/icons/file-up'
 import Hammer from 'lucide-react-native/icons/hammer'
 import House from 'lucide-react-native/icons/house'
 import IdCard from 'lucide-react-native/icons/id-card'
+import Link2 from 'lucide-react-native/icons/link-2'
+import Link2Off from 'lucide-react-native/icons/link-2-off'
 import Lock from 'lucide-react-native/icons/lock'
 import LogIn from 'lucide-react-native/icons/log-in'
 import LogOut from 'lucide-react-native/icons/log-out'
 import MapPin from 'lucide-react-native/icons/map-pin'
 import MessageCircle from 'lucide-react-native/icons/message-circle'
 import Moon from 'lucide-react-native/icons/moon'
+import Pencil from 'lucide-react-native/icons/pencil'
 import Plus from 'lucide-react-native/icons/plus'
+import Power from 'lucide-react-native/icons/power'
+import PowerOff from 'lucide-react-native/icons/power-off'
 import QrCode from 'lucide-react-native/icons/qr-code'
 import Radio from 'lucide-react-native/icons/radio'
 import RefreshCw from 'lucide-react-native/icons/refresh-cw'
@@ -55,15 +63,20 @@ import ScanSearch from 'lucide-react-native/icons/search'
 import Send from 'lucide-react-native/icons/send'
 import ShieldBan from 'lucide-react-native/icons/shield-ban'
 import ShieldCheck from 'lucide-react-native/icons/shield-check'
+import Settings from 'lucide-react-native/icons/settings'
+import RotateCcw from 'lucide-react-native/icons/rotate-ccw'
+import History from 'lucide-react-native/icons/file-clock'
 import Sun from 'lucide-react-native/icons/sun'
 import SwitchCamera from 'lucide-react-native/icons/switch-camera'
 import Trash2 from 'lucide-react-native/icons/trash-2'
 import TriangleAlert from 'lucide-react-native/icons/triangle-alert'
 import Truck from 'lucide-react-native/icons/truck'
+import Upload from 'lucide-react-native/icons/upload'
 import User from 'lucide-react-native/icons/user'
 import ScanLine from 'lucide-react-native/icons/scan-line'
 import UserCheck from 'lucide-react-native/icons/user-check'
 import UserCog from 'lucide-react-native/icons/user-cog'
+import UserPlus from 'lucide-react-native/icons/user-plus'
 import UserSearch from 'lucide-react-native/icons/user-search'
 import UserX from 'lucide-react-native/icons/user-x'
 import Users from 'lucide-react-native/icons/users'
@@ -81,6 +94,8 @@ const ICONES: Record<string, LucideIcon> = {
   Activity,
   AlertCircle: CircleAlert,
   AlertTriangle: TriangleAlert,
+  ArrowLeftRight,
+  ArrowRight,
   Building2,
   CalendarDays,
   Camera,
@@ -90,6 +105,7 @@ const ICONES: Record<string, LucideIcon> = {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  ClipboardList,
   ClipboardPen,
   Clock,
   Download,
@@ -101,6 +117,8 @@ const ICONES: Record<string, LucideIcon> = {
   Hammer,
   Home: House,
   IdCard,
+  Link2,
+  Link2Off,
   Lock,
   LogIn,
   LogOut,
@@ -108,7 +126,10 @@ const ICONES: Record<string, LucideIcon> = {
   MessageCircle,
   Moon,
   MoreHorizontal: Ellipsis,
+  Pencil,
   Plus,
+  Power,
+  PowerOff,
   QrCode,
   Radio,
   RefreshCw,
@@ -117,13 +138,18 @@ const ICONES: Record<string, LucideIcon> = {
   Send,
   ShieldBan,
   ShieldCheck,
+  Settings,
+  RotateCcw,
+  History,
   Sun,
   SwitchCamera,
   Trash2,
   Truck,
+  Upload,
   User,
   UserCheck,
   UserCog,
+  UserPlus,
   UserSearch,
   UserX,
   Users,

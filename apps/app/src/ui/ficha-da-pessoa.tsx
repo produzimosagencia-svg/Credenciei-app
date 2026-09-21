@@ -13,8 +13,9 @@
 
 import { useMemo, useState } from 'react'
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { formatCpf, formatTelefone, formatarBR, NOME_DA_FASE } from '@credenciei/dominio'
-import type { FichaDaPessoa, TipoBatida } from '@credenciei/contrato'
+import type { Contestacao, FichaDaPessoa, TipoBatida } from '@credenciei/contrato'
 import { mensagemDoErro, usePedido } from '../dados/pedido'
 import { useSessao } from '../sessao/contexto'
 import { celulaSilenciosa, NOME_DO_STATUS, resumoDoHistorico, statusDoDia } from '../historico'
@@ -23,7 +24,7 @@ import {
   Separador, TituloDeCartao,
 } from './componentes'
 import { Icone } from './icone'
-import { corDaEtapa, espaco, raio, texto, tipo } from './tema'
+import { ALVO_MINIMO, corDaEtapa, espaco, gradienteMarca, raio, texto, tipo } from './tema'
 import { useTema, type Tokens } from './tema-contexto'
 
 const ROTULO: Record<TipoBatida, string> = { entrada: 'Entrada', meio: 'Meio', fim: 'Fim' }
@@ -78,20 +79,46 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
     secao: { ...texto.etiqueta, color: uso.tintaFraca },
     linhaDoTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espaco.m },
 
-    opcoes: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
-    opcao: {
-      minHeight: 44,
-      paddingHorizontal: espaco.g,
+    /*
+     * O botão que abre o seletor de setor — cópia do padrão de
+     * `ModalDeSetores` em `evento/[id]/editar.tsx`: com trinta ou quarenta
+     * setores (comum em evento grande), a parede de chips passava da altura
+     * da tela inteira. Um botão só, na cor de ação do sistema — é uma
+     * escolha que muda de verdade onde a pessoa trabalha.
+     */
+    setorSeletorBotao: {
+      minHeight: ALVO_MINIMO,
       borderRadius: raio.campo,
-      borderWidth: 1,
-      borderColor: uso.borda,
-      backgroundColor: uso.superficie,
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
+      gap: espaco.s,
+      paddingHorizontal: espaco.g,
     },
-    opcaoMarcada: { borderColor: cor.acento500, backgroundColor: cor.acento50 },
-    opcaoTexto: { ...texto.corpo, color: uso.tintaMedia },
-    opcaoTextoMarcado: { color: cor.acento700, fontFamily: tipo.semi },
+    setorSeletorTexto: { ...texto.corpoForte, color: '#ffffff', flex: 1, minWidth: 0 },
+
+    setorModalFora: { flex: 1, backgroundColor: uso.superficie, paddingTop: espaco.gg },
+    setorModalTopo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.s,
+      paddingHorizontal: espaco.g,
+      paddingBottom: espaco.g,
+      borderBottomWidth: 1,
+      borderBottomColor: uso.borda,
+    },
+    setorModalBusca: { paddingHorizontal: espaco.g, paddingTop: espaco.m },
+    setorModalLista: { padding: espaco.g },
+    setorModalLinha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      minHeight: ALVO_MINIMO,
+      paddingHorizontal: espaco.m,
+      borderRadius: raio.campo,
+    },
+    setorModalLinhaMarcada: { backgroundColor: cor.acento50 },
+    setorModalLinhaTexto: { ...texto.base, fontFamily: tipo.regular, color: uso.tinta },
+    setorModalLinhaTextoMarcado: { fontFamily: tipo.semi, color: cor.acento700 },
 
     presenca: {
       flexDirection: 'row',
@@ -107,6 +134,16 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
     },
     presencaNome: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
     ponto: { width: 7, height: 7, borderRadius: 999 },
+
+    contestacao: {
+      backgroundColor: uso.superficie,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      borderRadius: raio.campo,
+      padding: espaco.m,
+      marginBottom: espaco.s,
+    },
+    contestacaoTopo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espaco.m },
 
     grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
     gradeItem: { width: '48%', flexGrow: 1 },
@@ -141,6 +178,7 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
     celulaValor: { ...texto.corpoForte, color: uso.tinta },
     celulaQuieta: { ...texto.corpoForte, color: cor.neutro300 },
     celulaFalta: { ...texto.xxs, fontFamily: tipo.semi, color: cor.erro600 },
+    celulaAssistida: { ...texto.xxs, color: cor.aviso600 },
   })
 }
 
@@ -215,6 +253,7 @@ export function FichaDaPessoaModal({
               <AbaDeDados
                 ficha={ficha}
                 aoMudar={() => { setVersao(v => v + 1); aoMudar() }}
+                aoExcluir={() => { aoMudar(); aoFechar() }}
               />
             ) : (
               <AbaDeHistorico ficha={ficha} />
@@ -228,16 +267,28 @@ export function FichaDaPessoaModal({
 
 // ─── Dados ──────────────────────────────────────────────────────────────────
 
-function AbaDeDados({ ficha, aoMudar }: { ficha: FichaDaPessoa; aoMudar: () => void }) {
+function AbaDeDados({
+  ficha, aoMudar, aoExcluir,
+}: {
+  ficha: FichaDaPessoa
+  aoMudar: () => void
+  /** Avisado quando a exclusão de vez é confirmada — a ficha deixa de existir. */
+  aoExcluir: () => void
+}) {
   const { cliente } = useSessao()
   const e = useEstilos()
   const [erro, setErro] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [destino, setDestino] = useState<string | null>(null)
   const [confirmandoMover, setConfirmandoMover] = useState(false)
+  const [modalSetorAberto, setModalSetorAberto] = useState(false)
   const [telefoneDoConvite, setTelefoneDoConvite] = useState(ficha.telefone ?? '')
   const [convidando, setConvidando] = useState(false)
   const [valor, setValor] = useState(String(ficha.valorReceber || ''))
+  const [confirmandoExcluir, setConfirmandoExcluir] = useState(false)
+  const [motivoExclusao, setMotivoExclusao] = useState('')
+  const [corrigindoTelefone, setCorrigindoTelefone] = useState(false)
+  const [novoTelefone, setNovoTelefone] = useState(ficha.telefone ?? '')
 
   async function agir(acao: () => Promise<{ erro?: string }>) {
     setErro(null)
@@ -261,6 +312,66 @@ function AbaDeDados({ ficha, aoMudar }: { ficha: FichaDaPessoa; aoMudar: () => v
         <Dado rotulo="CPF" valor={formatCpf(ficha.cpf)} />
         <Dado rotulo="Telefone" valor={ficha.telefone ? formatTelefone(ficha.telefone) : '—'} />
       </View>
+
+      {/*
+        É por este número que a credencial, o aviso do dia e o lembrete de
+        ponto chegam pelo WhatsApp — um dígito errado tira a pessoa da
+        comunicação do evento inteira. Por isso fica logo junto do dado,
+        não escondido numa seção separada.
+      */}
+      {/*
+        Contestações abertas — o colaborador marcou uma batida como errada
+        ou faltando. Mesma régua de quem mexe na equipe (decisão do Juan,
+        18/09/2026), por isso reusa `podeCorrigirTelefone`: é a mesma conta
+        de `podeMexerNaEquipe` na API, ver `ficha-da-pessoa.ts`.
+      */}
+      {ficha.contestacoesAbertas.length > 0 ? (
+        <>
+          <Separador />
+          <Text style={e.secao}>CONTESTAÇÕES</Text>
+          <Respiro altura={espaco.s} />
+          {ficha.contestacoesAbertas.map(c => (
+            <ContestacaoAberta
+              key={c.id}
+              contestacao={c}
+              podeResolver={ficha.podeCorrigirTelefone}
+              aoResolver={aoMudar}
+            />
+          ))}
+        </>
+      ) : null}
+
+      {ficha.podeCorrigirTelefone ? (
+        corrigindoTelefone ? (
+          <>
+            <Respiro altura={espaco.s} />
+            <Campo
+              rotulo="Novo telefone"
+              value={novoTelefone}
+              onChangeText={setNovoTelefone}
+              keyboardType="phone-pad"
+              placeholder="(27) 99999-9999"
+            />
+            <Respiro altura={espaco.s} />
+            <Botao
+              titulo="Salvar telefone"
+              ocupado={ocupado}
+              onPress={() => agir(async () => {
+                const r = await cliente.corrigirTelefone(ficha.participacaoId, novoTelefone)
+                if (!r.erro) setCorrigindoTelefone(false)
+                return r
+              })}
+            />
+            <Respiro altura={espaco.s} />
+            <Botao titulo="Cancelar" onPress={() => setCorrigindoTelefone(false)} tipo="fantasma" />
+          </>
+        ) : (
+          <>
+            <Respiro altura={espaco.s} />
+            <Botao titulo="Corrigir telefone" onPress={() => setCorrigindoTelefone(true)} tipo="fantasma" />
+          </>
+        )
+      ) : null}
 
       {!ficha.ativo ? (
         <>
@@ -287,21 +398,37 @@ function AbaDeDados({ ficha, aoMudar }: { ficha: FichaDaPessoa; aoMudar: () => v
 
           {!confirmandoMover ? (
             <>
-              <View style={e.opcoes}>
-                {ficha.outrosSetores.map(s => (
-                  <Pressable
-                    key={s.setorId}
-                    onPress={() => setDestino(s.setorId)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: destino === s.setorId }}
-                    style={[e.opcao, destino === s.setorId && e.opcaoMarcada]}
-                  >
-                    <Text style={[e.opcaoTexto, destino === s.setorId && e.opcaoTextoMarcado]}>
-                      {s.nome}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <Pressable onPress={() => setModalSetorAberto(true)} accessibilityRole="button">
+                <LinearGradient
+                  colors={[...gradienteMarca.cores] as [string, string, string]}
+                  locations={[...gradienteMarca.posicoes] as [number, number, number]}
+                  start={gradienteMarca.inicio}
+                  end={gradienteMarca.fim}
+                  style={[e.setorSeletorBotao, gradienteMarca.sombra]}
+                >
+                  <Icone nome="ArrowLeftRight" tamanho={16} tom="#ffffff" />
+                  <Text style={e.setorSeletorTexto} numberOfLines={1}>Trocar Funcionário de setor</Text>
+                  <Icone nome="ChevronRight" tamanho={16} tom="#ffffff" />
+                </LinearGradient>
+              </Pressable>
+
+              {destino ? (
+                <>
+                  <Respiro altura={espaco.s} />
+                  <Legenda>
+                    Novo setor: <Corpo forte>{ficha.outrosSetores.find(s => s.setorId === destino)?.nome}</Corpo>
+                  </Legenda>
+                </>
+              ) : null}
+
+              <ModalDeSelecaoDeSetor
+                visivel={modalSetorAberto}
+                setores={ficha.outrosSetores}
+                selecionado={destino}
+                aoEscolher={id => { setDestino(id); setModalSetorAberto(false) }}
+                aoFechar={() => setModalSetorAberto(false)}
+              />
+
               <Respiro altura={espaco.m} />
               <Botao
                 titulo="Mover para o setor escolhido"
@@ -375,6 +502,37 @@ function AbaDeDados({ ficha, aoMudar }: { ficha: FichaDaPessoa; aoMudar: () => v
         </>
       ) : null}
 
+      {/*
+        Tirar da equipe descredencia sem apagar nada — reversível por "trazer
+        de volta". É a ação do dia a dia para quem saiu do evento; excluir de
+        vez fica separado, lá embaixo, como zona de risco.
+      */}
+      <Separador />
+      <Text style={e.secao}>VÍNCULO COM O EVENTO</Text>
+      <Respiro altura={espaco.s} />
+      {ficha.descredenciadoEm ? (
+        <>
+          <Aviso tipo="aviso">
+            Fora da equipe desde {formatarBR(ficha.descredenciadoEm, 'curto')}. Enquanto isso,
+            não registra presença nem aparece nos relatórios.
+          </Aviso>
+          <Respiro altura={espaco.m} />
+          <Botao
+            titulo="Trazer de volta"
+            ocupado={ocupado}
+            tipo="secundario"
+            onPress={() => agir(() => cliente.trazerDeVolta(ficha.participacaoId))}
+          />
+        </>
+      ) : (
+        <Botao
+          titulo="Tirar da equipe"
+          ocupado={ocupado}
+          tipo="fantasma"
+          onPress={() => agir(() => cliente.tirarDaEquipe(ficha.participacaoId))}
+        />
+      )}
+
       <Separador />
       <Text style={e.secao}>PRESENÇA HOJE</Text>
       <Respiro altura={espaco.s} />
@@ -435,7 +593,146 @@ function AbaDeDados({ ficha, aoMudar }: { ficha: FichaDaPessoa; aoMudar: () => v
           Number(valor || 0),
         ))}
       />
+
+      {/*
+        Zona de risco, separada do resto por design: excluir apaga o
+        cadastro e as batidas, sem volta — diferente de "tirar da equipe",
+        que preserva tudo. Por isso pede motivo e uma segunda confirmação.
+      */}
+      {ficha.podeExcluirDaEquipe ? (
+        <>
+          <Separador />
+          <Text style={e.secao}>EXCLUIR DE VEZ</Text>
+          <Respiro altura={espaco.s} />
+          <Legenda>
+            Apaga o cadastro e o histórico de batidas desta pessoa neste evento —
+            sem volta. Para só afastar da equipe, use "Tirar da equipe" acima.
+          </Legenda>
+          <Respiro altura={espaco.m} />
+
+          {!confirmandoExcluir ? (
+            <Botao
+              titulo="Excluir de vez"
+              tipo="fantasma"
+              onPress={() => setConfirmandoExcluir(true)}
+            />
+          ) : (
+            <>
+              <Aviso tipo="erro">
+                {ficha.nome} e todas as batidas dela neste evento serão apagadas
+                para sempre. Não tem como desfazer.
+              </Aviso>
+              <Respiro altura={espaco.s} />
+              <Campo
+                rotulo="Motivo (opcional)"
+                value={motivoExclusao}
+                onChangeText={setMotivoExclusao}
+                placeholder="Ex.: cadastro duplicado"
+              />
+              <Botao
+                titulo="Confirmar exclusão"
+                ocupado={ocupado}
+                onPress={async () => {
+                  setErro(null)
+                  setOcupado(true)
+                  try {
+                    const r = await cliente.excluirDaEquipe(ficha.participacaoId, motivoExclusao)
+                    if (r.erro) return setErro(r.erro)
+                    aoExcluir()
+                  } catch (err) {
+                    setErro(mensagemDoErro(err))
+                  } finally {
+                    setOcupado(false)
+                  }
+                }}
+              />
+              <Respiro altura={espaco.s} />
+              <Botao titulo="Cancelar" onPress={() => setConfirmandoExcluir(false)} tipo="fantasma" />
+            </>
+          )}
+        </>
+      ) : null}
     </>
+  )
+}
+
+/** A partir de quantos setores a lista ganha campo de busca. */
+const MINIMO_PARA_BUSCAR_SETOR = 8
+
+function semAcentoSetor(t: string): string {
+  return t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
+/**
+ * O modal de escolher o setor de destino — cópia do padrão de
+ * `ModalDeSetores` em `evento/[id]/editar.tsx`. Toque na linha já escolhe E
+ * fecha: é uma escolha única (pra onde a pessoa vai), não uma lista de
+ * marcar vários, então não precisa de "Aplicar" separado.
+ */
+function ModalDeSelecaoDeSetor({
+  visivel, setores, selecionado, aoEscolher, aoFechar,
+}: {
+  visivel: boolean
+  setores: { setorId: string; nome: string }[]
+  selecionado: string | null
+  aoEscolher: (setorId: string) => void
+  aoFechar: () => void
+}) {
+  const { cor, uso } = useTema()
+  const e = useEstilos()
+  const [busca, setBusca] = useState('')
+
+  const filtrados = busca.trim()
+    ? setores.filter(s => semAcentoSetor(s.nome).includes(semAcentoSetor(busca.trim())))
+    : setores
+
+  return (
+    <Modal visible={visivel} animationType="slide" onRequestClose={aoFechar}>
+      <View style={e.setorModalFora}>
+        <View style={e.setorModalTopo}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <TituloDeCartao>Mover para qual setor?</TituloDeCartao>
+          </View>
+          <Pressable onPress={() => { setBusca(''); aoFechar() }} hitSlop={8} accessibilityLabel="Fechar">
+            <Icone nome="X" tamanho={20} tom={uso.tintaMedia} />
+          </Pressable>
+        </View>
+
+        {setores.length >= MINIMO_PARA_BUSCAR_SETOR ? (
+          <View style={e.setorModalBusca}>
+            <Campo
+              value={busca}
+              onChangeText={setBusca}
+              placeholder="Buscar setor…"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+        ) : null}
+
+        <ScrollView contentContainerStyle={e.setorModalLista}>
+          {filtrados.length === 0 ? (
+            <Legenda>Nenhum setor encontrado com “{busca}”.</Legenda>
+          ) : filtrados.map(s => {
+            const marcado = s.setorId === selecionado
+            return (
+              <Pressable
+                key={s.setorId}
+                onPress={() => aoEscolher(s.setorId)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: marcado }}
+                style={[e.setorModalLinha, marcado && e.setorModalLinhaMarcada]}
+              >
+                <Text style={[e.setorModalLinhaTexto, marcado && e.setorModalLinhaTextoMarcado]} numberOfLines={1}>
+                  {s.nome}
+                </Text>
+                {marcado ? <Icone nome="Check" tamanho={16} tom={cor.acento600} /> : null}
+              </Pressable>
+            )
+          })}
+        </ScrollView>
+      </View>
+    </Modal>
   )
 }
 
@@ -458,9 +755,9 @@ function AbaDeHistorico({ ficha }: { ficha: FichaDaPessoa }) {
         <View style={e.gradeItem}>
           <Indicador
             rotulo="Dias escalados"
-            valor={ficha.dias.length}
+            valor={resumo.diasEscalados}
             tom="acento"
-            icone={<Icone nome="CalendarDays" tamanho={16} tom="#ffffff" />}
+            icone="CalendarDays"
           />
         </View>
         <View style={e.gradeItem}>
@@ -468,7 +765,7 @@ function AbaDeHistorico({ ficha }: { ficha: FichaDaPessoa }) {
             rotulo="Dias trabalhados"
             valor={resumo.diasTrabalhados}
             tom="sucesso"
-            icone={<Icone nome="UserCheck" tamanho={16} tom="#ffffff" />}
+            icone="UserCheck"
           />
         </View>
         <View style={e.gradeItem}>
@@ -476,7 +773,7 @@ function AbaDeHistorico({ ficha }: { ficha: FichaDaPessoa }) {
             rotulo="Faltas"
             valor={resumo.diasFaltados}
             tom="erro"
-            icone={<Icone nome="X" tamanho={16} tom="#ffffff" />}
+            icone="X"
           />
         </View>
         <View style={e.gradeItem}>
@@ -484,7 +781,7 @@ function AbaDeHistorico({ ficha }: { ficha: FichaDaPessoa }) {
             rotulo="Horas registradas"
             valor={resumo.horasTotais}
             tom="info"
-            icone={<Icone nome="Clock" tamanho={16} tom="#ffffff" />}
+            icone="Clock"
           />
         </View>
       </View>
@@ -505,22 +802,22 @@ function AbaDeHistorico({ ficha }: { ficha: FichaDaPessoa }) {
       {ficha.dias.map(dia => {
         const status = statusDoDia(dia)
         const silencioso = celulaSilenciosa(dia)
-        const tom = { presente: 'sucesso', incompleto: 'aviso', ausente: 'erro' } as const
+        const tom = { presente: 'sucesso', incompleto: 'aviso', ausente: 'erro', cancelado: 'info' } as const
 
         return (
           <View key={dia.data} style={e.diaDoHistorico}>
             <View style={e.diaTopo}>
               <View style={e.diaTexto}>
                 <Corpo forte>{formatarBR(`${dia.data}T12:00:00-03:00`, 'data')}</Corpo>
-                <Legenda>{NOME_DA_FASE[dia.etapa]}</Legenda>
+                <Legenda>{dia.cancelado ? '—' : NOME_DA_FASE[dia.etapa]}</Legenda>
               </View>
               <Selo texto={NOME_DO_STATUS[status]} tipo={tom[status]} />
             </View>
 
             <View style={e.diaEtapas}>
-              <CelulaDoDia etapa="entrada" em={dia.entrada} silencioso={silencioso} />
-              <CelulaDoDia etapa="meio" em={dia.meio} silencioso={silencioso} />
-              <CelulaDoDia etapa="fim" em={dia.saida} silencioso={silencioso} />
+              <CelulaDoDia etapa="entrada" em={dia.entrada} silencioso={silencioso} assistida={dia.entradaAssistida} />
+              <CelulaDoDia etapa="meio" em={dia.meio} silencioso={silencioso} assistida={dia.meioAssistido} />
+              <CelulaDoDia etapa="fim" em={dia.saida} silencioso={silencioso} assistida={dia.saidaAssistida} />
               <View style={e.celula}>
                 <Text style={e.celulaRotulo}>HORAS</Text>
                 <Text style={e.celulaValor}>{dia.horas !== null ? `${dia.horas}h` : '—'}</Text>
@@ -541,14 +838,17 @@ function AbaDeHistorico({ ficha }: { ficha: FichaDaPessoa }) {
  * repetir nas três colunas viraria uma parede vermelha sem informação nova.
  */
 function CelulaDoDia({
-  etapa, em, silencioso,
-}: { etapa: TipoBatida; em: string | null; silencioso: boolean }) {
+  etapa, em, silencioso, assistida,
+}: { etapa: TipoBatida; em: string | null; silencioso: boolean; assistida?: boolean }) {
   const e = useEstilos()
   return (
     <View style={e.celula}>
       <Text style={e.celulaRotulo}>{ROTULO[etapa].toUpperCase()}</Text>
       {em ? (
-        <Text style={e.celulaValor}>{formatarBR(em, 'hora')}</Text>
+        <>
+          <Text style={e.celulaValor}>{formatarBR(em, 'hora')}</Text>
+          {assistida ? <Text style={e.celulaAssistida}>assistida</Text> : null}
+        </>
       ) : silencioso ? (
         <Text style={e.celulaQuieta}>—</Text>
       ) : (
@@ -568,6 +868,61 @@ function Contagem({
       <Text style={e.contagemTexto}>
         <Text style={e.contagemNumero}>{quantas}</Text> {rotulo}
       </Text>
+    </View>
+  )
+}
+
+/** Uma contestação aberta, com o botão de resolver pra quem pode mexer na equipe. */
+function ContestacaoAberta({
+  contestacao, podeResolver, aoResolver,
+}: {
+  contestacao: Contestacao
+  podeResolver: boolean
+  /** Avisado quando a contestação é marcada como resolvida, pra ficha recarregar. */
+  aoResolver: () => void
+}) {
+  const { cliente } = useSessao()
+  const e = useEstilos()
+  const [ocupado, setOcupado] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  return (
+    <View style={e.contestacao}>
+      <View style={e.contestacaoTopo}>
+        <Selo texto={ROTULO[contestacao.tipo]} tipo="aviso" />
+        <Legenda>{formatarBR(`${contestacao.dataRef}T12:00:00-03:00`, 'data')}</Legenda>
+      </View>
+      <Respiro altura={espaco.s} />
+      <Corpo>{contestacao.motivo}</Corpo>
+      {erro ? (
+        <>
+          <Respiro altura={espaco.s} />
+          <Aviso tipo="erro">{erro}</Aviso>
+        </>
+      ) : null}
+      {podeResolver ? (
+        <>
+          <Respiro altura={espaco.s} />
+          <Botao
+            titulo="Marcar como resolvida"
+            tipo="secundario"
+            ocupado={ocupado}
+            onPress={async () => {
+              setErro(null)
+              setOcupado(true)
+              try {
+                const r = await cliente.resolverContestacao(contestacao.id)
+                if (r.erro) return setErro(r.erro)
+                aoResolver()
+              } catch (err) {
+                setErro(mensagemDoErro(err))
+              } finally {
+                setOcupado(false)
+              }
+            }}
+          />
+        </>
+      ) : null}
     </View>
   )
 }

@@ -125,7 +125,7 @@ export default function EquipeDoSetor() {
                   valor={i.chave === 'a_receber' ? emReais(i.valor as number) : i.valor}
                   sub={i.sub}
                   tom={i.tom}
-                  icone={<Icone nome={ICONE_DO_INDICADOR[i.chave] ?? 'Users'} tamanho={16} tom="#ffffff" />}
+                  icone={ICONE_DO_INDICADOR[i.chave] ?? 'Users'}
                 />
               </View>
             ))}

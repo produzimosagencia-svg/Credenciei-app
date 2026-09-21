@@ -22,7 +22,7 @@ import { useMemo, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatarBR, NOME_DO_PAPEL } from '@credenciei/dominio'
 import type { Acesso } from '@credenciei/contrato'
-import { usePedido } from '../../src/dados/pedido'
+import { usePedido, useValorComAtraso } from '../../src/dados/pedido'
 import { mensagemDoErro } from '../../src/dados/pedido'
 import { useSessao } from '../../src/sessao/contexto'
 import {
@@ -46,9 +46,10 @@ export default function Acessos() {
   const [mudando, setMudando] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
 
+  const buscaComAtraso = useValorComAtraso(busca)
   const { pedido, recarregar } = usePedido(
-    () => cliente.acessos({ busca, situacao }),
-    [cliente, busca, situacao, versao],
+    () => cliente.acessos({ busca: buscaComAtraso, situacao }),
+    [cliente, buscaComAtraso, situacao, versao],
   )
 
   async function mudarSituacao(acesso: Acesso) {
@@ -66,6 +67,19 @@ export default function Acessos() {
   }
 
   const dados = pedido.estado === 'pronto' ? pedido.dados : null
+  const souMaster = dados?.itens.find(a => a.souEu)?.papel === 'master'
+
+  async function trocarSenha(acesso: Acesso, novaSenha: string) {
+    const r = await cliente.trocarSenhaDoAcesso(acesso.id, novaSenha)
+    if (!r.erro) setVersao(v => v + 1)
+    return r
+  }
+
+  async function excluir(acesso: Acesso) {
+    const r = await cliente.excluirAcesso(acesso.id)
+    if (!r.erro) setVersao(v => v + 1)
+    return r
+  }
 
   return (
     <Tela>
@@ -133,7 +147,10 @@ export default function Acessos() {
                   <LinhaDeAcesso
                     acesso={a}
                     ocupado={mudando === a.id}
+                    souMaster={souMaster}
                     aoMudarSituacao={() => mudarSituacao(a)}
+                    aoTrocarSenha={senha => trocarSenha(a, senha)}
+                    aoExcluir={() => excluir(a)}
                   />
                 </View>
               ))}
@@ -185,14 +202,51 @@ function Abas({
 }
 
 function LinhaDeAcesso({
-  acesso, ocupado, aoMudarSituacao,
+  acesso, ocupado, souMaster, aoMudarSituacao, aoTrocarSenha, aoExcluir,
 }: {
   acesso: Acesso
   ocupado: boolean
+  souMaster: boolean
   aoMudarSituacao: () => void
+  aoTrocarSenha: (novaSenha: string) => Promise<{ erro?: string }>
+  aoExcluir: () => Promise<{ erro?: string }>
 }) {
   const { cor, uso } = useTema()
   const e = useEstilos()
+  const [modo, setModo] = useState<'senha' | 'excluir' | null>(null)
+  const [senha, setSenha] = useState('')
+  const [erroLocal, setErroLocal] = useState<string | null>(null)
+  const [ocupadoLocal, setOcupadoLocal] = useState(false)
+
+  function fechar() {
+    setModo(null)
+    setSenha('')
+    setErroLocal(null)
+  }
+
+  async function confirmarSenha() {
+    setErroLocal(null)
+    setOcupadoLocal(true)
+    try {
+      const r = await aoTrocarSenha(senha)
+      if (r.erro) return setErroLocal(r.erro)
+      fechar()
+    } finally {
+      setOcupadoLocal(false)
+    }
+  }
+
+  async function confirmarExclusao() {
+    setErroLocal(null)
+    setOcupadoLocal(true)
+    try {
+      const r = await aoExcluir()
+      if (r.erro) return setErroLocal(r.erro)
+      fechar()
+    } finally {
+      setOcupadoLocal(false)
+    }
+  }
   /*
    * Só DOIS tons de selo para o papel: quem tem mais poder ganha cor, o resto é
    * neutro. Antes eram cinco cores diferentes — com cinco pessoas na tela,
@@ -201,6 +255,7 @@ function LinhaDeAcesso({
   const papelComCor = acesso.papel === 'master' || acesso.papel === 'admin'
 
   return (
+    <View>
     <View style={e.linha}>
       <View style={e.iniciais}>
         <Text style={e.iniciaisTexto}>{iniciaisDe(acesso.nome)}</Text>
@@ -243,9 +298,12 @@ function LinhaDeAcesso({
           ) : null}
         </View>
       </View>
+    </View>
 
-      {/* A própria linha não tem ação: ninguém se tranca para fora por engano. */}
-      {!acesso.souEu ? (
+    {/* Abaixo da linha, não ao lado: três botões cabendo ao lado do nome
+        espremia nome e metadados a ponto de truncar tudo. */}
+    {!acesso.souEu ? (
+      <View style={e.acoes}>
         <Pressable
           onPress={aoMudarSituacao}
           disabled={ocupado}
@@ -257,7 +315,57 @@ function LinhaDeAcesso({
             {acesso.ativo ? 'Bloquear' : 'Liberar'}
           </Text>
         </Pressable>
-      ) : null}
+        <Pressable
+          onPress={() => setModo(m => (m === 'senha' ? null : 'senha'))}
+          accessibilityRole="button"
+          accessibilityLabel="Trocar a senha"
+          style={({ pressed }) => [e.acao, pressed && e.acaoTocada]}
+        >
+          <Text style={e.acaoTexto}>Trocar senha</Text>
+        </Pressable>
+        {souMaster ? (
+          <Pressable
+            onPress={() => setModo(m => (m === 'excluir' ? null : 'excluir'))}
+            accessibilityRole="button"
+            accessibilityLabel="Excluir o acesso"
+            style={({ pressed }) => [e.acao, pressed && e.acaoTocada]}
+          >
+            <Text style={[e.acaoTexto, e.acaoTextoBloquear]}>Excluir</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    ) : null}
+
+    {modo === 'senha' ? (
+      <View style={e.expansao}>
+        <Campo
+          rotulo="Nova senha"
+          value={senha}
+          onChangeText={setSenha}
+          placeholder="Ao menos 6 caracteres"
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          erro={erroLocal ?? undefined}
+          ajuda="Passe a nova senha para a pessoa — o app não avisa sozinho."
+        />
+        <View style={e.expansaoAcoes}>
+          <Botao titulo="Salvar" ocupado={ocupadoLocal} onPress={confirmarSenha} />
+          <Botao titulo="Cancelar" tipo="fantasma" onPress={fechar} />
+        </View>
+      </View>
+    ) : null}
+
+    {modo === 'excluir' ? (
+      <View style={e.expansao}>
+        <Legenda>Excluir o acesso de {acesso.nome}? O histórico dela continua existindo; só o login some.</Legenda>
+        {erroLocal ? <Aviso tipo="erro">{erroLocal}</Aviso> : null}
+        <View style={e.expansaoAcoes}>
+          <Botao titulo="Excluir" tipo="perigo" ocupado={ocupadoLocal} onPress={confirmarExclusao} />
+          <Botao titulo="Cancelar" tipo="fantasma" onPress={fechar} />
+        </View>
+      </View>
+    ) : null}
     </View>
   )
 }
@@ -339,6 +447,10 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
   metaTexto: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, flexShrink: 1 },
   metaExpira: { color: cor.aviso700 },
 
+  acoes: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: espaco.xs,
+    paddingHorizontal: espaco.g, paddingBottom: espaco.m,
+  },
   acao: {
     minHeight: 34,
     paddingHorizontal: espaco.m,
@@ -347,12 +459,14 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
     borderColor: uso.borda,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
   },
   acaoTocada: { backgroundColor: cor.neutro50 },
   acaoTravada: { opacity: 0.45 },
   acaoTexto: { ...texto.xs, fontFamily: tipo.semi, color: cor.sucesso700 },
   acaoTextoBloquear: { color: cor.erro700 },
+
+  expansao: { paddingHorizontal: espaco.g, paddingBottom: espaco.m, gap: espaco.s },
+  expansaoAcoes: { flexDirection: 'row', gap: espaco.s },
   })
 }
 

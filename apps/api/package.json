@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/servidor.ts",
+    "dev": "tsx watch src/principal.ts",
+    "start": "tsx src/principal.ts",
     "teste": "tsx --test \"src/**/*.teste.ts\"",
     "tipos": "tsc --noEmit"
   },
@@ -12,7 +13,9 @@
     "@credenciei/contrato": "*",
     "@credenciei/dominio": "*",
     "@supabase/supabase-js": "^2.45.0",
-    "hono": "^4.6.0"
+    "exceljs": "^4.4.0",
+    "hono": "^4.6.0",
+    "jszip": "^3.10.2"
   },
   "devDependencies": {
     "@hono/node-server": "^1.13.0",

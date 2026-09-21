@@ -26,7 +26,7 @@
 // baixo do vidro (`--vidro-solido`) já entrega o essencial: superfície um tom
 // acima do fundo, com borda de 1px. Ver `docs/decisoes/`.
 //
-// `gradiente`, `eventoAoVivo` e `corDaEtapa` ficam FORA do par claro/escuro
+// `gradienteMarca`, `eventoAoVivo` e `corDaEtapa` ficam FORA do par claro/escuro
 // de propósito: no site eles já são os blocos que continuam escuros mesmo no
 // tema claro ("os únicos blocos escuros da tela", diz o comentário de lá) —
 // então aqui eles têm um valor só, que não muda com o toggle.
@@ -51,6 +51,8 @@ type Cor = {
   sobreEscuro: string
   /** O fundo da tela de entrar, que é sempre escura — ver `entrar.tsx`. */
   fundoEscuro: string
+  /** O rótulo do indicador (KPI), por tom — muda de tonalidade entre os temas. */
+  rotuloIndicador: Record<TomDeIndicador, string>
 }
 
 type Uso = {
@@ -114,6 +116,10 @@ const CLARO: { cor: Cor; uso: Uso; sombra: Sombra } = {
 
     sobreEscuro: '#ffffff',
     fundoEscuro: '#0d0c0c',
+    rotuloIndicador: {
+      neutro: '#DD2B0F', acento: '#DD2B0F', sucesso: '#15803d',
+      aviso: '#b45309', info: '#1d4ed8', erro: '#b91c1c',
+    },
   },
   uso: {
     superficie: '#ffffff',
@@ -179,6 +185,10 @@ const ESCURO: { cor: Cor; uso: Uso; sombra: Sombra } = {
 
     sobreEscuro: '#ffffff',
     fundoEscuro: '#0d0c0c',
+    rotuloIndicador: {
+      neutro: '#E8541A', acento: '#E8541A', sucesso: '#4ade80',
+      aviso: '#fbbf24', info: '#60a5fa', erro: '#f87171',
+    },
   },
   uso: {
     superficie: '#161515',
@@ -205,37 +215,66 @@ export const uso = CLARO.uso
 export const sombra = CLARO.sombra
 
 /**
- * Os degradês dos indicadores, copiados um a um.
+ * O indicador (KPI) NÃO é um bloco de cor sólida — era a leitura errada da
+ * primeira versão deste arquivo, corrigida em 12/09/2026 ao reconferir contra
+ * o `.indicador` de verdade em `globals.css`. O cartão é a MESMA superfície
+ * neutra do resto do tema (`uso.superficie`/`uso.borda`); a cor do tom aparece
+ * só em três lugares: o fio de luz de 2px no topo, o círculo do ícone (12% de
+ * opacidade) e o rótulo em maiúsculas. O número continua com `uso.tinta` —
+ * quase preto no claro, quase branco no escuro — porque o número é o
+ * conteúdo, e cor nele lê pior.
  *
- * Ficam FORA do par claro/escuro: no site o indicador continua com o mesmo
- * fundo escuro nos dois temas — só borda e sombra ao redor mudam, e essas o
- * app resolve com a `sombra` do modo atual. Cada par é `[de, até]` num
- * degradê de 135°. Os tons são escuros de propósito: o rótulo branco de 12px
- * precisa de 4.5:1 para ser lido no sol do evento, e é onde esta tela é usada.
+ * `neutro` não existe como tom próprio no site: a classe `.indicador` sem
+ * modificador cai nos valores padrão da regra base, que são os MESMOS do
+ * `acento` — por isso os dois apontam para a mesma cor aqui.
+ *
+ * O rótulo muda de tom entre claro e escuro (mais escuro no claro, para
+ * contraste em cima de branco) — por isso mora nas duas paletas, não aqui.
  */
-export const gradiente = {
-  neutro: ['#292626', '#111010'],
-  acento: ['#A31B05', '#FF4A0F'],
-  info: ['#2563eb', '#1e3a8a'],
-  sucesso: ['#15803d', '#14532d'],
-  aviso: ['#c2410c', '#7c2d12'],
-  erro: ['#c81e1e', '#7f1d1d'],
-} as const
+export const corDoIndicador: Record<TomDeIndicador, string> = {
+  neutro: '#FF4A0F',
+  acento: '#FF4A0F',
+  info: '#3b82f6',
+  sucesso: '#22c55e',
+  aviso: '#f59e0b',
+  erro: '#ef4444',
+}
 
-export type TomDeIndicador = keyof typeof gradiente
+export type TomDeIndicador = 'neutro' | 'acento' | 'info' | 'sucesso' | 'aviso' | 'erro'
 
 /**
  * A cor de cada etapa do dia, igual à dos gráficos do sistema web.
  *
  * Verde, azul e âmbar — e NÃO verde-amarelo-vermelho: as três etapas não são
  * bom, mais ou menos e ruim. São momentos diferentes do mesmo dia, e pintar de
- * semáforo faria a saída parecer um problema. Fora do par claro/escuro pelo
- * mesmo motivo do `gradiente`.
+ * semáforo faria a saída parecer um problema. Fora do par claro/escuro pela
+ * mesma razão de `corDoIndicador`: é a mesma cor nos dois temas.
  */
 export const corDaEtapa = {
   entrada: '#22c55e',
   meio: '#60a5fa',
   fim: '#f59e0b',
+} as const
+
+/**
+ * O gradiente da marca — `--gradiente-marca`/`--brilho-marca` no site,
+ * usado no botão primário (`.btn-primario`) e em outros poucos lugares de
+ * destaque máximo. Fora do par claro/escuro pela mesma razão de
+ * `corDoIndicador`: é o mesmo gradiente nos dois temas.
+ *
+ * `inicio`/`fim` viram `start`/`end` do `LinearGradient` (`expo-linear-
+ * gradient`) — 135deg no CSS não tem tradução direta em pontos, canto a
+ * canto (0,0)→(1,1) é a aproximação mais próxima.
+ */
+export const gradienteMarca = {
+  cores: ['#A31B05', '#FF4A0F', '#FF8A4C'],
+  posicoes: [0, 0.6, 1],
+  inicio: { x: 0, y: 0 },
+  fim: { x: 1, y: 1 },
+  sombra: {
+    shadowColor: '#FF4A0F', shadowOpacity: 0.45, shadowRadius: 14, shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
 } as const
 
 /**
@@ -253,11 +292,15 @@ export const eventoAoVivo = {
   borda: 'rgba(255, 74, 15, 0.35)',
   brilho: 'rgba(255, 74, 15, 0.18)',
   sombra: { boxShadow: '0 8px 24px rgba(20, 10, 4, 0.35)' },
-  /** Verde claro, para o rótulo "AO VIVO" ser legível sobre o laranja escuro. */
-  vivo: '#7ee2a8',
-  ponto: '#22c55e',
-  barra: ['#22c55e', '#16a34a'],
-  trilho: 'rgba(255,255,255,0.12)',
+  /*
+   * Laranja, não verde — corrigido em 13/09/2026 ao reconferir contra
+   * `.evento-vivo-selo`/`.ponto-vivo` de verdade: os valores antigos
+   * (#7ee2a8/#22c55e) eram os do tom "sucesso" do tema escuro, cola errada de
+   * quando este bloco foi escrito. `vivo` é `--laranja-claro`, `ponto` é
+   * `--laranja` — as duas variáveis reais do `globals.css`.
+   */
+  vivo: '#FF8A4C',
+  ponto: '#FF4A0F',
   texto: 'rgba(255,255,255,0.60)',
   textoFraco: 'rgba(255,255,255,0.45)',
 } as const
@@ -353,6 +396,6 @@ export const ALVO_MINIMO = 52
 export const LARGURA_MAXIMA = 460
 
 export const tema = {
-  cor, uso, gradiente, corDaEtapa, eventoAoVivo, tipo, texto, espaco, raio,
+  cor, uso, corDoIndicador, corDaEtapa, gradienteMarca, eventoAoVivo, tipo, texto, espaco, raio,
   sombra, ALVO_MINIMO, LARGURA_MAXIMA,
 }

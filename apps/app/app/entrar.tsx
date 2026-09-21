@@ -8,14 +8,18 @@
 // (a tela de login do site foi refeita nesse componente, 12/09/2026) — quem já
 // usa o painel reconhece.
 //
-// Simplificações, pelo mesmo motivo de sempre — RN não tem tradução direta e
-// barata para `radial-gradient`/`backdrop-blur` (ver `tema.ts`):
-//   • o brilho radial de fundo (duas manchas sutis) não existe aqui; fica só
-//     o brilho atrás do ícone, que é o elemento que mais chama atenção;
-//   • o brilho atrás do ícone é simulado com círculos concêntricos
-//     translúcidos, não um blur de verdade;
-//   • o cartão de vidro (gradiente sutil + blur) vira o mesmo degradê SEM
-//     blur — já é próximo o bastante sem custar nada de desempenho;
+// ─── O CARTÃO DE VIDRO É BLUR DE VERDADE ────────────────────────────────────
+//
+// `expo-blur` (`BlurView`) faz o `backdrop-blur` de verdade — o mesmo efeito
+// do site, e não uma aproximação. O brilho ambiente (`radial-gradient(1000px
+// 520px at 30% 40%, ...)` + `radial-gradient(700px 420px at 100% 100%, ...)`
+// no CSS do site) é o que o blur do cartão precisa ENXERGAR atrás dele para
+// fazer sentido — sem ele, borrar um fundo liso não muda nada visualmente.
+// RN não tem `radial-gradient`, então os dois brilhos são aproximados com
+// círculos concêntricos translúcidos (a mesma técnica que já existia atrás do
+// ícone, só que maiores e mais fracos, posicionados pela % do site).
+//
+// Simplificação que continua de pé, pelo mesmo motivo de sempre:
 //   • o texto "credenciada." é cor sólida, não o degradê em texto do site
 //     (RN não recorta gradiente em texto sem uma biblioteca à parte).
 //
@@ -40,10 +44,12 @@
 import { useState } from 'react'
 import { Redirect } from 'expo-router'
 import {
-  Image, Linking, Pressable, ScrollView, StyleSheet, Text, View,
+  Image, Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
+import { BlurView } from 'expo-blur'
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg'
 import { mensagemDoErro } from '../src/dados/pedido'
 import { DEMONSTRACAO } from '../src/dados/cliente'
 import { useSessao } from '../src/sessao/contexto'
@@ -155,6 +161,8 @@ export default function Entrar() {
         { paddingTop: insets.top + espaco.ggg, paddingBottom: insets.bottom + espaco.g },
       ]}
     >
+      <BrilhoAmbiente />
+
       <ScrollView
         style={e.miolo}
         contentContainerStyle={e.mioloConteudo}
@@ -169,7 +177,14 @@ export default function Entrar() {
           <Image source={require('../assets/marca/iso-3d.png')} style={e.logo} resizeMode="contain" />
         </View>
 
-        <View style={e.cartao}>
+        <View style={e.cartaoSombra}>
+        <View style={e.cartaoFora}>
+          <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+          <LinearGradient
+            colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)']}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={e.cartaoConteudo}>
           <Text style={e.titulo}>
             Toda a equipe do seu evento, <Text style={e.tituloAcento}>credenciada.</Text>
           </Text>
@@ -293,6 +308,8 @@ export default function Entrar() {
               123456.
             </Text>
           ) : null}
+          </View>
+        </View>
         </View>
       </ScrollView>
 
@@ -301,6 +318,41 @@ export default function Entrar() {
       {mostrarAbertura ? <AberturaDoApp aoTerminar={() => setMostrarAbertura(false)} /> : null}
     </View>
     </TemaFixo>
+  )
+}
+
+/**
+ * As duas manchas de luz por trás de tudo — os mesmos dois `radial-gradient`
+ * do CSS do site (ver o comentário no topo do arquivo), só que de verdade:
+ * `react-native-svg` (já dependência do projeto, por causa do QR) tem
+ * `RadialGradient` nativo — nada de aproximar com círculos concêntricos, que
+ * ficava com anel visível em vez de esmaecer suave.
+ *
+ * `cx`/`cy` batem com o `at 30% 40%` e `at 100% 100%` do CSS; o raio (`r`) é
+ * proporcional à MAIOR dimensão da tela, para o brilho não ficar elíptico
+ * demais numa tela estreita e alta.
+ */
+function BrilhoAmbiente() {
+  const { width: larguraTela, height: alturaTela } = useWindowDimensions()
+  const raioDoBrilho = `${Math.round((Math.max(larguraTela, alturaTela) / Math.min(larguraTela, alturaTela)) * 55)}%`
+
+  return (
+    <View style={e.ambienteFora} pointerEvents="none">
+      <Svg width={larguraTela} height={alturaTela} style={StyleSheet.absoluteFill}>
+        <Defs>
+          <RadialGradient id="brilhoPrincipal" cx="30%" cy="40%" r={raioDoBrilho}>
+            <Stop offset="0" stopColor="#FF4A0F" stopOpacity={0.22} />
+            <Stop offset="0.6" stopColor="#FF4A0F" stopOpacity={0} />
+          </RadialGradient>
+          <RadialGradient id="brilhoCanto" cx="100%" cy="100%" r={raioDoBrilho}>
+            <Stop offset="0" stopColor="#A31B05" stopOpacity={0.16} />
+            <Stop offset="0.6" stopColor="#A31B05" stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect x={0} y={0} width={larguraTela} height={alturaTela} fill="url(#brilhoPrincipal)" />
+        <Rect x={0} y={0} width={larguraTela} height={alturaTela} fill="url(#brilhoCanto)" />
+      </Svg>
+    </View>
   )
 }
 
@@ -439,6 +491,9 @@ const e = StyleSheet.create({
   miolo: { flex: 1 },
   mioloConteudo: { paddingBottom: espaco.gg },
 
+  // ─── O brilho ambiente, atrás de tudo ─────────────────────────────────────
+  ambienteFora: { ...StyleSheet.absoluteFill, overflow: 'hidden' },
+
   // ─── O ícone, com o brilho atrás ──────────────────────────────────────────
   logoFora: {
     alignItems: 'center',
@@ -454,20 +509,30 @@ const e = StyleSheet.create({
   brilhoInterno: { width: TAMANHO_LOGO * 1.1, height: TAMANHO_LOGO * 1.1, opacity: 0.22 },
 
   // ─── O cartão de vidro ─────────────────────────────────────────────────────
-  cartao: {
+  //
+  // Três camadas, porque `overflow: 'hidden'` (para o desfoque respeitar os
+  // cantos arredondados) corta a sombra da MESMA view no Android — então a
+  // sombra mora numa view de fora, sem overflow, e o corte fica só na de
+  // dentro.
+  cartaoSombra: {
     borderRadius: 28,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    paddingHorizontal: espaco.gg,
-    paddingTop: espaco.ggg,
-    paddingBottom: espaco.gg,
-    alignItems: 'center',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 24 },
     shadowOpacity: 0.5,
     shadowRadius: 48,
     elevation: 12,
+  },
+  cartaoFora: {
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    overflow: 'hidden',
+  },
+  cartaoConteudo: {
+    paddingHorizontal: espaco.gg,
+    paddingTop: espaco.ggg,
+    paddingBottom: espaco.gg,
+    alignItems: 'center',
   },
 
   titulo: {

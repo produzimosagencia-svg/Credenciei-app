@@ -13,6 +13,7 @@ import {
   conferirHorariosDoEvento, ehDiaPrincipal, horariosEsperados, periodoDoEvento,
   inferirMomentoDoScanner, type RegistroParaInferencia,
   HORAS_ATE_MEIO, janelaDeOperacaoDoEvento, diaDeReferenciaAssistida,
+  liberacaoDoQR,
 } from './janelas.js'
 
 // ─── O fuso ─────────────────────────────────────────────────────────────────
@@ -448,6 +449,123 @@ test('só `true` liga a batida livre', () => {
     )
     assert.equal(v.ok, false, `batida_livre=${String(valor)} não podia liberar`)
   }
+})
+
+// ─── Liberação do QR ────────────────────────────────────────────────────────
+//
+// Embaça o QR até pouco antes da hora de bater — contra o print mandado com
+// antecedência pra alguém entrar no lugar da pessoa. Nunca foi ligado em
+// lugar nenhum (nem aqui, nem no site) até o Juan decidir, em 18/09/2026,
+// desenhar isso no app — daí a primeira suíte de testes desta função, que
+// já existia escrita mas nunca tinha sido exercitada.
+
+const EVENTO_QR = {
+  janela_entrada_inicio: '2026-09-05T07:00:00-03:00',
+  janela_entrada_fim: '2026-09-05T20:00:00-03:00',
+  janela_fim_inicio: '2026-09-05T22:00:00-03:00',
+  janela_fim_fim: '2026-09-05T23:55:00-03:00',
+}
+
+test('sem dia de trabalho, o QR fica embaçado', () => {
+  const r = liberacaoDoQR(EVENTO_QR, null, new Date('2026-09-05T10:00:00-03:00'))
+  assert.deepEqual(r, { liberado: false, liberaEm: null })
+})
+
+test('dia cancelado embaça o QR, mesmo dentro do horário configurado', () => {
+  const r = liberacaoDoQR(
+    EVENTO_QR, { tipo: 'principal', cancelado: true }, new Date('2026-09-05T10:00:00-03:00'),
+  )
+  assert.deepEqual(r, { liberado: false, liberaEm: null })
+})
+
+test('dia principal sem nenhum horário configurado libera direto — travar pra sempre impediria trabalhar', () => {
+  const r = liberacaoDoQR({}, DIA_PRINCIPAL, new Date('2026-09-05T03:00:00-03:00'))
+  assert.deepEqual(r, { liberado: true, liberaEm: null })
+})
+
+test('dentro da janela de entrada, libera', () => {
+  const r = liberacaoDoQR(EVENTO_QR, DIA_PRINCIPAL, new Date('2026-09-05T10:00:00-03:00'))
+  assert.equal(r.liberado, true)
+})
+
+test('a folga (tolerância) libera um pouco antes do horário oficial', () => {
+  // Janela abre 07:00; com 15 min de folga (o padrão), libera a partir de 06:45.
+  const r = liberacaoDoQR(EVENTO_QR, DIA_PRINCIPAL, new Date('2026-09-05T06:46:00-03:00'))
+  assert.equal(r.liberado, true)
+})
+
+test('antes da folga, fica embaçado e diz quando abre', () => {
+  const r = liberacaoDoQR(EVENTO_QR, DIA_PRINCIPAL, new Date('2026-09-05T06:00:00-03:00'))
+  assert.equal(r.liberado, false)
+  // 07:00 menos 15 min de folga = 06:45.
+  assert.equal(r.liberaEm, new Date('2026-09-05T06:45:00-03:00').toISOString())
+})
+
+test('entre as duas janelas (entrada fechada, saída ainda não), embaça e aponta a próxima', () => {
+  const r = liberacaoDoQR(EVENTO_QR, DIA_PRINCIPAL, new Date('2026-09-05T21:00:00-03:00'))
+  assert.equal(r.liberado, false)
+  // Saída abre 22:00 menos 15 min de folga = 21:45.
+  assert.equal(r.liberaEm, new Date('2026-09-05T21:45:00-03:00').toISOString())
+})
+
+test('dentro da janela de saída, libera de novo', () => {
+  const r = liberacaoDoQR(EVENTO_QR, DIA_PRINCIPAL, new Date('2026-09-05T23:00:00-03:00'))
+  assert.equal(r.liberado, true)
+})
+
+test('depois de todas as janelas, o dia já passou — embaçado, sem horário pra esperar', () => {
+  const r = liberacaoDoQR(EVENTO_QR, DIA_PRINCIPAL, new Date('2026-09-06T02:00:00-03:00'))
+  assert.deepEqual(r, { liberado: false, liberaEm: null })
+})
+
+test('etapa sem fim configurado nunca fecha, uma vez aberta', () => {
+  const semFimDaSaida = { ...EVENTO_QR, janela_fim_fim: null }
+  const r = liberacaoDoQR(semFimDaSaida, DIA_PRINCIPAL, new Date('2026-09-06T05:00:00-03:00'))
+  assert.equal(r.liberado, true)
+})
+
+test('batida livre libera o QR o dia inteiro, mesmo com janela configurada', () => {
+  // Mesmo raciocínio de `avaliarEntradaSaida`: sem isto, o QR ficaria
+  // embaçado esperando um horário que já não impede nem libera o registro.
+  const r = liberacaoDoQR(
+    { ...EVENTO_QR, batida_livre: true }, DIA_PRINCIPAL, new Date('2026-09-05T03:00:00-03:00'),
+  )
+  assert.deepEqual(r, { liberado: true, liberaEm: null })
+})
+
+test('batida livre não afeta dia cancelado nem dia sem trabalho — só solta o horário', () => {
+  const livre = { ...EVENTO_QR, batida_livre: true }
+  assert.equal(liberacaoDoQR(livre, null, new Date('2026-09-05T03:00:00-03:00')).liberado, false)
+  assert.equal(
+    liberacaoDoQR(livre, { tipo: 'principal', cancelado: true }, new Date('2026-09-05T03:00:00-03:00')).liberado,
+    false,
+  )
+})
+
+test('dia de preparação sem horário próprio libera o dia inteiro', () => {
+  const r = liberacaoDoQR(EVENTO_QR, { tipo: 'preparacao', cancelado: false }, new Date('2026-09-03T03:00:00-03:00'))
+  assert.deepEqual(r, { liberado: true, liberaEm: null })
+})
+
+test('dia de preparação COM horário próprio respeita ele, não o do evento', () => {
+  const dia = {
+    tipo: 'preparacao' as const, cancelado: false,
+    entrada_inicio: '2026-09-03T08:00:00-03:00', entrada_fim: '2026-09-03T12:00:00-03:00',
+  }
+  const cedo = liberacaoDoQR(EVENTO_QR, dia, new Date('2026-09-03T07:00:00-03:00'))
+  assert.equal(cedo.liberado, false)
+
+  const dentro = liberacaoDoQR(EVENTO_QR, dia, new Date('2026-09-03T09:00:00-03:00'))
+  assert.equal(dentro.liberado, true)
+})
+
+test('tolerância customizada muda a folga', () => {
+  // Sem folga nenhuma: 06:59 ainda embaçado, 07:00 já libera.
+  const antes = liberacaoDoQR(EVENTO_QR, DIA_PRINCIPAL, new Date('2026-09-05T06:59:00-03:00'), 0)
+  assert.equal(antes.liberado, false)
+
+  const naHora = liberacaoDoQR(EVENTO_QR, DIA_PRINCIPAL, new Date('2026-09-05T07:00:00-03:00'), 0)
+  assert.equal(naHora.liberado, true)
 })
 
 test('os horários continuam valendo como referência', () => {

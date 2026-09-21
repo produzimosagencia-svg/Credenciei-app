@@ -1,4 +1,4 @@
-// Limite de tentativas, em memória.
+// Limite de tentativas.
 //
 // ─── POR QUE ISTO EXISTE ────────────────────────────────────────────────────
 //
@@ -12,61 +12,53 @@
 // transforma "minutos" em "anos" — e é mais eficaz que alongar os códigos,
 // porque não custa nada a quem digita.
 //
-// ─── A LIMITAÇÃO DESTA VERSÃO ───────────────────────────────────────────────
+// ─── DUAS IMPLEMENTAÇÕES, MESMA INTERFACE ───────────────────────────────────
 //
-// A contagem vive na memória do processo. Com uma instância só, funciona. Com
-// várias — que é o que acontece em produção serverless —, cada uma conta
-// separado, e o limite efetivo multiplica pelo número de instâncias.
-//
-// Não é falha de desenho, é uma etapa: a interface já está certa, e trocar por
-// uma contagem compartilhada (Redis, ou uma tabela no Postgres) é substituir
-// este arquivo. Está anotado como pendência para antes da produção.
+// `LimiteEmMemoria` — testes e o servidor falso: instantâneo, e cada
+// instância de teste começa zerada. `LimiteNoSupabase` (`limite-supabase.ts`)
+// — a API de verdade, sobre a tabela `app_limites` (migração 005): sobrevive
+// a reiniciar o processo, e mais de uma instância conta junto — mesma razão
+// de `SessoesNoSupabase` ter saído da memória em 12/09/2026.
+
+export interface LimiteDeTentativas {
+  /**
+   * Esta chave ainda pode passar?
+   *
+   * Conta ANTES de deixar passar, não depois: se o processo morrer no meio da
+   * operação, o gasto já está registrado. O contrário permitiria burlar o
+   * limite derrubando a requisição na hora certa.
+   */
+  podePassar(chave: string, maximo: number, janelaMs: number, agora?: number): Promise<boolean>
+}
 
 type Janela = { ate: number; usos: number }
 
-const janelas = new Map<string, Janela>()
+export class LimiteEmMemoria implements LimiteDeTentativas {
+  private janelas = new Map<string, Janela>()
 
-/**
- * Esta chave ainda pode passar?
- *
- * Conta ANTES de deixar passar, não depois: se o processo morrer no meio da
- * operação, o gasto já está registrado. O contrário permitiria burlar o limite
- * derrubando a requisição na hora certa.
- */
-export function podePassar(
-  chave: string,
-  maximo: number,
-  janelaMs: number,
-  agora = Date.now(),
-): boolean {
-  const atual = janelas.get(chave)
+  async podePassar(chave: string, maximo: number, janelaMs: number, agora = Date.now()): Promise<boolean> {
+    const atual = this.janelas.get(chave)
 
-  if (!atual || agora > atual.ate) {
-    janelas.set(chave, { ate: agora + janelaMs, usos: 1 })
+    if (!atual || agora > atual.ate) {
+      this.janelas.set(chave, { ate: agora + janelaMs, usos: 1 })
+      return true
+    }
+
+    if (atual.usos >= maximo) return false
+
+    atual.usos++
     return true
   }
 
-  if (atual.usos >= maximo) return false
-
-  atual.usos++
-  return true
-}
-
-/** Só para os testes: limpa a contagem entre casos. */
-export function esquecerLimites(): void {
-  janelas.clear()
-}
-
-/**
- * Remove janelas vencidas.
- *
- * Sem isto o mapa cresce para sempre: cada telefone que já tentou entrar deixa
- * uma entrada permanente, e com vinte mil contas isso vira memória parada.
- */
-export function limparVencidos(agora = Date.now()): number {
-  let removidos = 0
-  for (const [chave, j] of janelas) {
-    if (agora > j.ate) { janelas.delete(chave); removidos++ }
+  /** Só para os testes: limpa a contagem entre casos. */
+  esquecer(): void {
+    this.janelas.clear()
   }
-  return removidos
+
+  /** Remove o que já venceu — sem isto o mapa cresce para sempre. */
+  limparVencidos(agora = Date.now()): number {
+    let n = 0
+    for (const [k, v] of this.janelas) if (agora > v.ate) { this.janelas.delete(k); n++ }
+    return n
+  }
 }

@@ -11,11 +11,12 @@
 
 import {
   diaBRT, faseAtualDoQR, faseDoDia, gerarCodigoQR, janelaMeio, lerCodigoDeEvento,
+  liberacaoDoQR, type EventoJanelas,
 } from '@credenciei/dominio'
 import type {
   ConviteDoEvento, DiaDaParticipacao, FinanceiroDaParticipacao, ResumoParticipacao,
 } from '@credenciei/contrato'
-import { podePassar } from '../limite.js'
+import type { LimiteDeTentativas } from '../limite.js'
 import type { Participacao, Repositorio } from '../dados/repositorio.js'
 
 /** Os campos que este evento pede além do que a conta já sabe. */
@@ -28,6 +29,7 @@ export type FonteDeCampos = (eventoId: string) => Promise<CampoExtra[]>
 export async function consultarConvite(
   repo: Repositorio,
   campos: FonteDeCampos,
+  limite: LimiteDeTentativas,
   pessoaId: string,
   codigoDigitado: string,
   agora = Date.now(),
@@ -39,7 +41,7 @@ export async function consultarConvite(
    * resiste a um curioso e não resiste a um script. Vinte tentativas por hora
    * transformam "minutos" em "anos" sem atrapalhar quem digitou errado.
    */
-  if (!podePassar(`convite:${pessoaId}`, 20, 60 * 60_000, agora)) {
+  if (!(await limite.podePassar(`convite:${pessoaId}`, 20, 60 * 60_000, agora))) {
     return { erro: 'Muitas tentativas com códigos diferentes. Espere um pouco e tente de novo.' }
   }
 
@@ -76,13 +78,14 @@ export async function consultarConvite(
 export async function entrarNoEvento(
   repo: Repositorio,
   campos: FonteDeCampos,
+  limite: LimiteDeTentativas,
   pessoaId: string,
   codigoDigitado: string,
   respostas: Record<string, string>,
   novoToken: () => string,
   agora = Date.now(),
 ): Promise<{ participacao?: ResumoParticipacao; erro?: string }> {
-  const c = await consultarConvite(repo, campos, pessoaId, codigoDigitado, agora)
+  const c = await consultarConvite(repo, campos, limite, pessoaId, codigoDigitado, agora)
   if (c.erro || !c.convite) return { erro: c.erro ?? 'Código inválido.' }
 
   const faltando = c.convite.camposExtras.filter(
@@ -112,6 +115,11 @@ export async function entrarNoEvento(
     pago: false,
     pagoEm: null,
     qrToken: novoToken(),
+    // `cidade` é um campo extra como outro qualquer (ver `camposExtras`) —
+    // só existe quando o evento pede. Base de funcionários e a busca
+    // regional dependem dele; sem pedir, a pessoa não aparece na busca.
+    cidade: respostas.cidade?.trim() || null,
+    criadoEm: new Date(agora).toISOString(),
   })
 
   const evento = await repo.eventoPorId(c.convite.eventoId)
@@ -182,19 +190,21 @@ async function minhaParticipacao(
   return p
 }
 
-export async function meusDias(
+/**
+ * Os dias desta participação, com o que foi registrado em cada um — extraído
+ * de `meusDias` (13/09/2026) para ser reaproveitado por `fichaDaPessoa`
+ * (`rotas/ficha-da-pessoa.ts`), que monta a mesma aba "Histórico de batidas"
+ * para quem ACOMPANHA a equipe, não só para a própria pessoa.
+ */
+export async function diasDaParticipacao(
   repo: Repositorio,
-  pessoaId: string,
-  participacaoId: string,
+  participacao: Participacao,
+  dataInicioEvento: string | null,
 ): Promise<DiaDaParticipacao[]> {
-  const p = await minhaParticipacao(repo, pessoaId, participacaoId)
-  const evento = await repo.eventoPorId(p.eventoId)
-  if (!evento) return []
-
-  const dias = await repo.diasDoEvento(p.eventoId)
-  const registros = await repo.registrosDaParticipacao(p.id)
+  const dias = await repo.diasDoEvento(participacao.eventoId)
+  const registros = await repo.registrosDaParticipacao(participacao.id)
   const diaPrincipal = dias.find(d => d.tipo === 'principal')?.data
-    ?? (evento.dataInicio ? diaBRT(evento.dataInicio) : '')
+    ?? (dataInicioEvento ? diaBRT(dataInicioEvento) : '')
 
   /*
    * Dias com batida que não estão na jornada entram assim mesmo.
@@ -205,25 +215,35 @@ export async function meusDias(
    */
   const datas = new Set(dias.map(d => d.data))
   for (const r of registros) datas.add(r.dataRef)
+  const diaAgendado = new Map(dias.map(d => [d.data, d]))
 
   return [...datas].sort().map(data => {
     const doDia = registros.filter(r => r.dataRef === data)
-    const pega = (t: string) => doDia.find(r => r.tipo === t)?.registradoEm ?? null
-    const entrada = pega('entrada')
-    const meio = pega('meio')
-    const saida = pega('fim')
+    const registroDe = (t: string) => doDia.find(r => r.tipo === t) ?? null
+    const regEntrada = registroDe('entrada')
+    const regMeio = registroDe('meio')
+    const regSaida = registroDe('fim')
+    const entrada = regEntrada?.registradoEm ?? null
+    const meio = regMeio?.registradoEm ?? null
+    const saida = regSaida?.registradoEm ?? null
     const janela = entrada ? janelaMeio(entrada) : null
 
     return {
       data,
       etapa: faseDoDia(data, diaPrincipal),
+      // Ausente de `diaAgendado` (batida num dia fora da escala) nunca é
+      // cancelado — só um dia que EXISTIU na jornada e foi desmarcado depois.
+      cancelado: diaAgendado.get(data)?.cancelado === true,
       entrada,
+      entradaAssistida: regEntrada?.manual === true,
       meioEsperado: janela?.inicio ?? null,
       meio,
+      meioAssistido: regMeio?.manual === true,
       meioAtrasoMin: meio && janela && Date.parse(meio) > Date.parse(janela.fim)
         ? Math.round((Date.parse(meio) - Date.parse(janela.fim)) / 60_000)
         : null,
       saida,
+      saidaAssistida: regSaida?.manual === true,
       compareceu: !!entrada,
       horas: entrada && saida
         ? Math.round(((Date.parse(saida) - Date.parse(entrada)) / 3600e3) * 100) / 100
@@ -238,6 +258,17 @@ export async function meusDias(
       meioExigido: true,
     }
   })
+}
+
+export async function meusDias(
+  repo: Repositorio,
+  pessoaId: string,
+  participacaoId: string,
+): Promise<DiaDaParticipacao[]> {
+  const p = await minhaParticipacao(repo, pessoaId, participacaoId)
+  const evento = await repo.eventoPorId(p.eventoId)
+  if (!evento) return []
+  return diasDaParticipacao(repo, p, evento.dataInicio)
 }
 
 export async function meuFinanceiro(
@@ -260,6 +291,7 @@ export async function meuFinanceiro(
     valorPrevisto: p.valorReceber === null ? null : p.valorReceber * trabalhados,
     situacao: p.pago ? 'pago' : trabalhados > 0 ? 'em_processamento' : 'pendente',
     pagoEm: p.pagoEm,
+    chavePix: p.chavePix ?? null,
   }
 }
 
@@ -269,7 +301,7 @@ export async function meuQr(
   pessoaId: string,
   participacaoId: string,
   agora = new Date(),
-): Promise<{ codigo: string; etapa: string }> {
+): Promise<{ codigo: string; etapa: string; liberado: boolean; liberaEm: string | null }> {
   const p = await minhaParticipacao(repo, pessoaId, participacaoId)
   const evento = await repo.eventoPorId(p.eventoId)
   if (!evento) throw new Error('Evento não encontrado.')
@@ -284,5 +316,24 @@ export async function meuQr(
    */
   const etapa = faseAtualDoQR(agora, evento.dataInicio, evento.dataFim)
   const { codigo } = gerarCodigoQR(segredo, p.qrToken, etapa)
-  return { codigo, etapa }
+
+  /*
+   * Liberação do QR — decidido com o Juan em 18/09/2026: embaçar o QR até
+   * pouco antes da hora de bater, contra print mandado com antecedência
+   * pra alguém entrar no lugar da pessoa (`liberacaoDoQR`, no domínio).
+   *
+   * Sem dia de trabalho hoje, ou dia cancelado, NÃO embaça: a tela já
+   * explica isso com outro texto ("este evento não tem trabalho marcado
+   * para hoje" / "a produção cancelou o expediente"), e não há horário
+   * nenhum pra esperar — embaçar aqui só confundiria sem proteger nada,
+   * já que ninguém deveria estar tentando entrar mesmo.
+   */
+  const dataRef = diaBRT(agora)
+  const dias = await repo.diasDoEvento(evento.id)
+  const dia = dias.find(d => d.data === dataRef) ?? null
+  const { liberado, liberaEm } = !dia || dia.cancelado
+    ? { liberado: true, liberaEm: null }
+    : liberacaoDoQR(evento as EventoJanelas, { tipo: dia.tipo, cancelado: dia.cancelado }, agora)
+
+  return { codigo, etapa, liberado, liberaEm }
 }

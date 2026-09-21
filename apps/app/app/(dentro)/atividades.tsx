@@ -128,7 +128,7 @@ export default function Atividades() {
                     valor={dados.numeros[chave]}
                     sub={chave === 'pendencias' ? 'já passou da hora' : undefined}
                     tom={chave === 'pendencias' ? 'aviso' : chave === 'presentes' ? 'sucesso' : chave === 'saidas' ? 'info' : 'acento'}
-                    icone={<Icone nome={ICONE_DO_NUMERO[chave]!} tamanho={16} tom="#ffffff" />}
+                    icone={ICONE_DO_NUMERO[chave]}
                   />
                 </Pressable>
               </View>

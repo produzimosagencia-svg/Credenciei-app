@@ -19,6 +19,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import { formatarBR } from '@credenciei/dominio'
 import type { FinanceiroDaParticipacao } from '@credenciei/contrato'
 import { usePedido } from '../../src/dados/pedido'
+import { escolherParticipacao, useParticipacaoSelecionada } from '../../src/participacao-selecionada'
 import { useSessao } from '../../src/sessao/contexto'
 import { resumoDoHistorico } from '../../src/historico'
 import {
@@ -52,12 +53,13 @@ const SITUACAO: Record<
 
 export default function MeuPagamento() {
   const { cliente } = useSessao()
+  const { participacaoId: selecionada } = useParticipacaoSelecionada()
   const { uso } = useTema()
   const e = useEstilos()
 
   const { pedido, recarregar } = usePedido(async () => {
     const participacoes = await cliente.minhasParticipacoes()
-    const p = participacoes.find(x => x.emAndamento) ?? participacoes[0]
+    const p = escolherParticipacao(participacoes, selecionada)
     if (!p) return null
 
     const [financeiro, dias] = await Promise.all([
@@ -65,7 +67,7 @@ export default function MeuPagamento() {
       cliente.meusDias(p.participacaoId),
     ])
     return { participacao: p, financeiro, dias }
-  }, [cliente])
+  }, [cliente, selecionada])
 
   const dados = pedido.estado === 'pronto' ? pedido.dados : null
   const resumo = dados ? resumoDoHistorico(dados.dias) : null
@@ -155,6 +157,20 @@ export default function MeuPagamento() {
             ) : null}
           </Cartao>
 
+          <Cartao>
+            <TituloDeCartao>Chave PIX</TituloDeCartao>
+            <Respiro altura={espaco.s} />
+            {dados.financeiro.chavePix ? (
+              <Text style={e.chave} selectable>{dados.financeiro.chavePix}</Text>
+            ) : (
+              <Legenda>
+                Nenhuma chave PIX cadastrada. Foi a que você escreveu no
+                formulário de cadastro do evento — se estiver errada ou
+                faltando, fale com a produção antes do acerto.
+              </Legenda>
+            )}
+          </Cartao>
+
           <View style={e.rodape}>
             <Icone nome="ShieldCheck" tamanho={14} tom={uso.tintaFraca} />
             <Text style={e.rodapeTexto}>
@@ -214,6 +230,7 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
     },
     linhaRotulo: { ...texto.corpo, color: uso.tintaMedia, flex: 1 },
     linhaValor: { ...texto.corpoForte, color: uso.tinta },
+    chave: { ...texto.corpoForte, color: uso.tinta },
 
     rodape: {
       flexDirection: 'row',

@@ -7,17 +7,30 @@
 // Veículos). Incluir uma entrada que não trava nada em lugar nenhum seria um
 // toggle mentiroso — o catálogo cresce junto com as telas, não antes delas.
 //
-// ─── O QUE ESTE ARQUIVO NÃO FAZ (AINDA) ─────────────────────────────────────
+// ─── AS TRÊS CAMADAS, DESDE 13/09/2026 ──────────────────────────────────────
 //
-// Grava o override (`Acesso.permissoesUsuario`), mas nenhuma tela do app lê
-// esse override na hora de montar o menu ou travar uma rota — os `podeX` de
-// `permissoes.ts` continuam recebendo só o papel. No site, cada `podeX` é
-// embrulhado por `capacidade(chave, padrao)` e resolve em três camadas
-// (usuário → organização → padrão do código); aqui só a terceira roda. Ligar
-// as outras duas — e a tela de Configurações que edita a segunda — fica para
-// outra sessão.
+// `podeEscanear`/`podeAcompanhar`/`podeGerenciarVeiculos` (em `permissoes.ts`)
+// resolvem em três camadas — usuário → organização → padrão do código — a
+// mesma régua do site (`capacidade(chave, padrao)`). O override de usuário
+// (`Acesso.permissoesUsuario`) é gravado na criação e na edição do acesso; o
+// de organização mora na tabela `permissoes_organizacao` e é editado na tela
+// de Configurações (`apps/app/app/(dentro)/configuracoes.tsx`, master-only).
+//
+// `capacidadesDoPapel`, abaixo, continua recebendo só o PAPEL — mesma
+// simplificação do site (`NovoUsuarioForm.tsx`/`UsuarioActions.tsx` chamam
+// `capacidadesDoPapel(role)`, nunca com o acesso inteiro): o "como é hoje" da
+// aba de criar/editar acesso é sempre o padrão do código, nunca considera
+// exceção de organização.
 
 import { podeAcompanhar, podeEscanear, podeGerenciarVeiculos, type Papel } from './permissoes.js'
+
+/**
+ * Os papéis que a tela de Configurações mostra em coluna — cópia de
+ * `PAPEIS_CONFIGURAVEIS` no site. `master` fica de fora (ver `resolver`, em
+ * `permissoes.ts`), e os legados `gerente`/`cliente` também: ninguém cria
+ * mais nenhum dos dois.
+ */
+export const PAPEIS_CONFIGURAVEIS: Papel[] = ['admin', 'supervisor', 'operador_portao', 'suporte']
 
 export type Capacidade = {
   chave: string

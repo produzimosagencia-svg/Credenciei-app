@@ -33,7 +33,7 @@ import type { BatidaResumida, DiaDeTrabalho, Evento, LinhaDoDia, Perfil, Reposit
 
 async function exigirPodeAcompanhar(repo: Repositorio, pessoaId: string): Promise<Perfil> {
   const perfil = await repo.perfilPorId(pessoaId)
-  if (!perfil || !podeAcompanhar(perfil.papel)) throw new Error('Você não tem permissão para acompanhar o evento.')
+  if (!perfil || !podeAcompanhar(perfil)) throw new Error('Você não tem permissão para acompanhar o evento.')
   return perfil
 }
 

@@ -23,17 +23,18 @@
 
 import { useMemo, useState } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { formatCpf, formatTelefone, formatarBR } from '@credenciei/dominio'
 import type { BaseDeFuncionarios, BuscaRegional, PessoaDaBase, PessoaRegional } from '@credenciei/contrato'
-import { usePedido } from '../../src/dados/pedido'
+import { usePedido, useValorComAtraso } from '../../src/dados/pedido'
 import { useSessao } from '../../src/sessao/contexto'
 import {
   Aviso, Botao, Campo, Carregando, Cartao, Corpo, Escolha, Indicador, Legenda,
   Respiro, Selo, Tela, TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
-import { espaco, raio, texto, tipo } from '../../src/ui/tema'
+import { ALVO_MINIMO, espaco, gradienteMarca, raio, texto, tipo } from '../../src/ui/tema'
 import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
 const ICONE: Record<string, string> = {
@@ -59,14 +60,20 @@ export default function EncontrarColaborador() {
   )
   const [busca, setBusca] = useState('')
   const [cidade, setCidade] = useState('')
+  const [modalCidadeAberto, setModalCidadeAberto] = useState(false)
 
   const todaABase = modo === TODA_A_BASE
+  // Só dispara a busca 350ms depois de a pessoa parar de digitar — numa base
+  // de milhares, uma chamada por tecla travava a tela (ver `useValorComAtraso`).
+  const buscaComAtraso = useValorComAtraso(busca)
 
   // Uma busca só, para o modo ativo — trocar de aba não deveria custar duas
   // chamadas ao servidor por vez.
   const { pedido, recarregar } = usePedido<BaseDeFuncionarios | BuscaRegional>(
-    () => (todaABase ? cliente.baseDeFuncionarios(busca) : cliente.encontrarColaborador({ busca, cidade })),
-    [cliente, busca, cidade, todaABase],
+    () => (todaABase
+      ? cliente.baseDeFuncionarios(buscaComAtraso)
+      : cliente.encontrarColaborador({ busca: buscaComAtraso, cidade })),
+    [cliente, buscaComAtraso, cidade, todaABase],
   )
   const dadosBase = todaABase && pedido.estado === 'pronto' ? pedido.dados as BaseDeFuncionarios : null
   const dadosRecrutar = !todaABase && pedido.estado === 'pronto' ? pedido.dados as BuscaRegional : null
@@ -98,7 +105,7 @@ export default function EncontrarColaborador() {
                 valor={i.valor}
                 sub={i.sub}
                 tom={i.tom}
-                icone={<Icone nome={ICONE[i.chave] ?? 'Users'} tamanho={16} tom="#ffffff" />}
+                icone={ICONE[i.chave] ?? 'Users'}
               />
             </View>
           ))}
@@ -124,23 +131,35 @@ export default function EncontrarColaborador() {
         <>
           <Text style={e.rotulo}>CIDADE</Text>
           <Respiro altura={espaco.s} />
-          <View style={e.cidades}>
-            <Pressable
-              onPress={() => setCidade('')}
-              style={[e.cidade, cidade === '' && e.cidadeAtiva]}
+          {/*
+            * Um botão só, não a parede de chips — pedido do Juan,
+            * 13/09/2026: com muitas cidades na base regional, a lista
+            * inteira empurrava a busca e os resultados pra bem mais longe
+            * da tela. Mesmo padrão de `ModalDeSetores`, em
+            * `evento/[id]/editar.tsx`.
+            */}
+          <Pressable onPress={() => setModalCidadeAberto(true)} accessibilityRole="button">
+            <LinearGradient
+              colors={[...gradienteMarca.cores] as [string, string, string]}
+              locations={[...gradienteMarca.posicoes] as [number, number, number]}
+              start={gradienteMarca.inicio}
+              end={gradienteMarca.fim}
+              style={[e.cidadeSeletorBotao, gradienteMarca.sombra]}
             >
-              <Text style={[e.cidadeTexto, cidade === '' && e.cidadeTextoAtivo]}>Todas</Text>
-            </Pressable>
-            {dadosRecrutar.cidades.map(c => (
-              <Pressable
-                key={c}
-                onPress={() => setCidade(c === cidade ? '' : c)}
-                style={[e.cidade, cidade === c && e.cidadeAtiva]}
-              >
-                <Text style={[e.cidadeTexto, cidade === c && e.cidadeTextoAtivo]}>{c}</Text>
-              </Pressable>
-            ))}
-          </View>
+              <Icone nome="MapPin" tamanho={16} tom="#ffffff" />
+              <Text style={e.cidadeSeletorTexto} numberOfLines={1}>{cidade || 'Todas as cidades'}</Text>
+              <Icone nome="ChevronRight" tamanho={16} tom="#ffffff" />
+            </LinearGradient>
+          </Pressable>
+
+          <ModalDeSelecaoDeCidade
+            visivel={modalCidadeAberto}
+            cidades={dadosRecrutar.cidades}
+            selecionada={cidade}
+            aoEscolher={c => { setCidade(c); setModalCidadeAberto(false) }}
+            aoFechar={() => setModalCidadeAberto(false)}
+          />
+
           <Respiro altura={espaco.m} />
         </>
       ) : null}
@@ -169,12 +188,14 @@ export default function EncontrarColaborador() {
               {/*
                 O total NÃO muda com a busca: ele responde "quantas existem".
                 Recalculá-lo pela busca faria a base parecer encolher a cada
-                letra digitada.
+                letra digitada. A lista corta em 50 (ver o servidor) — por
+                isso o texto usa `encontrados` (a busca inteira), não
+                `pessoas.length` (o que coube na tela).
               */}
               <Legenda>
                 {busca
-                  ? `${dadosBase.pessoas.length} de ${dadosBase.total} pessoas`
-                  : `${dadosBase.total} pessoas na base`}
+                  ? `${dadosBase.pessoas.length} de ${dadosBase.encontrados} encontradas`
+                  : `Mostrando ${dadosBase.pessoas.length} de ${dadosBase.total} pessoas na base — digite para buscar`}
               </Legenda>
               <Respiro altura={espaco.s} />
               <Cartao semPadding>
@@ -315,26 +336,137 @@ function Meta({ icone, texto: valor }: { icone: string; texto: string }) {
   )
 }
 
+/** A partir de quantas cidades a lista ganha campo de busca. */
+const MINIMO_PARA_BUSCAR_CIDADE = 8
+
+function semAcentoCidade(t: string): string {
+  return t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
+/**
+ * O modal de escolher a cidade — mesmo padrão de `ModalDeSetores`, em
+ * `evento/[id]/editar.tsx`. Toque na linha já escolhe E fecha: é filtro de
+ * uma cidade por vez, não marcar várias.
+ */
+function ModalDeSelecaoDeCidade({
+  visivel, cidades, selecionada, aoEscolher, aoFechar,
+}: {
+  visivel: boolean
+  cidades: string[]
+  selecionada: string
+  aoEscolher: (cidade: string) => void
+  aoFechar: () => void
+}) {
+  const { cor, uso } = useTema()
+  const e = useEstilos()
+  const [busca, setBusca] = useState('')
+
+  const filtradas = busca.trim()
+    ? cidades.filter(c => semAcentoCidade(c).includes(semAcentoCidade(busca.trim())))
+    : cidades
+
+  return (
+    <Modal visible={visivel} animationType="slide" onRequestClose={aoFechar}>
+      <View style={e.cidadeModalFora}>
+        <View style={e.cidadeModalTopo}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <TituloDeCartao>Filtrar por cidade</TituloDeCartao>
+          </View>
+          <Pressable onPress={() => { setBusca(''); aoFechar() }} hitSlop={8} accessibilityLabel="Fechar">
+            <Icone nome="X" tamanho={20} tom={uso.tintaMedia} />
+          </Pressable>
+        </View>
+
+        {cidades.length >= MINIMO_PARA_BUSCAR_CIDADE ? (
+          <View style={e.cidadeModalBusca}>
+            <Campo
+              value={busca}
+              onChangeText={setBusca}
+              placeholder="Buscar cidade…"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+        ) : null}
+
+        <ScrollView contentContainerStyle={e.cidadeModalLista}>
+          <Pressable
+            onPress={() => aoEscolher('')}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: selecionada === '' }}
+            style={[e.cidadeModalLinha, selecionada === '' && e.cidadeModalLinhaMarcada]}
+          >
+            <Text style={[e.cidadeModalLinhaTexto, selecionada === '' && e.cidadeModalLinhaTextoMarcado]}>
+              Todas as cidades
+            </Text>
+            {selecionada === '' ? <Icone nome="Check" tamanho={16} tom={cor.acento600} /> : null}
+          </Pressable>
+
+          {filtradas.length === 0 ? (
+            <Legenda>Nenhuma cidade encontrada com “{busca}”.</Legenda>
+          ) : filtradas.map(c => {
+            const marcada = c === selecionada
+            return (
+              <Pressable
+                key={c}
+                onPress={() => aoEscolher(c)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: marcada }}
+                style={[e.cidadeModalLinha, marcada && e.cidadeModalLinhaMarcada]}
+              >
+                <Text style={[e.cidadeModalLinhaTexto, marcada && e.cidadeModalLinhaTextoMarcado]} numberOfLines={1}>
+                  {c}
+                </Text>
+                {marcada ? <Icone nome="Check" tamanho={16} tom={cor.acento600} /> : null}
+              </Pressable>
+            )
+          })}
+        </ScrollView>
+      </View>
+    </Modal>
+  )
+}
+
 function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
   return StyleSheet.create({
     grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.m },
     gradeItem: { width: '48%', flexGrow: 1 },
 
     rotulo: { ...texto.etiqueta, color: uso.tintaFraca },
-    cidades: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
-    cidade: {
-      minHeight: 36,
-      paddingHorizontal: espaco.m,
-      borderRadius: raio.pilula,
-      borderWidth: 1,
-      borderColor: uso.borda,
-      backgroundColor: uso.superficie,
+
+    cidadeSeletorBotao: {
+      minHeight: ALVO_MINIMO,
+      borderRadius: raio.campo,
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
+      gap: espaco.s,
+      paddingHorizontal: espaco.g,
     },
-    cidadeAtiva: { backgroundColor: cor.acento500, borderColor: cor.acento600 },
-    cidadeTexto: { ...texto.xs, fontFamily: tipo.semi, color: uso.tintaMedia },
-    cidadeTextoAtivo: { color: '#ffffff' },
+    cidadeSeletorTexto: { ...texto.corpoForte, color: '#ffffff', flex: 1, minWidth: 0 },
+
+    cidadeModalFora: { flex: 1, backgroundColor: uso.superficie, paddingTop: espaco.gg },
+    cidadeModalTopo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: espaco.s,
+      paddingHorizontal: espaco.g,
+      paddingBottom: espaco.g,
+      borderBottomWidth: 1,
+      borderBottomColor: uso.borda,
+    },
+    cidadeModalBusca: { paddingHorizontal: espaco.g, paddingTop: espaco.m },
+    cidadeModalLista: { padding: espaco.g },
+    cidadeModalLinha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      minHeight: ALVO_MINIMO,
+      paddingHorizontal: espaco.m,
+      borderRadius: raio.campo,
+    },
+    cidadeModalLinhaMarcada: { backgroundColor: cor.acento50 },
+    cidadeModalLinhaTexto: { ...texto.base, fontFamily: tipo.regular, color: uso.tinta },
+    cidadeModalLinhaTextoMarcado: { fontFamily: tipo.semi, color: cor.acento700 },
 
     fio: { height: 1, backgroundColor: uso.borda },
     pessoa: { padding: espaco.g },

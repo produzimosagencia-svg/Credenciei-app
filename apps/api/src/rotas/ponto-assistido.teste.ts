@@ -112,6 +112,7 @@ test('supervisor só localiza a PRÓPRIA equipe, nem outro setor do mesmo evento
     id: 'part-marcia', pessoaId: 'pes-marcia', eventoId: 'ev-hj', equipeId: 'eq-outro-setor',
     equipeNome: 'Bar', funcao: 'Garçonete', supervisorNome: null, ativo: true, descredenciadoEm: null,
     valorReceber: null, pago: false, pagoEm: null, qrToken: 'token-da-marcia',
+    cidade: null, criadoEm: '2026-08-20T10:00:00-03:00',
   })
 
   const doProprioSetor = await localizarPessoa(repo, supervisor.id, 'João da Silva')

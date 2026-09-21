@@ -17,8 +17,8 @@
 // Painel, e o item levaria para a mesma tela em que a pessoa já está.
 
 import {
-  ehMaster, podeAcompanhar, podeBloquearCpf, podeEscanear, podeGerenciarEventos,
-  podeGerenciarUsuarios, podeGerenciarVeiculos,
+  ehMaster, papelDoAlvo, podeAcompanhar, podeBloquearCpf, podeEscanear, podeGerenciarEventos,
+  podeGerenciarUsuarios, podeGerenciarVeiculos, type AlvoPermissao,
 } from '@credenciei/dominio'
 
 export type ItemDoMenu = {
@@ -50,8 +50,9 @@ export type GrupoDoMenu = {
  * itens obriga a ler todos para achar um. Por isso o bloco de cima não tem
  * rótulo e o de baixo tem.
  */
-export function menuDoPainel(papel: string): GrupoDoMenu[] {
+export function menuDoPainel(alvo: AlvoPermissao): GrupoDoMenu[] {
   const grupos: GrupoDoMenu[] = []
+  const papel = papelDoAlvo(alvo) ?? ''
 
   const principal: ItemDoMenu[] = [
     { rota: '/', rotulo: 'Painel', icone: 'Home', pronta: true },
@@ -59,13 +60,13 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
 
   // Escanear QR fica só com quem credencia. O supervisor cuida da equipe, não
   // do portão — mesma separação que as mensagens já dizem à equipe.
-  if (podeEscanear(papel)) {
+  if (podeEscanear(alvo)) {
     principal.push({ rota: '/escanear', rotulo: 'Escanear QR', icone: 'ScanLine', pronta: true })
   }
 
   // Acompanhar, sim: tirar o scanner do supervisor não pode cegá-lo em relação
   // à própria equipe.
-  if (podeAcompanhar(papel)) {
+  if (podeAcompanhar(alvo)) {
     principal.push({ rota: '/ponto', rotulo: 'Registrar ponto', icone: 'ClipboardCheck', pronta: true })
     principal.push({ rota: '/atividades', rotulo: 'Atividades do evento', icone: 'Activity', pronta: true })
   }
@@ -76,7 +77,7 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
 
   // Suporte entra aqui mesmo sem gerenciar acessos: é justamente quem
   // conserta a operação no dia, e veículo é uma das coisas que ele corrige.
-  if (podeGerenciarVeiculos(papel)) {
+  if (podeGerenciarVeiculos(alvo)) {
     principal.push({ rota: '/veiculos', rotulo: 'Veículos', icone: 'Truck', pronta: true })
   }
 
@@ -106,6 +107,12 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
     principal.push({ rota: '/editar-colaborador', rotulo: 'Editar colaborador', icone: 'UserCog', pronta: true })
   }
 
+  // Mesmo gate do site (`admin/auditoria`): quem gerencia usuários, e
+  // suporte — que só vê o que ele mesmo fez (a régua mora no servidor).
+  if (podeGerenciarUsuarios(papel) || papel === 'suporte') {
+    principal.push({ rota: '/auditoria', rotulo: 'Trilha de auditoria', icone: 'History', pronta: true })
+  }
+
   grupos.push({ itens: principal })
 
   // "Plataforma" continua rotulado: é o que só o dono da plataforma enxerga, e
@@ -115,9 +122,15 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
       titulo: 'Plataforma',
       itens: [
         { rota: '/organizacoes', rotulo: 'Organizações', icone: 'Building2', pronta: true },
-        { rota: '/base-funcionarios', rotulo: 'Base de funcionários', icone: 'IdCard', pronta: true },
-        // A base regional é serviço vendido à parte: quem consulta e atribui
-        // gente ao evento de um cliente é o dono da plataforma, não o cliente.
+        /*
+         * Eram duas entradas — "Base de funcionários" e "Encontre
+         * colaborador" — para a mesma consulta com um filtro a menos. O
+         * site já fundiu as duas numa tela só, com um toggle interno
+         * (Prontas pra recrutar / Toda a base), e manteve só este rótulo no
+         * menu (`AppShell.tsx`) — seguido aqui em 12/09/2026.
+         * `/base-funcionarios` continua existindo como redirect, para quem
+         * tiver o link salvo.
+         */
         { rota: '/encontrar', rotulo: 'Encontre colaborador', icone: 'UserSearch', pronta: true },
         // O canal de WhatsApp é da plataforma, não de um evento: quem dispara
         // em massa e responde conversa é o dono, nunca o produtor de um cliente.
@@ -125,6 +138,9 @@ export function menuDoPainel(papel: string): GrupoDoMenu[] {
         // Suporte é gente contratada pela PLATAFORMA — o escopo atravessa
         // organizações, e só o master decide quem tem esse acesso.
         { rota: '/suporte', rotulo: 'Suporte de Sistema', icone: 'UserCog', pronta: true },
+        // Configurações edita a camada 2 de `capacidade()` — a exceção da
+        // organização. Master-only, mesmo gate do site.
+        { rota: '/configuracoes', rotulo: 'Configurações', icone: 'Settings', pronta: true },
       ],
     })
   }
@@ -151,8 +167,8 @@ export function menuDoColaborador(): GrupoDoMenu[] {
   }]
 }
 
-export function menuDe(papel: string): GrupoDoMenu[] {
-  return papel === 'colaborador' ? menuDoColaborador() : menuDoPainel(papel)
+export function menuDe(alvo: AlvoPermissao): GrupoDoMenu[] {
+  return papelDoAlvo(alvo) === 'colaborador' ? menuDoColaborador() : menuDoPainel(alvo)
 }
 
 /**
@@ -162,14 +178,14 @@ export function menuDe(papel: string): GrupoDoMenu[] {
  * espremido — e porque as três primeiras JÁ são a ordem do trabalho de um dia.
  * O resto do menu não some: mora atrás de "Mais", inteiro.
  */
-export function abasDe(papel: string): ItemDoMenu[] {
-  const grupos = menuDe(papel)
+export function abasDe(alvo: AlvoPermissao): ItemDoMenu[] {
+  const grupos = menuDe(alvo)
   const primeiro = grupos[0]?.itens ?? []
   return primeiro.slice(0, 3)
 }
 
 /** Sobrou item fora das abas? Então "Mais" tem o que mostrar. */
-export function temMaisAlemDasAbas(papel: string): boolean {
-  const total = menuDe(papel).reduce((a, g) => a + g.itens.length, 0)
-  return total > abasDe(papel).length
+export function temMaisAlemDasAbas(alvo: AlvoPermissao): boolean {
+  const total = menuDe(alvo).reduce((a, g) => a + g.itens.length, 0)
+  return total > abasDe(alvo).length
 }

@@ -37,16 +37,20 @@ export function estaPresente(p: PessoaDoSetor): boolean {
 }
 
 /**
- * Alguma etapa passou do prazo sem registro?
+ * Alguma etapa passou do prazo sem registro — ou a pessoa contestou uma
+ * batida errada/faltante e ainda não foi resolvida?
  *
- * `fechado` é o único status que vira pendência: `aberto` ainda dá tempo e
- * `indefinido` nem abriu. Tratar os três como falta encheria a lista de gente
- * que não deve nada.
+ * `fechado` é o único status que vira pendência por etapa: `aberto` ainda dá
+ * tempo e `indefinido` nem abriu. Tratar os três como falta encheria a lista
+ * de gente que não deve nada. A contestação entra na mesma aba (decisão do
+ * Juan, 18/09/2026) por reusar o indicador já existente em vez de criar um
+ * canal de aviso novo — ver `temContestacaoAberta` em `setor.ts` na API.
  */
 export function temPendencia(p: PessoaDoSetor): boolean {
   return p.statusEntrada === 'fechado'
     || p.statusMeio === 'fechado'
     || p.statusFim === 'fechado'
+    || p.temContestacaoAberta
 }
 
 export function passaNoFiltro(p: PessoaDoSetor, filtro: FiltroDaEquipe): boolean {

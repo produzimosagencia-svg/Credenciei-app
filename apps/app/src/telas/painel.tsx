@@ -13,8 +13,10 @@
 // token. Se a tela filtrasse, bastaria adulterar o pedido para ver a operação
 // de outro cliente.
 
-import { Pressable, View, StyleSheet, Text } from 'react-native'
+import { useState } from 'react'
+import { Pressable, View, StyleSheet, Text, TextInput } from 'react-native'
 import { useRouter } from 'expo-router'
+import { LinearGradient } from 'expo-linear-gradient'
 import type { AtividadeRecente, IndicadorDoPainel } from '@credenciei/contrato'
 import { formatarBR, podeGerenciarEventos } from '@credenciei/dominio'
 import { usePedido } from '../dados/pedido'
@@ -27,7 +29,7 @@ import {
 import { Indicador } from '../ui/componentes'
 import { CartaoDeEventoAoVivo } from '../ui/evento-ao-vivo'
 import { Icone } from '../ui/icone'
-import { cor, espaco, raio, texto, tipo, uso } from '../ui/tema'
+import { cor, espaco, gradienteMarca, raio, texto, tipo, uso } from '../ui/tema'
 
 /** O ícone de cada número, igual ao do painel web. */
 const ICONE_DO_INDICADOR: Record<string, string> = {
@@ -35,12 +37,17 @@ const ICONE_DO_INDICADOR: Record<string, string> = {
   presentes: 'UserCheck',
   nao_chegaram: 'Clock',
   batidas: 'Activity',
+  // Só o master vê estes três — ver `painel.ts` na API.
+  funcionarios_na_base: 'IdCard',
+  valor_cobrado: 'Wallet',
+  custo_whatsapp: 'MessageCircle',
 }
 
 export function Painel() {
   const router = useRouter()
   const { cliente, sessao, semRede } = useSessao()
   const { pedido, recarregar } = usePedido(() => cliente.painel(), [cliente])
+  const [busca, setBusca] = useState('')
 
   return (
     <Tela>
@@ -48,6 +55,35 @@ export function Painel() {
       <Legenda>
         {pedido.estado === 'pronto' ? porExtenso(pedido.dados.data) : ' '}
       </Legenda>
+
+      {/*
+        * Só depois que o painel carrega — antes disso, `sessao` já existe
+        * (é o login que resolve o papel) mas os dados ainda não, e o botão
+        * aparecia sozinho em cima do "Montando o painel…", como se o
+        * carregamento nem estivesse rodando (relato do Juan, 13/09/2026).
+        */}
+      {podeGerenciarEventos(sessao?.papel) && pedido.estado !== 'carregando' ? (
+        <>
+          <Respiro altura={espaco.m} />
+          <LinearGradient
+            colors={[...gradienteMarca.cores] as [string, string, string]}
+            locations={[...gradienteMarca.posicoes] as [number, number, number]}
+            start={gradienteMarca.inicio}
+            end={gradienteMarca.fim}
+            style={[e.botaoNovoFora, gradienteMarca.sombra]}
+          >
+            <Pressable
+              onPress={() => router.push('/criar-evento' as never)}
+              accessibilityRole="button"
+              accessibilityLabel="Novo evento"
+              style={({ pressed }) => [e.botaoNovo, pressed && e.botaoNovoTocado]}
+            >
+              <Icone nome="Plus" tamanho={16} tom="#ffffff" />
+              <Text style={e.botaoNovoTexto}>Novo</Text>
+            </Pressable>
+          </LinearGradient>
+        </>
+      ) : null}
       <Respiro />
 
       {semRede ? (
@@ -70,46 +106,55 @@ export function Painel() {
         <>
           <GradeDeIndicadores indicadores={pedido.dados.indicadores} />
 
+          <Respiro altura={espaco.m} />
+          <View style={e.cabecalhoDaLista}>
+            <Etiqueta>Acontecendo agora</Etiqueta>
+            <Selo texto={String(pedido.dados.eventos.length)} tipo="sucesso" />
+          </View>
           <Respiro altura={espaco.s} />
-          <View style={e.cabecalhoComAcao}>
-            <View style={e.cabecalhoDaLista}>
-              <Etiqueta>Acontecendo agora</Etiqueta>
-              <Selo texto={String(pedido.dados.eventos.length)} tipo="sucesso" />
-            </View>
 
-            {podeGerenciarEventos(sessao?.papel) ? (
-              <Pressable
-                onPress={() => router.push('/criar-evento' as never)}
-                accessibilityRole="button"
-                accessibilityLabel="Novo evento"
-                style={({ pressed }) => [e.botaoNovo, pressed && e.botaoNovoTocado]}
-              >
-                <Icone nome="Plus" tamanho={16} tom={cor.acento600} />
-                <Text style={e.botaoNovoTexto}>Novo evento</Text>
-              </Pressable>
-            ) : null}
+          <View style={e.busca}>
+            <Icone nome="Search" tamanho={14} tom={uso.tintaFraca} />
+            <TextInput
+              value={busca}
+              onChangeText={setBusca}
+              placeholder="Buscar evento por nome ou local"
+              placeholderTextColor={uso.tintaFraca}
+              style={e.buscaTexto}
+            />
           </View>
           <Respiro altura={espaco.m} />
 
-          {pedido.dados.eventos.length === 0 ? (
-            <Cartao>
-              <Corpo>Nenhum evento acontecendo agora.</Corpo>
-            </Cartao>
-          ) : (
-            pedido.dados.eventos.map(ev => (
+          {(() => {
+            const alvo = busca.trim().toLocaleLowerCase('pt-BR')
+            const eventos = alvo
+              ? pedido.dados.eventos.filter(ev =>
+                  ev.nome.toLocaleLowerCase('pt-BR').includes(alvo)
+                  || (ev.local ?? '').toLocaleLowerCase('pt-BR').includes(alvo))
+              : pedido.dados.eventos
+
+            if (eventos.length === 0) {
+              return (
+                <Cartao>
+                  <Corpo>
+                    {alvo ? 'Nenhum evento ativo com esse nome.' : 'Nenhum evento acontecendo agora.'}
+                  </Corpo>
+                </Cartao>
+              )
+            }
+            return eventos.map(ev => (
               <CartaoDeEventoAoVivo
                 key={ev.eventoId}
                 evento={ev}
                 aoTocar={() => router.push(`/evento/${ev.eventoId}` as never)}
               />
             ))
-          )}
+          })()}
 
           <Respiro altura={espaco.s} />
           <FluxoDeCredenciamento
             legenda={pedido.dados.legendaDaJanela}
-            // "batidas" é sempre número — só a ficha entre organizações usa texto pronto.
-            batidas={(pedido.dados.indicadores.find(i => i.chave === 'batidas')?.valor as number) ?? 0}
+            batidas={pedido.dados.batidasNaJanela}
           />
 
           <AtividadeDoEvento itens={pedido.dados.atividade} />
@@ -136,13 +181,7 @@ function GradeDeIndicadores({ indicadores }: { indicadores: IndicadorDoPainel[] 
             valor={i.valor}
             sub={i.sub}
             tom={i.tom}
-            icone={
-              <Icone
-                nome={ICONE_DO_INDICADOR[i.chave] ?? 'Activity'}
-                tamanho={16}
-                tom="#ffffff"
-              />
-            }
+            icone={ICONE_DO_INDICADOR[i.chave] ?? 'Activity'}
           />
         </View>
       ))}
@@ -230,24 +269,41 @@ const e = StyleSheet.create({
    */
   gradeItem: { width: '48%', flexGrow: 1 },
 
-  cabecalhoComAcao: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espaco.s,
-  },
   cabecalhoDaLista: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
 
+  /*
+   * O "+ Novo" — mesma cor do `.btn-primario` do site (gradiente da marca),
+   * na mesma posição: colado no título, não junto de "Acontecendo agora"
+   * (era assim antes de reconferir contra `app/admin/page.tsx` em 13/09).
+   * "Novo", não "Novo evento" — é o rótulo que o site mostra no celular
+   * (`sm:hidden`), não o do computador.
+   */
+  botaoNovoFora: { borderRadius: raio.pilula, alignSelf: 'flex-start' },
   botaoNovo: {
     minHeight: 36,
     paddingHorizontal: espaco.m,
     borderRadius: raio.pilula,
-    borderWidth: 1,
-    borderColor: cor.acento200,
-    backgroundColor: cor.acento50,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  botaoNovoTocado: { backgroundColor: cor.acento100 },
-  botaoNovoTexto: { ...texto.xs, fontFamily: tipo.semi, color: cor.acento700 },
+  botaoNovoTocado: { opacity: 0.85 },
+  botaoNovoTexto: { ...texto.xs, fontFamily: tipo.forte, color: '#ffffff' },
+
+  /* A busca de eventos — mesma linha de "Acontecendo agora" no site; aqui,
+     logo abaixo, porque a etiqueta já ocupa a largura toda no celular. */
+  busca: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espaco.s,
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: uso.borda,
+    backgroundColor: uso.superficie,
+    borderRadius: raio.campo,
+    paddingHorizontal: espaco.m,
+  },
+  buscaTexto: { ...texto.base, fontFamily: tipo.regular, color: uso.tinta, flex: 1 },
 
   linhaDoTitulo: { flexDirection: 'row', alignItems: 'center', gap: espaco.m },
   blocoDoIcone: {

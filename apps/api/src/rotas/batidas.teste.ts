@@ -7,7 +7,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
-import { registrarBatida, DIVERGENCIA_TOLERADA_MS } from './batidas.js'
+import { contestarBatida, registrarBatida, registrarEntradaLivre, DIVERGENCIA_TOLERADA_MS } from './batidas.js'
 
 const bate = (
   tipo: 'entrada' | 'meio' | 'fim',
@@ -260,4 +260,92 @@ test('batida livre não libera dia cancelado', async () => {
 
   const r = await registrarBatida(repo, 'pes-joao', bate('entrada', ANTES_DA_JANELA))
   assert.equal(r.situacao, 'recusado')
+})
+
+// ─── Entrada livre — o auto-atendimento ─────────────────────────────────────
+
+test('fora do dia principal, a entrada livre já funciona sempre', async () => {
+  const { repo } = cenarioHenriqueEJuliano()
+  const r = await registrarEntradaLivre(
+    repo, 'pes-joao', 'part-joao', {}, new Date('2026-09-03T08:00:00-03:00'),
+  )
+  assert.equal(r.situacao, 'registrado')
+})
+
+test('no dia principal, sem o interruptor ligado, a entrada livre é recusada', async () => {
+  const { repo } = cenarioHenriqueEJuliano()
+  const r = await registrarEntradaLivre(
+    repo, 'pes-joao', 'part-joao', {}, new Date('2026-09-05T10:00:00-03:00'),
+  )
+  assert.match(r.situacao === 'recusado' ? r.motivo : '', /QR Code no credenciamento/)
+})
+
+test('no dia principal, com o interruptor ligado, respeita a janela configurada', async () => {
+  const { repo, evento } = cenarioHenriqueEJuliano()
+  evento.checkin_autonomo = true
+
+  const cedo = await registrarEntradaLivre(repo, 'pes-joao', 'part-joao', {}, new Date(ANTES_DA_JANELA))
+  assert.equal(cedo.situacao, 'recusado', 'a janela de entrada só abre às 07:00')
+
+  const certo = await registrarEntradaLivre(
+    repo, 'pes-joao', 'part-joao', {}, new Date('2026-09-05T10:00:00-03:00'),
+  )
+  assert.equal(certo.situacao, 'registrado')
+})
+
+test('participação de outra pessoa não registra entrada livre', async () => {
+  const { repo } = cenarioHenriqueEJuliano()
+  const r = await registrarEntradaLivre(
+    repo, 'pes-outra-pessoa', 'part-joao', {}, new Date('2026-09-03T08:00:00-03:00'),
+  )
+  assert.equal(r.situacao, 'recusado')
+})
+
+test('chamar duas vezes no mesmo dia não grava duas entradas', async () => {
+  const { repo } = cenarioHenriqueEJuliano()
+  const agora = new Date('2026-09-03T08:00:00-03:00')
+  const um = await registrarEntradaLivre(repo, 'pes-joao', 'part-joao', {}, agora)
+  const dois = await registrarEntradaLivre(repo, 'pes-joao', 'part-joao', {}, agora)
+
+  assert.equal(um.situacao, 'registrado')
+  assert.equal(dois.situacao, 'duplicado')
+  assert.equal(repo.registros.filter(r => r.tipo === 'entrada').length, 1)
+})
+
+test('dia que não é de trabalho recusa a entrada livre', async () => {
+  const { repo } = cenarioHenriqueEJuliano()
+  const r = await registrarEntradaLivre(
+    repo, 'pes-joao', 'part-joao', {}, new Date('2026-08-20T08:00:00-03:00'),
+  )
+  assert.equal(r.situacao, 'recusado')
+})
+
+// ─── Contestar batida ───────────────────────────────────────────────────────
+//
+// O colaborador contesta a própria batida errada/faltante — recurso só do
+// app, escopo decidido com o Juan em 18/09/2026 ([[contestar-batida-em-andamento]]).
+
+test('contesta a própria batida, com motivo', async () => {
+  const { repo } = cenarioHenriqueEJuliano()
+  const r = await contestarBatida(repo, 'pes-joao', 'part-joao', 'meio', '2026-09-03', 'bati o meio e não gravou')
+  assert.deepEqual(r, {})
+
+  const abertas = await repo.contestacoesAbertas('part-joao')
+  assert.equal(abertas.length, 1)
+  assert.equal(abertas[0]!.tipo, 'meio')
+  assert.equal(abertas[0]!.motivo, 'bati o meio e não gravou')
+})
+
+test('motivo em branco é recusado, sem gravar nada', async () => {
+  const { repo } = cenarioHenriqueEJuliano()
+  const r = await contestarBatida(repo, 'pes-joao', 'part-joao', 'entrada', '2026-09-03', '   ')
+  assert.match(r.erro ?? '', /Escreva o que está errado/)
+  assert.equal((await repo.contestacoesAbertas('part-joao')).length, 0)
+})
+
+test('não contesta a batida de outra pessoa — mesma resposta de "não encontrada"', async () => {
+  const { repo } = cenarioHenriqueEJuliano()
+  const r = await contestarBatida(repo, 'pes-outra-pessoa', 'part-joao', 'entrada', '2026-09-03', 'não bati isso')
+  assert.match(r.erro ?? '', /Participação não encontrada/)
+  assert.equal((await repo.contestacoesAbertas('part-joao')).length, 0)
 })

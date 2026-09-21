@@ -23,7 +23,13 @@ export type PedidoDeBatida = {
   participacaoId: string
   tipo: 'entrada' | 'meio' | 'fim'
   registradoEm: string
-  fotoPath?: string | null
+  /**
+   * A selfie do "meio", como data URL (`data:image/jpeg;base64,...`) — só faz
+   * sentido para `tipo: 'meio'`. Sobe para o Storage aqui dentro; só o
+   * CAMINHO resultante é que vira `foto_url` no registro. Ver
+   * `Repositorio.subirFotoDoMeio`.
+   */
+  fotoBase64?: string | null
   lat?: number | null
   lng?: number | null
 }
@@ -128,6 +134,15 @@ export async function registrarBatida(
   const mesmaEtapa = doDia.find(r => r.tipo === pedido.tipo)
   if (mesmaEtapa) return { situacao: 'duplicado', em: mesmaEtapa.registradoEm }
 
+  /*
+   * A foto sobe SÓ depois de passar por toda regra acima — e só para o meio,
+   * que é a única etapa com selfie hoje. Subir antes gastaria o Storage com
+   * uma imagem de uma batida que ia ser recusada de qualquer jeito.
+   */
+  const fotoPath = pedido.tipo === 'meio' && pedido.fotoBase64
+    ? await repo.subirFotoDoMeio(evento.id, part.id, dataRef, pedido.fotoBase64)
+    : null
+
   // ── 4. Grava, com os dois relógios ──────────────────────────────────────
   const recebidoEm = agora.toISOString()
   const divergencia = Math.abs(Date.parse(recebidoEm) - Date.parse(pedido.registradoEm))
@@ -140,7 +155,7 @@ export async function registrarBatida(
     dataRef,
     registradoEm: pedido.registradoEm,
     recebidoEm,
-    fotoPath: pedido.fotoPath ?? null,
+    fotoPath,
     lat: pedido.lat ?? null,
     lng: pedido.lng ?? null,
     manual: false,
@@ -161,4 +176,108 @@ export async function registrarBatida(
      */
     ...(noFuturo || divergencia > DIVERGENCIA_TOLERADA_MS ? { relogioSuspeito: true } : {}),
   }
+}
+
+/**
+ * Entrada sem operador — o auto-atendimento.
+ *
+ * Só ENTRADA: a saída continua exigindo sempre o QR mostrado no
+ * credenciamento — decisão do Juan. Fora do dia principal já funciona
+ * sempre, do mesmo jeito que a montagem e a desmontagem sempre foram
+ * livres. No dia principal, só quando o evento tem `checkinAutonomo`
+ * ligado.
+ *
+ * É uma chamada direta, sem idempotência de aparelho: a pessoa está parada
+ * esperando a confirmação, e não passa pela fila offline (ver o comentário
+ * em `credencial.tsx`). O id gravado é determinístico — participação + dia —
+ * então repetir a chamada no mesmo dia cai no caminho de "duplicado", nunca
+ * grava duas entradas.
+ */
+export async function registrarEntradaLivre(
+  repo: Repositorio,
+  pessoaId: string,
+  participacaoId: string,
+  dados: { lat?: number; lng?: number },
+  agora = new Date(),
+): Promise<RespostaDeBatida> {
+  const part = await repo.participacaoPorId(participacaoId)
+  if (!part || part.pessoaId !== pessoaId) {
+    return { situacao: 'recusado', motivo: 'Participação não encontrada.' }
+  }
+  if (part.descredenciadoEm) {
+    return { situacao: 'recusado', motivo: 'Seu vínculo com este evento já foi encerrado.' }
+  }
+  if (!part.ativo) {
+    return { situacao: 'recusado', motivo: 'Seu cadastro ainda não foi ativado pelo organizador.' }
+  }
+
+  const evento = await repo.eventoPorId(part.eventoId)
+  if (!evento) return { situacao: 'recusado', motivo: 'Evento não encontrado.' }
+
+  const dataRef = diaBRT(agora)
+  const dias = await repo.diasDoEvento(evento.id)
+  const dia = dias.find(d => d.data === dataRef) ?? null
+
+  if (dia?.tipo === 'principal' && evento.checkin_autonomo !== true) {
+    return { situacao: 'recusado', motivo: 'No dia do evento, a entrada é pelo QR Code no credenciamento.' }
+  }
+
+  const v = avaliarEntradaSaida(
+    evento as EventoJanelas,
+    dia ? { tipo: dia.tipo, cancelado: dia.cancelado } : null,
+    'entrada',
+    dataRef,
+    agora,
+  )
+  if (!v.ok) return { situacao: 'recusado', motivo: v.erro }
+
+  const doDia = await repo.registrosDoDia(part.id, dataRef)
+  const jaTemEntrada = doDia.find(r => r.tipo === 'entrada')
+  if (jaTemEntrada) return { situacao: 'duplicado', em: jaTemEntrada.registradoEm }
+
+  const registradoEm = agora.toISOString()
+  const gravado = await repo.gravarRegistro({
+    id: `livre-${participacaoId}-${dataRef}`,
+    participacaoId: part.id,
+    tipo: 'entrada',
+    dataRef,
+    registradoEm,
+    fotoPath: null,
+    lat: dados.lat ?? null,
+    lng: dados.lng ?? null,
+    manual: false,
+  })
+
+  return { situacao: 'registrado', em: gravado.registradoEm }
+}
+
+/**
+ * O colaborador contesta a própria batida — errada ou que faltou. Recurso só
+ * do app, o site nunca teve isto pra copiar (colaborador não tem conta lá).
+ * Escopo decidido com o Juan em 18/09/2026: vira pendência na equipe do
+ * setor (`temContestacaoAberta`, em `rotas/setor.ts`), resolvida por quem já
+ * pode mexer na equipe (`podeMexerNaEquipe`, em `ficha-da-pessoa.ts`). Ver
+ * migração `007-contestacoes-de-batida.sql`.
+ *
+ * "Não encontrada" é a mesma resposta pra participação inexistente e pra
+ * participação de outra pessoa — mesma régua de `registrarBatida`.
+ */
+export async function contestarBatida(
+  repo: Repositorio,
+  pessoaId: string,
+  participacaoId: string,
+  tipo: 'entrada' | 'meio' | 'fim',
+  dataRef: string,
+  motivoBruto: string,
+): Promise<{ erro?: string }> {
+  const part = await repo.participacaoPorId(participacaoId)
+  if (!part || part.pessoaId !== pessoaId) return { erro: 'Participação não encontrada.' }
+
+  const motivo = (motivoBruto ?? '').trim()
+  if (!motivo) {
+    return { erro: 'Escreva o que está errado — sem isso, quem for resolver não sabe por onde começar.' }
+  }
+
+  await repo.criarContestacao({ participacaoId, tipo, dataRef, motivo })
+  return {}
 }

@@ -25,13 +25,14 @@
 // componente deste arquivo chama esse hook em vez de ler um `StyleSheet`
 // fixo. É o mesmo padrão que toda tela do app segue.
 
-import { forwardRef, useMemo, useRef, type ReactNode } from 'react'
+import { forwardRef, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput,
-  View, type StyleProp, type TextInputProps, type ViewStyle,
+  Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput,
+  useWindowDimensions, View, type StyleProp, type TextInputProps, type ViewStyle,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import { gradiente, type TomDeIndicador } from './tema'
+import { corDoIndicador, type TomDeIndicador } from './tema'
+import { Icone } from './icone'
 import { useTema, type Tokens } from './tema-contexto'
 
 /** A web dá também o estado de "mouse em cima"; o celular, só o de toque. */
@@ -74,7 +75,17 @@ function criarEstilos({ cor, uso, texto, tipo, espaco, raio, sombra, ALVO_MINIMO
     etiqueta: { ...texto.etiqueta, color: uso.tintaFraca },
     nota: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca, lineHeight: 18 },
 
+    /*
+     * O indicador é a MESMA superfície neutra do resto do tema — não um
+     * bloco de cor sólida (ver o comentário de `corDoIndicador`, em
+     * `tema.ts`). A cor do tom entra só no fio de cima, no ícone e no
+     * rótulo — todos com `backgroundColor`/`color` inline, porque dependem
+     * do `tom` de cada indicador, não do tema.
+     */
     indicador: {
+      backgroundColor: uso.superficie,
+      borderWidth: 1,
+      borderColor: uso.borda,
       borderRadius: raio.cartao,
       paddingTop: 14,
       paddingHorizontal: espaco.g,
@@ -82,30 +93,30 @@ function criarEstilos({ cor, uso, texto, tipo, espaco, raio, sombra, ALVO_MINIMO
       overflow: 'hidden',
       ...sombra.sm,
     },
-    indicadorBrilho: {
-      // No estilo, e não como propriedade: `props.pointerEvents` está
-      // descontinuado no React Native atual e avisa no console a cada tela.
-      pointerEvents: 'none',
+    /** O "fio de luz": uma linha de 2px que esmaece pra direita, com brilho. */
+    indicadorFio: {
       position: 'absolute',
-      top: '-55%',
-      right: '-25%',
-      width: '75%',
-      height: '160%',
-      borderRadius: 999,
-      backgroundColor: 'rgba(255,255,255,0.13)',
+      top: 0,
+      left: espaco.g,
+      right: espaco.g,
+      height: 2,
+      borderRadius: 2,
     },
-    indicadorLinha: { flexDirection: 'row', alignItems: 'flex-start', gap: espaco.m },
-    indicadorTexto: { flex: 1, minWidth: 0 },
-    indicadorRotulo: { ...texto.xs, color: 'rgba(255,255,255,0.85)' },
-    indicadorValor: { ...texto.metrica, color: '#ffffff', marginTop: 6 },
-    indicadorSub: { ...texto.xs, fontFamily: tipo.regular, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
+    indicadorTopo: {
+      flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: espaco.s,
+    },
+    indicadorRotulo: {
+      ...texto.xxs, fontFamily: tipo.forte, letterSpacing: 0.4, textTransform: 'uppercase', flex: 1, minWidth: 0,
+    },
+    indicadorValor: { ...texto.metrica, color: uso.tinta, marginTop: espaco.s },
+    indicadorSub: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaMedia, marginTop: 4 },
     indicadorIcone: {
-      width: 32,
-      height: 32,
-      borderRadius: raio.campo,
+      width: 26,
+      height: 26,
+      borderRadius: 999,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: 'rgba(255,255,255,0.18)',
+      flexShrink: 0,
     },
 
     botao: {
@@ -212,7 +223,7 @@ function criarEstilos({ cor, uso, texto, tipo, espaco, raio, sombra, ALVO_MINIMO
 
     pontoAoVivo: { width: 6, height: 6, borderRadius: 3 },
 
-    carregando: { paddingVertical: espaco.gggg, alignItems: 'center', gap: espaco.m },
+    carregando: { alignItems: 'center', justifyContent: 'center', gap: espaco.m },
     carregandoTexto: { ...texto.corpo, color: uso.tintaMedia },
   })
 
@@ -321,13 +332,14 @@ export function Nota({ children }: { children: ReactNode }) {
 /**
  * O cartão de número do painel.
  *
- * Degradê de 135°, brilho no canto, ícone em vidro. A cor vem do SIGNIFICADO
- * do número — o que precisa de atenção é laranja, o que está bem é verde, o que
- * só conta coisa é azul — nunca da posição na fileira.
- *
- * Os tons ficam fora do par claro/escuro (ver `tema.ts`): são sempre escuros,
- * escolhidos pelo contraste — o rótulo branco de 12px precisa de 4.5:1 para
- * ser lido no sol do evento, que é exatamente onde esta tela é usada.
+ * A cor vem do SIGNIFICADO do número — o que precisa de atenção é laranja, o
+ * que está bem é verde, o que só conta coisa é azul — nunca da posição na
+ * fileira. Mas o cartão em si é a MESMA superfície neutra do resto do tema:
+ * a cor aparece só no fio de cima, no círculo do ícone e no rótulo. O número
+ * fica com a tinta do tema (quase preto no claro, quase branco no escuro) —
+ * é o conteúdo, e cor nele lê pior. Ver o comentário de `corDoIndicador`
+ * em `tema.ts`: essa era a peça que estava errada até 12/09/2026, copiando
+ * um bloco de cor sólida que o site não tem mais.
  */
 export function Indicador({
   rotulo, valor, sub, tom = 'neutro', icone,
@@ -336,30 +348,85 @@ export function Indicador({
   valor: string | number
   sub?: string
   tom?: TomDeIndicador
-  icone?: ReactNode
+  /** O NOME do ícone (ver `Icone`) — a cor é decidida aqui, pelo `tom`. */
+  icone?: string
 }) {
-  const { e } = useEstilos()
-  const [de, ate] = gradiente[tom]
+  const { e, cor } = useEstilos()
+  const corDoTom = corDoIndicador[tom]
+  const corDoRotulo = cor.rotuloIndicador[tom]
 
   return (
-    <LinearGradient
-      colors={[de, ate]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={e.indicador}
-    >
-      {/* O brilho do canto: tira o ar de retângulo chapado sem virar reflexo. */}
-      <View style={e.indicadorBrilho} />
+    <View style={e.indicador}>
+      <View style={[e.indicadorFio, { backgroundColor: corDoTom, shadowColor: corDoTom }]} />
 
-      <View style={e.indicadorLinha}>
-        <View style={e.indicadorTexto}>
-          <Text style={e.indicadorRotulo} numberOfLines={1}>{rotulo}</Text>
-          <Text style={e.indicadorValor}>{valor}</Text>
-          {sub ? <Text style={e.indicadorSub}>{sub}</Text> : null}
-        </View>
-        {icone ? <View style={e.indicadorIcone}>{icone}</View> : null}
+      <View style={e.indicadorTopo}>
+        <Text style={[e.indicadorRotulo, { color: corDoRotulo }]} numberOfLines={1}>{rotulo}</Text>
+        {icone ? (
+          <View style={[e.indicadorIcone, { backgroundColor: `${corDoTom}1F` }]}>
+            <Icone nome={icone} tamanho={14} tom={corDoTom} />
+          </View>
+        ) : null}
       </View>
-    </LinearGradient>
+
+      <Text style={e.indicadorValor}>{valor}</Text>
+      {sub ? <Text style={e.indicadorSub}>{sub}</Text> : null}
+    </View>
+  )
+}
+
+// ─── Carregando ─────────────────────────────────────────────────────────────
+
+/**
+ * A marca girando — o loading do sistema inteiro, nunca um spinner genérico.
+ * Mesmo princípio do site (`components/LogoLoading.tsx`, lido em 12/09): gira
+ * 360° a cada 1,6s, sem parar, e "respira" ao mesmo tempo — encolhe a 92% e
+ * perde um pouco de opacidade, na mesma duração, com uma curva suave (não
+ * linear como o giro). Os dois valores (1,6s, 92%, 85%) são os mesmos do
+ * `globals.css` de produção, copiados por valor.
+ */
+function LogoGirando({ tamanho = 40 }: { tamanho?: number }) {
+  const giro = useRef(new Animated.Value(0)).current
+  const respiro = useRef(new Animated.Value(0)).current
+
+  useEffect(() => {
+    const animacaoGiro = Animated.loop(
+      Animated.timing(giro, { toValue: 1, duration: 1600, easing: Easing.linear, useNativeDriver: true }),
+    )
+    const animacaoRespiro = Animated.loop(
+      Animated.sequence([
+        Animated.timing(respiro, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(respiro, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    )
+    animacaoGiro.start()
+    animacaoRespiro.start()
+    return () => { animacaoGiro.stop(); animacaoRespiro.stop() }
+  }, [giro, respiro])
+
+  const rotate = giro.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] })
+  const scale = respiro.interpolate({ inputRange: [0, 1], outputRange: [1, 0.92] })
+  const opacity = respiro.interpolate({ inputRange: [0, 1], outputRange: [1, 0.85] })
+
+  return (
+    <Animated.View style={{ width: tamanho, height: tamanho, transform: [{ rotate }] }}>
+      <Animated.Image
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        source={require('../../assets/marca/iso-laranja.png')}
+        style={{ width: tamanho, height: tamanho, transform: [{ scale }], opacity }}
+        resizeMode="contain"
+      />
+    </Animated.View>
+  )
+}
+
+export function Carregando({ texto: recado }: { texto?: string }) {
+  const { e } = useEstilos()
+  const { height } = useWindowDimensions()
+  return (
+    <View style={[e.carregando, { minHeight: height * 0.6 }]}>
+      <LogoGirando tamanho={64} />
+      {recado ? <Text style={e.carregandoTexto}>{recado}</Text> : null}
+    </View>
   )
 }
 
@@ -418,7 +485,7 @@ export function Botao({
       }}
     >
       {ocupado
-        ? <ActivityIndicator color={corDoTexto} size="small" />
+        ? <LogoGirando tamanho={18} />
         : <Text style={[e.botaoRotulo, { color: corDoTexto }]}>{titulo}</Text>}
     </Pressable>
   )
@@ -590,12 +657,3 @@ export function PontoAoVivo({ cor: tom }: { cor?: string }) {
   return <View style={[e.pontoAoVivo, { backgroundColor: tom ?? cor.sucesso600 }]} />
 }
 
-export function Carregando({ texto: recado }: { texto?: string }) {
-  const { e, cor } = useEstilos()
-  return (
-    <View style={e.carregando}>
-      <ActivityIndicator size="large" color={cor.acento500} />
-      {recado ? <Text style={e.carregandoTexto}>{recado}</Text> : null}
-    </View>
-  )
-}

@@ -23,12 +23,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  AindaNaoNaApi, ClienteFalso, ClienteHttp, FalhaDeTransporte,
+  ClienteFalso, ClienteHttp, FalhaDeTransporte,
   type ClienteApi,
 } from '@credenciei/contrato'
 import { cenarioHenriqueEJuliano } from './dados/memoria.js'
 import { SessoesEmMemoria } from './sessoes.js'
-import { esquecerLimites } from './limite.js'
+import { LimiteEmMemoria } from './limite.js'
+import { ArquivosEmMemoria } from './arquivos.js'
 import { criarServidor, type Ambiente } from './servidor.js'
 import type { CodigoPendente, GuardaDeCodigos } from './rotas/sessao.js'
 
@@ -40,7 +41,6 @@ const CODIGO_DO_EVENTO = 'HJK-2026-K7M2'
 
 /** A API inteira, no mesmo processo, com o cliente do app falando com ela. */
 function montar(op: { aoPerderSessao?: () => void } = {}) {
-  esquecerLimites()
   const { repo, master, admin } = cenarioHenriqueEJuliano()
 
   /*
@@ -64,6 +64,7 @@ function montar(op: { aoPerderSessao?: () => void } = {}) {
   }
 
   let n = 0
+  const limite = new LimiteEmMemoria()
   const amb: Ambiente = {
     repo,
     sessoes: new SessoesEmMemoria({ novoToken: () => `tk-${++n}` }),
@@ -72,6 +73,7 @@ function montar(op: { aoPerderSessao?: () => void } = {}) {
       codigos,
       enviar: async () => {},
       sortear: () => '123456',
+      limite,
       // Um Supabase Auth de mentira, com as mesmas duas contas do cenário.
       autenticar: async (email, senha) => {
         if (senha !== 'segredo123') return null
@@ -84,11 +86,15 @@ function montar(op: { aoPerderSessao?: () => void } = {}) {
         return null
       },
     },
+    limite,
     campos: async () => [
       { chave: 'funcao', rotulo: 'Sua função', tipo: 'texto', obrigatorio: true },
     ],
     segredoQr: 'segredo-de-teste',
+    chavePublicaQrEd25519: null,
     novoToken: () => `qr-${++n}`,
+    arquivos: new ArquivosEmMemoria(BASE),
+    siteUrl: 'http://site.local',
   }
 
   const app = criarServidor(amb)
@@ -101,7 +107,7 @@ function montar(op: { aoPerderSessao?: () => void } = {}) {
     ...(op.aoPerderSessao ? { aoPerderSessao: op.aoPerderSessao } : {}),
   })
 
-  return { cliente, repo, guardarToken: (t: string | null) => { token = t } }
+  return { cliente, repo, app, guardarToken: (t: string | null) => { token = t } }
 }
 
 /** Login completo pelo cliente HTTP, devolvendo a sessão. */
@@ -146,7 +152,9 @@ test('as participações, os dias e o QR vêm da API', async () => {
 
   const p = participacoes[0]!
   assert.ok(Array.isArray(await m.cliente.meusDias(p.participacaoId)))
-  assert.ok((await m.cliente.meuQr(p.participacaoId)).codigo)
+  const qr = await m.cliente.meuQr(p.participacaoId)
+  assert.ok(qr.codigo)
+  assert.equal(typeof qr.liberado, 'boolean')
 })
 
 test('o financeiro é o da própria pessoa', async () => {
@@ -363,6 +371,100 @@ test('acessos vai e volta pela API — eventos com setores, criar e listar', asy
 
   const lista = await m.cliente.acessos({ busca: 'Larissa' })
   assert.equal(lista.itens.length, 1)
+
+  const trocada = await m.cliente.trocarSenhaDoAcesso(criado.acesso!.id, 'senhaNova123')
+  assert.equal(trocada.erro, undefined)
+
+  // Admin não exclui — só desativa. Master, sim.
+  const negado = await m.cliente.excluirAcesso(criado.acesso!.id)
+  assert.match(negado.erro ?? '', /Só o master exclui/)
+
+  const master = await m.cliente.entrarComSenha('juan@produzimos.com.br', 'segredo123')
+  assert.ok(master.sessao, master.erro)
+  m.guardarToken(master.sessao.token)
+  const excluido = await m.cliente.excluirAcesso(criado.acesso!.id)
+  assert.equal(excluido.erro, undefined)
+
+  // Master já está logado — cria um admin, escolhendo a organização.
+  const novoAdmin = await m.cliente.criarAcesso({
+    funcao: 'admin', nome: 'Zuleika Wandick', email: 'zuleika.rt@produzimos.com.br',
+    senha: 'segredo123', ativo: true, organizacaoId: 'org-1',
+  })
+  assert.ok(novoAdmin.acesso, novoAdmin.erro)
+  assert.equal(novoAdmin.acesso?.papel, 'admin')
+  assert.equal(novoAdmin.acesso?.identificador, 'zuleika.rt@produzimos.com.br')
+})
+
+test('veículos e bloqueio de CPF vão e voltam pela API', async () => {
+  const m = montar()
+  const login = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
+
+  const eventosV = await m.cliente.eventosParaVeiculos()
+  assert.deepEqual(eventosV, [{ eventoId: 'ev-hj', nome: 'Henrique e Juliano — Kleber Andrade' }])
+
+  const condutor = await m.cliente.buscarCondutorPorCpf('ev-hj', '12345678901')
+  assert.ok(condutor.condutor, condutor.erro)
+
+  const criado = await m.cliente.cadastrarVeiculo('ev-hj', {
+    cpf: '12345678901', placa: 'ABC1D23', modelo: 'HB20',
+  })
+  assert.ok(criado.placa, criado.erro)
+
+  const veiculos = await m.cliente.veiculosDoEvento('ev-hj')
+  assert.equal(veiculos.veiculos.length, 1)
+
+  const bloqueado = await m.cliente.bloquearCpf('ev-hj', '11122233344', 'Teste')
+  assert.ok(bloqueado.cpf, bloqueado.erro)
+
+  const bloqueios = await m.cliente.bloqueiosDoEvento('ev-hj')
+  assert.equal(bloqueios.length, 1)
+
+  const liberado = await m.cliente.desbloquearCpf(bloqueios[0]!.id, 'ev-hj')
+  assert.equal(liberado.erro, undefined)
+})
+
+test('base de funcionários e encontrar colaborador vão e voltam pela API', async () => {
+  const m = montar()
+  const login = await m.cliente.entrarComSenha('juan@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
+
+  const base = await m.cliente.baseDeFuncionarios()
+  assert.equal(base.total, 1)
+
+  const regional = await m.cliente.encontrarColaborador({ cidade: 'Vitória' })
+  assert.equal(regional.pessoas.length, 1)
+
+  const ficha = await m.cliente.fichaDaPessoaNaBase('12345678901')
+  assert.equal(ficha.trabalhos.length, 1)
+})
+
+test('relatório vai e volta pela API, e o arquivo baixa de verdade', async () => {
+  const m = montar()
+  const login = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
+
+  const resumo = await m.cliente.resumoDeRelatorios('ev-hj')
+  assert.equal(resumo.eventoNome, 'Henrique e Juliano — Kleber Andrade')
+
+  const arquivo = await m.cliente.relatorioDoEvento(
+    'ev-hj', { de: '2026-09-03', ate: '2026-09-06' }, 'credenciados',
+  )
+  assert.match(arquivo.url, /^http:\/\/api\.local\/arquivos\//)
+
+  // O endereço devolvido é de verdade — bate na mesma API, sem token, e o
+  // corpo é a planilha (não JSON).
+  const resposta = await m.app.request(arquivo.url)
+  assert.equal(resposta.status, 200)
+  assert.equal(
+    resposta.headers.get('content-type'),
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  )
+  const bytes = new Uint8Array(await resposta.arrayBuffer())
+  assert.ok(bytes.length > 0)
 })
 
 test('senha errada por HTTP devolve erro, não exceção', async () => {
@@ -390,24 +492,186 @@ test('renovar gira o token, como a guarda espera', async () => {
   assert.notEqual(nova.sessao.renovacao, sessao.renovacao)
 })
 
-// ─── O que ainda não existe do outro lado ───────────────────────────────────
+test('evento por dentro, portaria, criar setor e equipe do setor vão e voltam pela API', async () => {
+  const m = montar()
+  const login = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
 
-test('o que a API não tem falha dizendo o nome, e não devolve vazio', async () => {
-  /*
-   * Lista vazia pareceria "não tem nada" e mandaria alguém procurar o problema
-   * no banco. O nome do método diz onde está o buraco.
-   */
+  const evento = await m.cliente.evento('ev-hj')
+  assert.equal(evento.setores.length, 1)
+  assert.equal(evento.portaria.aberta, false)
+  assert.equal(evento.portaria.endereco, null)
+
+  const aberta = await m.cliente.alternarPortaria('ev-hj', true)
+  assert.ok(aberta.portaria?.aberta)
+  assert.ok(aberta.portaria?.endereco)
+  const primeiroToken = aberta.portaria!.endereco
+
+  const trocada = await m.cliente.trocarTokenDaPortaria('ev-hj')
+  assert.ok(trocada.portaria?.aberta, 'trocar o QR não fecha a portaria')
+  assert.notEqual(trocada.portaria?.endereco, primeiroToken)
+
+  const criado = await m.cliente.criarSetor('ev-hj', {
+    nome: 'Segurança',
+    valorPorPessoa: 200,
+    supervisor: { nome: 'Marina Oliveira', cpf: '111.222.333-96', telefone: '(27) 99988-7766' },
+  })
+  assert.ok(criado.setor, criado.erro)
+  assert.equal(criado.setor?.pessoas, 0)
+  assert.equal(criado.setor?.supervisores.length, 1)
+
+  const equipe = await m.cliente.equipeDoSetor('eq-1')
+  assert.equal(equipe.setorNome, 'Produção')
+  assert.equal(equipe.pessoas.length, 1)
+  assert.equal(equipe.pessoas[0]?.nome, 'João da Silva')
+
+  const ficha = await m.cliente.fichaDaPessoa(equipe.pessoas[0]!.participacaoId)
+  assert.equal(ficha.nome, 'João da Silva')
+  assert.equal(ficha.setorNome, 'Produção')
+  assert.equal(ficha.eventoNome, 'Henrique e Juliano — Kleber Andrade')
+  assert.equal(ficha.outrosSetores.some(s => s.setorId === criado.setor?.setorId), true)
+  assert.equal(ficha.podeMover, true)
+  assert.equal(ficha.podeExcluirDaEquipe, true)
+})
+
+test('as mutações da ficha (mover, pagamento, valor, tirar/trazer, excluir) vão e voltam pela API', async () => {
+  const m = montar()
+  const login = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
+
+  const criado = await m.cliente.criarSetor('ev-hj', {
+    nome: 'Bar', valorPorPessoa: 100,
+    supervisor: { nome: 'Marina Oliveira', cpf: '111.222.333-96', telefone: '(27) 99988-7766' },
+  })
+  assert.ok(criado.setor, criado.erro)
+  const setorDestino = criado.setor!.setorId
+
+  const equipe = await m.cliente.equipeDoSetor('eq-1')
+  const participacaoId = equipe.pessoas[0]!.participacaoId
+
+  const mover = await m.cliente.moverDeSetor(participacaoId, setorDestino)
+  assert.equal(mover.erro, undefined, mover.erro)
+  assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).setorId, setorDestino)
+
+  const pagamento = await m.cliente.marcarPagamento(participacaoId, true)
+  assert.equal(pagamento.erro, undefined, pagamento.erro)
+  assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).pago, true)
+
+  const valor = await m.cliente.salvarValorAReceber(participacaoId, 250)
+  assert.equal(valor.erro, undefined, valor.erro)
+  assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).valorReceber, 250)
+
+  const tirou = await m.cliente.tirarDaEquipe(participacaoId)
+  assert.equal(tirou.erro, undefined, tirou.erro)
+  assert.ok((await m.cliente.fichaDaPessoa(participacaoId)).descredenciadoEm)
+
+  const trouxeDeVolta = await m.cliente.trazerDeVolta(participacaoId)
+  assert.equal(trouxeDeVolta.erro, undefined, trouxeDeVolta.erro)
+  assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).descredenciadoEm, null)
+
+  const telefone = await m.cliente.corrigirTelefone(participacaoId, '(27) 98888-7766')
+  assert.equal(telefone.erro, undefined, telefone.erro)
+  assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).telefone, '27988887766')
+
+  const trilha = await m.cliente.auditoria()
+  assert.ok(trilha.some(l => l.acao === 'ALTERACAO_SETOR'))
+  assert.ok(trilha.some(l => l.acao === 'DESCREDENCIAMENTO'))
+  assert.ok(trilha.some(l => l.acao === 'ALTERACAO_TELEFONE'))
+
+  const excluiu = await m.cliente.excluirDaEquipe(participacaoId, 'teste de ponta a ponta')
+  assert.equal(excluiu.erro, undefined, excluiu.erro)
+  await assert.rejects(m.cliente.fichaDaPessoa(participacaoId), /Não encontramos/)
+})
+
+test('contestar e resolver uma batida vão e voltam pela API', async () => {
   const m = montar()
   await entrar(m)
+  const participacaoId = (await m.cliente.minhasParticipacoes())[0]!.participacaoId
 
-  for (const chamar of [
-    () => m.cliente.eventosParaVeiculos(),
-    () => m.cliente.equipeDoSetor('setor-1'),
-    () => m.cliente.fichaDaPessoa('part-1'),
-    () => m.cliente.organizacoes(),
-  ]) {
-    await assert.rejects(chamar, AindaNaoNaApi)
+  const contestou = await m.cliente.contestarBatida(participacaoId, 'meio', '2026-09-05', 'a foto não subiu')
+  assert.equal(contestou.erro, undefined, contestou.erro)
+
+  const semMotivo = await m.cliente.contestarBatida(participacaoId, 'entrada', '2026-09-05', '   ')
+  assert.match(semMotivo.erro ?? '', /Escreva o que está errado/)
+
+  const login = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
+
+  const ficha = await m.cliente.fichaDaPessoa(participacaoId)
+  assert.equal(ficha.contestacoesAbertas.length, 1)
+  assert.equal(ficha.contestacoesAbertas[0]!.motivo, 'a foto não subiu')
+
+  const resolveu = await m.cliente.resolverContestacao(ficha.contestacoesAbertas[0]!.id)
+  assert.equal(resolveu.erro, undefined, resolveu.erro)
+  assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).contestacoesAbertas.length, 0)
+
+  const naoEncontrada = await m.cliente.resolverContestacao('cont-inexistente')
+  assert.match(naoEncontrada.erro ?? '', /Não encontramos/)
+})
+
+test('modelo, exportar e importar planilha de equipe vão e voltam pela API', async () => {
+  const m = montar()
+  const login = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
+
+  const modelo = await m.cliente.baixarModelo()
+  assert.ok(modelo.nome.endsWith('.xlsx'))
+  assert.match(modelo.url, /^http:\/\/api\.local\/arquivos\//)
+
+  const exportado = await m.cliente.exportarEquipe('eq-1')
+  assert.ok(exportado.nome.endsWith('.xlsx'))
+
+  const linhas: Record<string, string | number> = {
+    Nome: 'Fernanda Reis', CPF: '529.982.247-25', Telefone: '27988776655',
+    Cargo: 'Auxiliar', Cidade: 'Vila Velha', 'Valor a receber': 120,
   }
+  const ExcelJS = (await import('exceljs')).default
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Planilha')
+  ws.columns = Object.keys(linhas).map(k => ({ header: k, key: k }))
+  ws.addRow(linhas)
+  const base64 = Buffer.from(await wb.xlsx.writeBuffer()).toString('base64')
+
+  const importado = await m.cliente.importarPlanilha('eq-1', { nome: 'equipe.xlsx', base64 })
+  assert.equal(importado.erro, undefined, importado.erro)
+  assert.equal(importado.resultado?.criados, 1)
+  assert.equal(importado.resultado?.ignorados, 0)
+})
+
+test('registrar token de push vai e volta pela API — qualquer papel logado', async () => {
+  const m = montar()
+  await entrar(m) // colaborador — o roteiro padrão já entra num evento
+
+  const r = await m.cliente.registrarTokenDePush('ExponentPushToken[teste-e2e]', 'android')
+  assert.equal(r.erro, undefined, r.erro)
+})
+
+test('organizações vai e volta pela API — criar, listar e suspender', async () => {
+  const m = montar()
+
+  // Só o master gerencia a Plataforma — entra pelo caminho de senha, não o de WhatsApp.
+  const login = await m.cliente.entrarComSenha('juan@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao!.token)
+
+  const criada = await m.cliente.criarOrganizacao({
+    nome: 'Festas do Vale',
+    adminNome: 'Renata Dias',
+    email: 'renata@festasdovale.com.br',
+    senha: 'segredo123',
+    limiteEventos: 5,
+  })
+  assert.ok(criada.organizacao, criada.erro)
+
+  const lista = await m.cliente.organizacoes()
+  assert.ok(lista.itens.some(o => o.organizacaoId === criada.organizacao!.organizacaoId))
+
+  const r = await m.cliente.alternarOrganizacao(criada.organizacao!.organizacaoId, false)
+  assert.equal(r.erro, undefined)
 })
 
 // ─── A frase em que o projeto inteiro se apoia ──────────────────────────────
@@ -459,6 +723,7 @@ async function roteiroDoColaborador(quem: string, cliente: ClienteApi, telefone:
   const qr = await cliente.meuQr(p.participacaoId)
   assert.ok(qr.codigo, 'meuQr.codigo')
   assert.ok(qr.etapa, 'meuQr.etapa')
+  assert.equal(typeof qr.liberado, 'boolean', onde('meuQr.liberado'))
 
   const financeiro = await cliente.meuFinanceiro(p.participacaoId)
   assert.equal(typeof financeiro.diasTrabalhados, 'number', 'meuFinanceiro')
@@ -468,6 +733,19 @@ async function roteiroDoColaborador(quem: string, cliente: ClienteApi, telefone:
   const denovo = await cliente.consultarConvite(CODIGO_DO_EVENTO)
   assert.equal(denovo.convite, undefined, onde('já está dentro: não devia vir convite'))
   assert.match(denovo.erro ?? '', /já está neste evento/i)
+
+  /*
+   * Entrada livre: hoje não é dia de trabalho deste evento (ele é em
+   * setembro de 2026) — os dois têm que recusar, e com o mesmo formato de
+   * resposta. Não afirma sobre o caminho de SUCESSO porque isso exigiria
+   * controlar o relógio dos dois lados; o que importa aqui é a FORMA da
+   * recusa ser igual, que é o que a fila offline lê.
+   */
+  const livre = await cliente.registrarEntradaLivre(p.participacaoId, {})
+  assert.equal(livre.situacao, 'recusado', onde('registrarEntradaLivre'))
+
+  const contestacao = await cliente.contestarBatida(p.participacaoId, 'entrada', '2026-09-05', 'teste de paridade')
+  assert.deepEqual(contestacao, {}, onde('contestarBatida'))
 }
 
 test('o mesmo roteiro passa no servidor falso e na API de verdade', async () => {

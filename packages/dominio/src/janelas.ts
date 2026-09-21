@@ -634,6 +634,16 @@ export function liberacaoDoQR(
   if (!dia || dia.cancelado) return { liberado: false, liberaEm: null }
 
   const principal = dia.tipo === 'principal'
+
+  /*
+   * Batida livre: mesma régua de `avaliarEntradaSaida` — o dia do evento
+   * passa a se comportar como um dia de preparação, sem horário nenhum
+   * para esperar. Sem este curto-circuito, o QR ficaria embaçado até uma
+   * janela configurada que já não vale mais para registrar nada — a pessoa
+   * veria "libera às HH:MM" numa hora que não impede e não libera nada.
+   */
+  if (principal && evento.batida_livre === true) return { liberado: true, liberaEm: null }
+
   // No dia principal manda a janela configurada; nos dias de preparação, a
   // expectativa da jornada, quando existir.
   const janelas: [string | null | undefined, string | null | undefined][] = principal

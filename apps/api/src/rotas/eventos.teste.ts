@@ -5,10 +5,10 @@
  * jeito mais provável de vazar dado é um endpoint aceitar um id sem conferir
  * de quem ele é.
  */
-import { test, beforeEach } from 'node:test'
+import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
-import { esquecerLimites } from '../limite.js'
+import { LimiteEmMemoria } from '../limite.js'
 import { registrarBatida } from './batidas.js'
 import {
   consultarConvite, entrarNoEvento, meuFinanceiro, meuQr, meusDias,
@@ -31,22 +31,20 @@ function comDuasPessoas() {
     id: 'pes-maria', nome: 'Maria Souza', cpf: '98765432100',
     telefone: '27988887777', fotoPath: null,
   })
-  return c
+  return { ...c, limite: new LimiteEmMemoria() }
 }
-
-beforeEach(() => esquecerLimites())
 
 // ─── O código do evento ─────────────────────────────────────────────────────
 
 test('código errado não revela nada além de não existir', async () => {
-  const { repo } = comDuasPessoas()
-  const r = await consultarConvite(repo, campos, 'pes-maria', 'ABC-2026-9999')
+  const { repo, limite } = comDuasPessoas()
+  const r = await consultarConvite(repo, campos, limite, 'pes-maria', 'ABC-2026-9999')
   assert.match(r.erro ?? '', /Não encontramos um evento/)
 })
 
 test('o convite pede só o que a conta ainda não sabe', async () => {
-  const { repo } = comDuasPessoas()
-  const { convite } = await consultarConvite(repo, campos, 'pes-maria', CODIGO)
+  const { repo, limite } = comDuasPessoas()
+  const { convite } = await consultarConvite(repo, campos, limite, 'pes-maria', CODIGO)
 
   const chaves = convite!.camposExtras.map(x => x.chave)
   for (const jaSabido of ['nome', 'cpf', 'telefone']) {
@@ -55,54 +53,54 @@ test('o convite pede só o que a conta ainda não sabe', async () => {
 })
 
 test('quem já está no evento é levado para ele, não recadastrado', async () => {
-  const { repo } = comDuasPessoas()
+  const { repo, limite } = comDuasPessoas()
   // João já tem participação no cenário.
-  const r = await consultarConvite(repo, campos, 'pes-joao', CODIGO)
+  const r = await consultarConvite(repo, campos, limite, 'pes-joao', CODIGO)
   assert.match(r.erro ?? '', /já está neste evento/)
 })
 
 test('força bruta no código é barrada', async () => {
-  const { repo } = comDuasPessoas()
+  const { repo, limite } = comDuasPessoas()
   for (let i = 0; i < 20; i++) {
-    await consultarConvite(repo, campos, 'pes-maria', `ABC-2026-${String(i).padStart(4, '0')}`)
+    await consultarConvite(repo, campos, limite, 'pes-maria', `ABC-2026-${String(i).padStart(4, '0')}`)
   }
-  const r = await consultarConvite(repo, campos, 'pes-maria', 'ABC-2026-9999')
+  const r = await consultarConvite(repo, campos, limite, 'pes-maria', 'ABC-2026-9999')
   assert.match(r.erro ?? '', /Muitas tentativas/)
 })
 
 test('o limite é por pessoa, não global', async () => {
   // Se fosse global, um curioso travaria o cadastro do evento inteiro.
-  const { repo } = comDuasPessoas()
+  const { repo, limite } = comDuasPessoas()
   for (let i = 0; i < 20; i++) {
-    await consultarConvite(repo, campos, 'pes-maria', `ABC-2026-${String(i).padStart(4, '0')}`)
+    await consultarConvite(repo, campos, limite, 'pes-maria', `ABC-2026-${String(i).padStart(4, '0')}`)
   }
-  const outro = await consultarConvite(repo, campos, 'pes-joao', CODIGO)
+  const outro = await consultarConvite(repo, campos, limite, 'pes-joao', CODIGO)
   assert.ok(!/Muitas tentativas/.test(outro.erro ?? ''))
 })
 
 // ─── Entrar ─────────────────────────────────────────────────────────────────
 
 test('campo obrigatório em branco não deixa entrar', async () => {
-  const { repo } = comDuasPessoas()
-  const r = await entrarNoEvento(repo, campos, 'pes-maria', CODIGO, { funcao: 'Bar' }, () => 'tk')
+  const { repo, limite } = comDuasPessoas()
+  const r = await entrarNoEvento(repo, campos, limite, 'pes-maria', CODIGO, { funcao: 'Bar' }, () => 'tk')
   assert.match(r.erro ?? '', /Tamanho do uniforme/)
 })
 
 test('entrar cria o vínculo credenciado', async () => {
-  const { repo } = comDuasPessoas()
+  const { repo, limite } = comDuasPessoas()
   const r = await entrarNoEvento(
-    repo, campos, 'pes-maria', CODIGO, { funcao: 'Bar', uniforme: 'M' }, () => 'tk-maria',
+    repo, campos, limite, 'pes-maria', CODIGO, { funcao: 'Bar', uniforme: 'M' }, () => 'tk-maria',
   )
   assert.equal(r.participacao!.situacao, 'credenciado')
   assert.equal(r.participacao!.funcao, 'Bar')
 })
 
 test('evento que exige aprovação deixa a pessoa aguardando', async () => {
-  const { repo, evento } = comDuasPessoas()
+  const { repo, evento, limite } = comDuasPessoas()
   evento.exigeAprovacao = true
 
   const r = await entrarNoEvento(
-    repo, campos, 'pes-maria', CODIGO, { funcao: 'Bar', uniforme: 'M' }, () => 'tk',
+    repo, campos, limite, 'pes-maria', CODIGO, { funcao: 'Bar', uniforme: 'M' }, () => 'tk',
   )
   assert.equal(r.participacao!.situacao, 'aguardando_aprovacao')
 
@@ -135,8 +133,8 @@ test('id inexistente e id de outra pessoa dão a mesma resposta', async () => {
 })
 
 test('minhas participações trazem só as minhas', async () => {
-  const { repo } = comDuasPessoas()
-  await entrarNoEvento(repo, campos, 'pes-maria', CODIGO, { funcao: 'Bar', uniforme: 'M' }, () => 'tk')
+  const { repo, limite } = comDuasPessoas()
+  await entrarNoEvento(repo, campos, limite, 'pes-maria', CODIGO, { funcao: 'Bar', uniforme: 'M' }, () => 'tk')
 
   const daMaria = await minhasParticipacoes(repo, 'pes-maria')
   const doJoao = await minhasParticipacoes(repo, 'pes-joao')
@@ -180,6 +178,45 @@ test('dia com batida fora da escala aparece mesmo assim', async () => {
   assert.ok(dias.some(d => d.data === '2026-09-01' && d.compareceu))
 })
 
+test('dia cancelado carrega a marca — é o resumo do app quem decide não contar como escalado', async () => {
+  const { repo } = comDuasPessoas()
+  const dias = repo.dias.get('ev-hj')!
+  dias.find(d => d.data === '2026-09-04')!.cancelado = true
+
+  const meus = await meusDias(repo, 'pes-joao', 'part-joao')
+  assert.equal(meus.find(d => d.data === '2026-09-04')!.cancelado, true)
+  assert.equal(meus.find(d => d.data === '2026-09-03')!.cancelado, false)
+})
+
+test('batida fora da escala nunca é cancelada — cancelado só existe pra dia que já foi agendado', async () => {
+  const { repo } = comDuasPessoas()
+  repo.registros.push({
+    id: 'fora', participacaoId: 'part-joao', tipo: 'entrada',
+    dataRef: '2026-09-01', registradoEm: '2026-09-01T08:00:00-03:00',
+    recebidoEm: '2026-09-01T08:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false,
+  })
+  const dias = await meusDias(repo, 'pes-joao', 'part-joao')
+  assert.equal(dias.find(d => d.data === '2026-09-01')!.cancelado, false)
+})
+
+test('batida assistida (feita pelo supervisor em nome da pessoa) fica marcada', async () => {
+  const { repo } = comDuasPessoas()
+  repo.registros.push({
+    id: 'e', participacaoId: 'part-joao', tipo: 'entrada', dataRef: '2026-09-03',
+    registradoEm: '2026-09-03T08:00:00-03:00', recebidoEm: '2026-09-03T08:00:00-03:00',
+    fotoPath: null, lat: null, lng: null, manual: true,
+  })
+  repo.registros.push({
+    id: 'f', participacaoId: 'part-joao', tipo: 'fim', dataRef: '2026-09-03',
+    registradoEm: '2026-09-03T18:00:00-03:00', recebidoEm: '2026-09-03T18:00:00-03:00',
+    fotoPath: null, lat: null, lng: null, manual: false,
+  })
+
+  const dia = (await meusDias(repo, 'pes-joao', 'part-joao')).find(d => d.data === '2026-09-03')!
+  assert.equal(dia.entradaAssistida, true)
+  assert.equal(dia.saidaAssistida, false)
+})
+
 test('o meio atrasado é medido, não escondido', async () => {
   const { repo } = comDuasPessoas()
   await registrarBatida(repo, 'pes-joao', {
@@ -218,6 +255,17 @@ test('sem valor definido, a tela não diz zero', async () => {
   assert.equal(f.valorPrevisto, null)
 })
 
+test('a chave PIX escrita no auto-cadastro aparece no financeiro, e falta vira null', async () => {
+  const { repo, participacao } = comDuasPessoas()
+
+  const semChave = await meuFinanceiro(repo, 'pes-joao', 'part-joao')
+  assert.equal(semChave.chavePix, null)
+
+  participacao.chavePix = 'joao@exemplo.com'
+  const comChave = await meuFinanceiro(repo, 'pes-joao', 'part-joao')
+  assert.equal(comChave.chavePix, 'joao@exemplo.com')
+})
+
 // ─── QR ─────────────────────────────────────────────────────────────────────
 
 test('o QR troca de etapa junto com o dia', async () => {
@@ -252,4 +300,59 @@ test('o mesmo QR vale em todos os dias da montagem', async () => {
   const a = await meuQr(repo, SEGREDO, 'pes-joao', 'part-joao', new Date('2026-09-03T10:00:00-03:00'))
   const b = await meuQr(repo, SEGREDO, 'pes-joao', 'part-joao', new Date('2026-09-04T10:00:00-03:00'))
   assert.equal(a.codigo, b.codigo, 'não muda a cada dia — muda a cada etapa')
+})
+
+// ─── Liberação do QR ────────────────────────────────────────────────────────
+//
+// Embaça o QR até pouco antes da hora de bater — contra print mandado com
+// antecedência pra alguém entrar no lugar da pessoa. Decisão do Juan,
+// 18/09/2026. A regra em si (`liberacaoDoQR`) é testada no domínio; aqui só
+// o que É desta rota: achar o dia certo e decidir quando NÃO aplicar a regra.
+
+test('dentro da janela de entrada do dia principal, o QR libera', async () => {
+  const { repo } = comDuasPessoas()
+  const r = await meuQr(repo, SEGREDO, 'pes-joao', 'part-joao', new Date('2026-09-05T10:00:00-03:00'))
+  assert.equal(r.liberado, true)
+  assert.equal(r.liberaEm, null)
+})
+
+test('bem antes da janela, embaça e diz quando abre', async () => {
+  const { repo } = comDuasPessoas()
+  const r = await meuQr(repo, SEGREDO, 'pes-joao', 'part-joao', new Date('2026-09-05T03:00:00-03:00'))
+  assert.equal(r.liberado, false)
+  // Janela abre 07:00, folga padrão de 15 min: libera às 06:45.
+  assert.equal(r.liberaEm, new Date('2026-09-05T06:45:00-03:00').toISOString())
+})
+
+test('dentro da folga antes do horário oficial, já libera', async () => {
+  const { repo } = comDuasPessoas()
+  const r = await meuQr(repo, SEGREDO, 'pes-joao', 'part-joao', new Date('2026-09-05T06:50:00-03:00'))
+  assert.equal(r.liberado, true)
+})
+
+test('dia de preparação sem janela própria configurada libera o dia inteiro', async () => {
+  const { repo } = comDuasPessoas()
+  const r = await meuQr(repo, SEGREDO, 'pes-joao', 'part-joao', new Date('2026-09-03T03:00:00-03:00'))
+  assert.equal(r.liberado, true)
+})
+
+test('dia cancelado NÃO embaça — a tela já explica com outro aviso', async () => {
+  const { repo } = comDuasPessoas()
+  repo.dias.get('ev-hj')!.find(d => d.data === '2026-09-05')!.cancelado = true
+  const r = await meuQr(repo, SEGREDO, 'pes-joao', 'part-joao', new Date('2026-09-05T03:00:00-03:00'))
+  assert.equal(r.liberado, true)
+})
+
+test('sem dia de trabalho hoje, o QR também não embaça', async () => {
+  const { repo } = comDuasPessoas()
+  const r = await meuQr(repo, SEGREDO, 'pes-joao', 'part-joao', new Date('2026-08-20T10:00:00-03:00'))
+  assert.equal(r.liberado, true)
+})
+
+test('batida livre libera o QR o dia inteiro, mesmo fora da janela', async () => {
+  const { repo } = comDuasPessoas()
+  const evento = await repo.eventoPorId('ev-hj')
+  evento!.batida_livre = true
+  const r = await meuQr(repo, SEGREDO, 'pes-joao', 'part-joao', new Date('2026-09-05T03:00:00-03:00'))
+  assert.equal(r.liberado, true)
 })

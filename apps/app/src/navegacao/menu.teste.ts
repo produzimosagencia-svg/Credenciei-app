@@ -89,3 +89,26 @@ test('toda rota do menu é única', () => {
     assert.equal(new Set(rotas).size, rotas.length, `${papel} tem rota repetida`)
   }
 })
+
+test('quem gerencia usuários vê a trilha de auditoria; supervisor não', () => {
+  assert.equal(rotulos('master').includes('Trilha de auditoria'), true)
+  assert.equal(rotulos('admin').includes('Trilha de auditoria'), true)
+  assert.equal(rotulos('supervisor').includes('Trilha de auditoria'), false)
+})
+
+test('só o master vê Configurações', () => {
+  assert.equal(rotulos('master').includes('Configurações'), true)
+  for (const papel of ['admin', 'supervisor', 'colaborador']) {
+    assert.equal(rotulos(papel).includes('Configurações'), false, papel)
+  }
+})
+
+test('o menu reage ao override — supervisor com "escanear" ligado pela organização ganha Escanear QR', () => {
+  const semOverride = rotulos('supervisor')
+  assert.equal(semOverride.includes('Escanear QR'), false)
+
+  const comOverride = menuDe({
+    papel: 'supervisor', permissoesOrganizacao: { 'supervisor:escanear': true },
+  }).flatMap(g => g.itens).map(i => i.rotulo)
+  assert.equal(comOverride.includes('Escanear QR'), true)
+})

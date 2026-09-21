@@ -29,6 +29,7 @@ function comEquipe() {
       id, pessoaId, eventoId: c.evento.id, equipeId: 'eq-1', equipeNome: 'Produção',
       funcao, supervisorNome: 'Carlos Silva', ativo: true, descredenciadoEm: null,
       valorReceber: 150, pago: false, pagoEm: null, qrToken: `tk-${id}`,
+      cidade: null, criadoEm: '2026-08-20T10:00:00-03:00',
     })
   }
   return c

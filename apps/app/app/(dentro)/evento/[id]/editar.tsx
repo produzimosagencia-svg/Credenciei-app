@@ -38,7 +38,7 @@ import {
 } from '../../../../src/ui/componentes'
 import { CampoDeDataHora } from '../../../../src/ui/data-hora'
 import { Icone } from '../../../../src/ui/icone'
-import { espaco, raio, texto, tipo } from '../../../../src/ui/tema'
+import { ALVO_MINIMO, espaco, raio, texto, tipo } from '../../../../src/ui/tema'
 import { useTema, type Tokens } from '../../../../src/ui/tema-contexto'
 
 /** Quantos dias antes e depois do evento aparecem na grade. */
@@ -310,7 +310,7 @@ function Formulario({
       ) : null}
 
       <Respiro altura={espaco.m} />
-      <Botao titulo="Salvar evento" onPress={salvar} ocupado={salvando} />
+      <Botao titulo="Salvar alterações" onPress={salvar} ocupado={salvando} />
 
       <Separador />
 
@@ -343,7 +343,7 @@ function ConfiguracaoDoMeioBloco({
   eventoId, inicial,
 }: { eventoId: string; inicial: ConfiguracaoDoMeio }) {
   const { cliente } = useSessao()
-  const { cor } = useTema()
+  const { cor, uso } = useTema()
   const e = useEstilos()
   const [setores, setSetores] = useState<Set<string>>(
     () => new Set(inicial.setores.filter(s => s.exigeMeio).map(s => s.setorId)),
@@ -351,6 +351,7 @@ function ConfiguracaoDoMeioBloco({
   const [dias, setDias] = useState<Set<string>>(
     () => new Set(inicial.dias.filter(d => d.exigeMeio).map(d => d.data)),
   )
+  const [setorModalAberto, setSetorModalAberto] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [feito, setFeito] = useState<string | null>(null)
@@ -363,6 +364,8 @@ function ConfiguracaoDoMeioBloco({
   }
 
   const ligado = setores.size > 0 && dias.size > 0
+  const todosOsSetoresMarcados = setores.size === inicial.setores.length && inicial.setores.length > 0
+  const todosOsDiasMarcados = dias.size === inicial.dias.length && inicial.dias.length > 0
 
   async function salvar() {
     setErro(null)
@@ -410,31 +413,61 @@ function ConfiguracaoDoMeioBloco({
       {inicial.setores.length === 0 ? (
         <Legenda>Este evento ainda não tem setores cadastrados.</Legenda>
       ) : (
-        <View style={e.meioGradeSetores}>
-          {inicial.setores.map(s => {
-            const marcado = setores.has(s.setorId)
-            return (
-              <Pressable
-                key={s.setorId}
-                onPress={() => { setFeito(null); setSetores(a => alternar(a, s.setorId)) }}
-                style={[e.meioChip, marcado && e.meioChipMarcado]}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: marcado }}
-              >
-                <View style={[e.meioCaixa, marcado && e.caixaMarcada]}>
-                  {marcado ? <Icone nome="Check" tamanho={10} tom="#ffffff" espessura={3} /> : null}
-                </View>
-                <Text style={[e.meioChipTexto, marcado && e.meioChipTextoMarcado]} numberOfLines={1}>
-                  {s.nome}
-                </Text>
-              </Pressable>
-            )
-          })}
-        </View>
+        <>
+          {/*
+            * Um botão que abre a lista num modal, e não a grade inteira na
+            * tela — com trinta ou quarenta setores (comum em evento grande,
+            * 13/09/2026: relato do Juan com print da tela cheia de chips) a
+            * grade sozinha já passava da altura da tela inteira, empurrando
+            * "Dias com batida do meio" e o botão de salvar para bem longe.
+            * O site mantém a grade solta porque lá ela rola dentro de uma
+            * caixa de altura fixa (`max-h-52 overflow-y-auto`) — sem esse
+            * recurso aqui, o modal resolve o mesmo problema.
+            */}
+          <Pressable
+            onPress={() => setSetorModalAberto(true)}
+            accessibilityRole="button"
+            style={e.setorSeletorBotao}
+          >
+            <Icone nome="ShieldCheck" tamanho={14} tom={cor.acento600} />
+            <Text style={e.setorSeletorTexto}>Selecionar setor</Text>
+            <View style={{ flex: 1 }} />
+            <Text style={e.setorSeletorContagem}>
+              {setores.size} de {inicial.setores.length}
+            </Text>
+            <Icone nome="ChevronRight" tamanho={16} tom={uso.tintaFraca} />
+          </Pressable>
+
+          <ModalDeSetores
+            visivel={setorModalAberto}
+            setoresDisponiveis={inicial.setores}
+            selecionados={setores}
+            todosMarcados={todosOsSetoresMarcados}
+            aoAlternar={id => { setFeito(null); setSetores(a => alternar(a, id)) }}
+            aoMarcarTodos={() => {
+              setFeito(null)
+              setSetores(todosOsSetoresMarcados ? new Set() : new Set(inicial.setores.map(s => s.setorId)))
+            }}
+            aoFechar={() => setSetorModalAberto(false)}
+          />
+        </>
       )}
 
       <Respiro altura={espaco.m} />
-      <Etiqueta>Dias com batida do meio</Etiqueta>
+      <View style={e.meioCabecalho}>
+        <Etiqueta>Dias com batida do meio</Etiqueta>
+        {inicial.dias.length > 0 ? (
+          <Pressable
+            onPress={() => {
+              setFeito(null)
+              setDias(todosOsDiasMarcados ? new Set() : new Set(inicial.dias.map(d => d.data)))
+            }}
+            hitSlop={8}
+          >
+            <Text style={e.meioLinkTexto}>{todosOsDiasMarcados ? 'Desmarcar todos' : 'Marcar todos'}</Text>
+          </Pressable>
+        ) : null}
+      </View>
       <Respiro altura={espaco.s} />
       {inicial.dias.length === 0 ? (
         <Legenda>
@@ -442,7 +475,7 @@ function ConfiguracaoDoMeioBloco({
           aqui em seguida.
         </Legenda>
       ) : (
-        <View style={e.tira}>
+        <View style={e.meioGradeDias}>
           {inicial.dias.map(d => {
             const marcado = dias.has(d.data)
             const [, m, dd] = d.data.split('-')
@@ -470,7 +503,7 @@ function ConfiguracaoDoMeioBloco({
         {ligado
           ? `O meio vai ser pedido a quem estiver nos ${setores.size} setor(es) marcados, nos ${dias.size} dia(s) marcados — e só neles.`
           : 'Nenhuma combinação marcada: o meio fica desligado neste evento. O cartão some da credencial, ninguém recebe lembrete e ninguém aparece como pendente do meio.'}
-        {' '}Batida já registrada continua no histórico — desligar não apaga nada.
+        {' '}Batida já registrada continua no histórico de qualquer forma — desligar não apaga nada.
       </Legenda>
 
       {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
@@ -479,6 +512,102 @@ function ConfiguracaoDoMeioBloco({
       <Respiro altura={espaco.m} />
       <Botao titulo="Salvar configuração do meio" onPress={salvar} ocupado={salvando} tipo="secundario" />
     </Cartao>
+  )
+}
+
+/** A partir de quantos setores a lista ganha campo de busca. */
+const MINIMO_PARA_BUSCAR_SETOR = 8
+
+function semAcentoSetor(t: string): string {
+  return t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
+/**
+ * A lista cheia de setores, num modal — "Marcar todos" e a busca ficam aqui
+ * dentro, não na tela: com trinta ou mais setores, os dois já não cabiam
+ * junto do resto sem empurrar tudo pra baixo. Fecha com toque fora ou no X;
+ * cada toque na linha já grava na hora, não tem "aplicar" — mesmo
+ * comportamento imediato que a grade antiga tinha.
+ */
+function ModalDeSetores({
+  visivel, setoresDisponiveis, selecionados, todosMarcados, aoAlternar, aoMarcarTodos, aoFechar,
+}: {
+  visivel: boolean
+  setoresDisponiveis: { setorId: string; nome: string }[]
+  selecionados: Set<string>
+  todosMarcados: boolean
+  aoAlternar: (setorId: string) => void
+  aoMarcarTodos: () => void
+  aoFechar: () => void
+}) {
+  const { uso } = useTema()
+  const e = useEstilos()
+  const [busca, setBusca] = useState('')
+
+  const filtrados = busca.trim()
+    ? setoresDisponiveis.filter(s => semAcentoSetor(s.nome).includes(semAcentoSetor(busca.trim())))
+    : setoresDisponiveis
+
+  return (
+    <Modal visible={visivel} animationType="slide" onRequestClose={aoFechar}>
+      <View style={e.setorModalFora}>
+        <View style={e.setorModalTopo}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <TituloDeCartao>Setores que pedem o meio</TituloDeCartao>
+            <Legenda>{selecionados.size} de {setoresDisponiveis.length} selecionados</Legenda>
+          </View>
+          <Pressable onPress={() => { setBusca(''); aoFechar() }} hitSlop={8} accessibilityLabel="Fechar">
+            <Icone nome="X" tamanho={20} tom={uso.tintaMedia} />
+          </Pressable>
+        </View>
+
+        <View style={e.setorModalBusca}>
+          {setoresDisponiveis.length >= MINIMO_PARA_BUSCAR_SETOR ? (
+            <Campo
+              value={busca}
+              onChangeText={setBusca}
+              placeholder="Buscar setor…"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          ) : null}
+          <Pressable onPress={aoMarcarTodos} hitSlop={8} style={e.setorModalMarcarTodos}>
+            <Text style={e.meioLinkTexto}>{todosMarcados ? 'Desmarcar todos' : 'Marcar todos'}</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView contentContainerStyle={e.setorModalLista}>
+          {filtrados.length === 0 ? (
+            <Legenda>Nenhum setor encontrado com “{busca}”.</Legenda>
+          ) : filtrados.map(s => {
+            const marcado = selecionados.has(s.setorId)
+            return (
+              <Pressable
+                key={s.setorId}
+                onPress={() => aoAlternar(s.setorId)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: marcado }}
+                style={[e.setorModalLinha, marcado && e.setorModalLinhaMarcada]}
+              >
+                <View style={[e.meioCaixa, marcado && e.caixaMarcada]}>
+                  {marcado ? <Icone nome="Check" tamanho={10} tom="#ffffff" espessura={3} /> : null}
+                </View>
+                <Text
+                  style={[e.setorModalLinhaTexto, marcado && e.meioChipTextoMarcado]}
+                  numberOfLines={1}
+                >
+                  {s.nome}
+                </Text>
+              </Pressable>
+            )
+          })}
+        </ScrollView>
+
+        <View style={e.setorModalRodape}>
+          <Botao titulo="Pronto" onPress={aoFechar} />
+        </View>
+      </View>
+    </Modal>
   )
 }
 
@@ -686,7 +815,7 @@ function DiasDeTrabalho({
       {feito ? <Aviso tipo="sucesso">{feito}</Aviso> : null}
 
       {/*
-        Botão próprio, e não o "Salvar evento": este bloco grava em outro
+        Botão próprio, e não o "Salvar alterações": este bloco grava em outro
         lugar, e não deve depender de o produtor mexer em mais nada da tela.
 
         A contagem é só dos dias de PREPARAÇÃO — somar o dia do evento faria o
@@ -746,7 +875,18 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
     justifyContent: 'center',
   },
 
+  meioCabecalho: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espaco.s },
+  meioLinkTexto: { ...texto.xxs, fontFamily: tipo.forte, color: cor.acento600 },
+
   meioGradeSetores: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
+  /*
+   * Igual a `meioGradeSetores` — sem isto, cada dia caía numa linha própria
+   * (bug achado em 13/09/2026 comparando com o site: lá é `flex flex-wrap`,
+   * igual aos setores acima; `tira`, reaproveitada aqui antes, só funciona em
+   * fileira porque o `ScrollView horizontal` de `DiasDeTrabalho` aplica
+   * `flexDirection: row` sozinho — uma `View` comum não faz isso).
+   */
+  meioGradeDias: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.s },
   meioChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -769,6 +909,51 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
     alignItems: 'center',
     justifyContent: 'center',
   },
+
+  setorSeletorBotao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espaco.s,
+    minHeight: ALVO_MINIMO,
+    paddingHorizontal: espaco.m,
+    borderRadius: raio.campo,
+    borderWidth: 1,
+    borderColor: uso.borda,
+    backgroundColor: uso.superficie,
+  },
+  setorSeletorTexto: { ...texto.corpoForte, color: uso.tinta },
+  setorSeletorContagem: { ...texto.xs, fontFamily: tipo.regular, color: uso.tintaFraca },
+
+  setorModalFora: { flex: 1, backgroundColor: uso.superficie, paddingTop: espaco.gg },
+  setorModalTopo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espaco.s,
+    paddingHorizontal: espaco.g,
+    paddingBottom: espaco.g,
+    borderBottomWidth: 1,
+    borderBottomColor: uso.borda,
+  },
+  setorModalBusca: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espaco.m,
+    paddingHorizontal: espaco.g,
+    paddingTop: espaco.m,
+  },
+  setorModalMarcarTodos: { paddingVertical: espaco.s, paddingLeft: espaco.xs },
+  setorModalLista: { padding: espaco.g },
+  setorModalLinha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espaco.s,
+    minHeight: ALVO_MINIMO,
+    paddingHorizontal: espaco.s,
+    borderRadius: raio.campo,
+  },
+  setorModalLinhaMarcada: { backgroundColor: cor.acento50 },
+  setorModalLinhaTexto: { ...texto.base, fontFamily: tipo.regular, color: uso.tinta, flex: 1, minWidth: 0 },
+  setorModalRodape: { padding: espaco.g, borderTopWidth: 1, borderTopColor: uso.borda },
 
   tira: { gap: espaco.s, paddingVertical: 2 },
   dia: {

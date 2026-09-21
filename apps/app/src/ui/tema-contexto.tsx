@@ -22,7 +22,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
-  ALVO_MINIMO, corDaEtapa, espaco, eventoAoVivo, gradiente, LARGURA_MAXIMA,
+  ALVO_MINIMO, corDaEtapa, corDoIndicador, espaco, eventoAoVivo, LARGURA_MAXIMA,
   PALETAS, raio, texto, tipo, type Modo,
 } from './tema'
 
@@ -37,7 +37,7 @@ function paletaCompleta(modo: Modo) {
     cor: p.cor,
     uso: p.uso,
     sombra: p.sombra,
-    gradiente, corDaEtapa, eventoAoVivo, tipo, texto, espaco, raio,
+    corDoIndicador, corDaEtapa, eventoAoVivo, tipo, texto, espaco, raio,
     ALVO_MINIMO, LARGURA_MAXIMA,
   }
 }

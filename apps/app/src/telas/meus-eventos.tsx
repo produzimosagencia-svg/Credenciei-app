@@ -14,16 +14,20 @@ import { View, StyleSheet } from 'react-native'
 import { formatarBR } from '@credenciei/dominio'
 import type { ResumoParticipacao } from '@credenciei/contrato'
 import { usePedido } from '../dados/pedido'
+import { useParticipacaoSelecionada } from '../participacao-selecionada'
 import { useSessao } from '../sessao/contexto'
+import { Icone } from '../ui/icone'
 import {
   Aviso, Botao, Carregando, Cartao, Corpo, Etiqueta, Legenda, PontoAoVivo,
   Respiro, Selo, Tela, TituloDaTela, TituloDeCartao,
 } from '../ui/componentes'
 import { espaco } from '../ui/tema'
+import { useTema } from '../ui/tema-contexto'
 
 export function MeusEventos() {
   const router = useRouter()
   const { cliente, sair, semRede } = useSessao()
+  const { selecionar } = useParticipacaoSelecionada()
   const { pedido, recarregar } = usePedido(() => cliente.minhasParticipacoes(), [cliente])
 
   const emAndamento = pedido.estado === 'pronto'
@@ -73,7 +77,19 @@ export function MeusEventos() {
           </View>
           <Respiro altura={espaco.s} />
 
-          {pedido.dados.map(p => <CartaoDoEvento key={p.participacaoId} participacao={p} />)}
+          {pedido.dados.map(p => (
+            <CartaoDoEvento
+              key={p.participacaoId}
+              participacao={p}
+              /*
+               * Só um cartão de cada vez conta como "a que estou vendo" —
+               * quem trabalha em dois eventos no mesmo dia (o navio de manhã,
+               * a lagoa à noite) precisa de um jeito de trocar. Ver
+               * `participacao-selecionada.tsx`.
+               */
+              aoTocar={() => { selecionar(p.participacaoId); router.push('/credencial') }}
+            />
+          ))}
 
           <Respiro altura={espaco.s} />
           <Botao
@@ -97,7 +113,10 @@ export function MeusEventos() {
  * metadados numa linha só embaixo. O que está em andamento é o único que ganha
  * a marca — se todos ganhassem, ela deixaria de significar alguma coisa.
  */
-function CartaoDoEvento({ participacao }: { participacao: ResumoParticipacao }) {
+function CartaoDoEvento({
+  participacao, aoTocar,
+}: { participacao: ResumoParticipacao; aoTocar: () => void }) {
+  const { cor } = useTema()
   const p = participacao
   const situacao = {
     aguardando_aprovacao: { texto: 'Aguardando aprovação', tipo: 'aviso' as const },
@@ -106,7 +125,7 @@ function CartaoDoEvento({ participacao }: { participacao: ResumoParticipacao }) 
   }[p.situacao]
 
   return (
-    <Cartao>
+    <Cartao onPress={aoTocar}>
       {p.emAndamento ? (
         <View style={e.aoVivo}>
           <PontoAoVivo />
@@ -114,7 +133,10 @@ function CartaoDoEvento({ participacao }: { participacao: ResumoParticipacao }) 
         </View>
       ) : null}
 
-      <TituloDeCartao>{p.eventoNome}</TituloDeCartao>
+      <View style={e.linhaDoTitulo}>
+        <TituloDeCartao>{p.eventoNome}</TituloDeCartao>
+        <Icone nome="ChevronRight" tamanho={16} tom={cor.neutro400} />
+      </View>
       <Respiro altura={espaco.xs} />
       <Legenda>
         {formatarBR(p.dataInicio, 'data')}
@@ -136,6 +158,7 @@ function CartaoDoEvento({ participacao }: { participacao: ResumoParticipacao }) 
 const e = StyleSheet.create({
   tituloDaLista: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
   aoVivo: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: espaco.s },
+  linhaDoTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espaco.s },
   linhaDoVinculo: {
     flexDirection: 'row',
     alignItems: 'center',

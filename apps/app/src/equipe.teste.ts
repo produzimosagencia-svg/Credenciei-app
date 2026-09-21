@@ -30,6 +30,7 @@ function pessoa(p: Partial<PessoaDoSetor> = {}): PessoaDoSetor {
     statusEntrada: 'aberto',
     statusMeio: 'aberto',
     statusFim: 'aberto',
+    temContestacaoAberta: false,
     ...p,
   }
 }

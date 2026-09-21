@@ -1,8 +1,8 @@
 # Backlog
 
-**332 tasks · 211 no MVP · 178 concluídas (54%)**
+**324 tasks · 200 no MVP · 197 concluídas (61%)**
 
-**Só o MVP: 149 de 211 (71%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 163 de 200 (82%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -29,7 +29,64 @@ o outro inclui push, publicação, web e escala, que vêm depois.
 
 O percentual reportado ao Juan sai daqui. Nunca estimar: contar.
 
-Atualizado em 11/09/2026.
+Atualizado em 12/09/2026.
+
+> **12/09/2026 — a Epic 18 (Configurar evento) fechou, e a jornada do
+> colaborador ficou 100% real na API.** Editar evento, dias de trabalho,
+> batida do meio e criar evento saíram do servidor falso (17/17). Separado
+> disso: todo método que o colaborador (quem só tem conta do evento, sem
+> papel de painel) usa — entrar, achar evento pelo código, ver a
+> credencial/QR, os meus dias, o meu pagamento, bater ponto e a entrada sem
+> operador (`registrarEntradaLivre`) — já fala com o Supabase de verdade,
+> com o mesmo roteiro testado nos dois clientes (`cliente-real.teste.ts`).
+> Falta ainda, fora da API em si: a foto subir direto pro storage (hoje
+> viaja dentro da batida), e um caminho de recuperação de conta pra quem
+> troca de número de WhatsApp — ver "Limitações conhecidas" no `CLAUDE.md`.
+>
+> **Mesmo dia, mais tarde — Organizações (Plataforma) também ligou na API
+> real.** Listar, criar (com o admin dono dela nascendo como conta de
+> verdade no Supabase Auth, e o primeiro evento opcional reaproveitando
+> `criarEvento`) e suspender/reativar sem apagar histórico. Isso também
+> destrava o seletor de organização que o master usa em "Criar evento" —
+> antes falava com o servidor falso e quebrava nesse caminho.
+>
+> **Mesmo dia, ainda mais tarde — a Fase 2 fechou inteira.** Veículos
+> (cadastro, condutor buscado por CPF dentro do evento), bloqueio de CPF
+> (evento inteiro, supervisor só no próprio setor), base de funcionários e
+> encontrar colaborador (agrupados por CPF — a mesma pessoa em vários
+> eventos é uma linha; taxa de presença conta só quem bateu entrada, não
+> quem só se cadastrou) e atribuir pessoa a um evento (sem teto de vaga —
+> o site tirou esse limite, então não tem mais "entra bloqueada"). Por
+> último, Relatórios: a planilha agora é gerada de verdade (`exceljs` para
+> o `.xlsx`, `jszip` para o `.zip` por setor — as duas dependências que o
+> próprio site já usa), guardada 15 minutos na memória do processo e
+> servida por um link com token opaco, fora de `/v1` e sem exigir a sessão
+> — pensado para ser compartilhado, não só aberto no aparelho que gerou.
+>
+> Único ponto pendente da Epic 17 agora: cartaz da portaria, criar setor e
+> equipe do setor — depende de uma decisão sua (o app mostra um teto de
+> pessoas por setor que o site removeu; ver conversa anterior). Fora da
+> Epic 17, o que falta é só o que a Fase 3 já lista: sincronizar com o
+> site, recuperação de conta, QR (Ed25519), foto no storage de verdade
+> (relatórios e batidas ainda não sobem a arquivos reais), e o resto do
+> ciclo de ponto/histórico/supervisor.
+>
+> **Mesmo dia, mais tarde ainda — a Epic 17 fechou de vez.** A decisão
+> pendente saiu (o teto de vaga por setor, `estimado`, foi removido do
+> app inteiro — contrato, servidor falso e tela do evento — para bater com
+> o site, que já não tem mais esse limite). Com isso: o cartaz da portaria
+> (abrir, fechar, trocar o QR — o token mora em `eventos.token_portaria`,
+> não numa tabela própria, confirmado no código do site), criar setor (o
+> supervisor entra no mesmo formulário, e reaproveita o acesso se o CPF já
+> supervisiona outro setor do evento — sem criar login novo) e a equipe do
+> setor (os quatro estados de cada etapa — feito/aberto/fechado/indefinido
+> — calculados pelo servidor, nunca pela tela) agora falam com o Supabase
+> de verdade. `evento()` (a tela do evento por dentro: números, progresso,
+> portaria e a lista de setores) também saiu do servidor falso — era a
+> última peça que faltava para as três funcionarem juntas. Limitação nova,
+> registrada no `CLAUDE.md`: reatribuir um supervisor para um setor novo
+> troca qual setor ele vê em "Minha equipe" — o app ainda não tem a tela de
+> trocar de setor que o site ganhou depois de um bug parecido.
 
 > **11/09/2026 — o site mudou muito mais do que um diff do dia a dia
 > conseguiria pegar.** 134 commits em 12 dias, com módulos inteiramente
@@ -51,25 +108,27 @@ Atualizado em 11/09/2026.
 
 As 18 epics agrupadas pela ordem em que fazem sentido — não por número.
 Cada fase soma exatamente as tasks restantes (Total − Feito) das epics que
-carrega; a soma das sete bate com as 159 que faltam no total. Onde o resumo
+carrega; a soma das sete bate com as 123 que faltam no total (recalculado
+em 21/09, depois da Epic 7 fechar — antes disso já tinha sido corrigido em
+18/09 por um arrasto de alguma rodada anterior que não recalculava esta
+linha). Onde o resumo
 não é mais fundo que "o que sobrou da epic" é porque a epic não foi
 detalhada tarefa a tarefa ainda — ver a tabela abaixo para o Feito/Total de
 cada uma.
 
 | Fase | Epics | Restam | O que é |
 |---|---|---|---|
-| 1 — Fechar o mapeamento | 17 | 7 | As 6 linhas de `Mapeado em 31/08` que ainda não têm ✅, mais a tela de pendências do evento |
-| 2 — Ligar a API de verdade | 3, 18 | 16 | Epic 3 (API v1) está completa. Falta configurar evento (Epic 18) e a Plataforma (organizações, veículos, bloqueio de CPF, relatórios) — ainda falam com `ClienteFalso` |
-| 3 — Fechar os ciclos pela metade | 2, 4, 6, 7, 8, 9, 10 | 48 | Sincronização com o site, recuperação de conta, QR (Ed25519, código giratório), foto no storage, o resto do ciclo de ponto, histórico e polimento do supervisor |
+| 1 — Fechar o mapeamento | 17 | 3 | Restam só as três telas de WhatsApp (conversas, disparo, fluxos) — deliberadamente adiadas |
+| 2 — Ligar a API de verdade | 3, 17, 18 | 0 | **Completa.** Epic 3, Epic 18 e a Epic 17 inteira — organizações, veículos, bloqueio de CPF, base de funcionários, encontrar colaborador, relatórios (com planilha `.xlsx`/`.zip` de verdade), cartaz da portaria, criar setor e equipe do setor |
+| 3 — Fechar os ciclos pela metade | 2, 4, 6, 7, 8, 9, 10 | 33 | Sincronização com o site, QR (Ed25519, código giratório), histórico e polimento do supervisor. **Epic 8 fechou em 18/09** (7/7) e **Epic 7 fechou em 21/09** (13/13) — as duas remapeadas sem tarefa concreta sobrando |
 | 4 — Aguentar 20 mil pessoas | 13, 14 | 23 | Teste de carga, LGPD, retenção de dados |
 | 5 — Publicar | 11, 16 | 30 | Push e as duas lojas — **bloqueado na conta Apple Developer** |
 | 6 — O banco de verdade | 1 | 13 | Rodar as três migrações — **bloqueado no banco de homologação** |
 | 7 — Depois do MVP | 12, 15 | 21 | Versão web e os últimos testes — por definição, o que "vem depois" |
 
-**Onde estamos de verdade hoje**: o app inteiro é navegável, com a lógica de
-negócio real por baixo — mas contra um servidor de mentira. A Fase 2 é o que
-faz a diferença entre "protótipo completo" e "sistema em produção": sem ela,
-nada do resto importa ainda.
+**Onde estamos de verdade hoje**: a Fase 2 fechou — a API de verdade cobre
+tudo que o backlog original previa para ela, Epic 17 inclusive. O que resta
+do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 
 ---
 
@@ -82,19 +141,19 @@ nada do resto importa ainda.
 | 3 | API v1 | 32 | 32 | ✓ | Completo: login, painel, escanear, ponto assistido, atividades e acessos, todos reais e ligados pelo `ClienteHttp` |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
 | 5 | App base | 15 | 15 | ✓ | Navegação com voltar, campos, data/hora e o redesign "Arena" (laranja/escuro) |
-| 6 | QR | 9 | 15 | ✓ | Falta Ed25519, código giratório, captura de tela |
-| 7 | Offline | 13 | 19 | ✓ | Fila ligada ao app; falta o envio da foto ao storage |
-| 8 | Ponto no app | 4 | 13 | ✓ | O meio com selfie; falta o resto do ciclo |
+| 6 | QR | 11 | 16 | ✓ | Falta Ed25519 e código giratório. Captura de tela trazida em 12/09: `expo-screen-capture` no crachá — bloqueia print/gravação no Android (`FLAG_SECURE`), só gravação no iOS (a plataforma não deixa impedir print, só avisar depois). Liberação do QR perto da hora de bater (`liberacaoDoQR`), 18/09: existia pronta e sem uso dos dois lados, ligada agora só no app |
+| 7 | Offline | 13 | 13 | ✓ | **Completa** — remapeada em 21/09 do mesmo jeito que a Epic 8: sem `NetInfo` nenhum (deliberado — a fila não precisa SABER que está offline, só tentar e tratar a falha como transporte, não como recusa), aviso "sem internet" já presente nas telas que dependem de dado fresco (`meus-eventos.tsx`, `painel.tsx`), esgotar as 30 tentativas já vira recusada com mensagem clara. Nenhuma lacuna concreta achada — não confirmado com o Juan ainda, diferente da Epic 8 (lá ele validou antes de eu recontar). Fila ligada ao app; a foto do meio sobe de verdade pro Storage (`subirFotoDoMeio`, desde 12/09) |
+| 8 | Ponto no app | 7 | 7 | ✓ | **Completa** — recontada em 18/09 depois de remapear e não achar tarefa concreta pendente (o "falta o resto do ciclo" era folga de estimativa antiga, não trabalho esquecido; Juan confirmou fechar assim, e aponta o que faltar se aparecer usando de verdade). O meio com selfie; `registrarEntradaLivre` (auto-atendimento) real na API; a credencial esconde o QR quando a participação não está credenciada, e avisa quando o dia foi cancelado; troca de evento quando a pessoa está em dois ao mesmo tempo; aviso de batida pendente na aba; contestar uma batida errada ou que faltou |
 | 9 | Histórico | 4 | 11 | — | Meus dias e Meu pagamento prontos |
-| 10 | Supervisor | 11 | 15 | — | Equipe, ficha da pessoa e histórico |
-| 11 | Push | 0 | 12 | — | Depende da conta Apple |
+| 10 | Supervisor | 14 | 18 | — | Equipe, ficha da pessoa e histórico; tirar da equipe/excluir de vez/corrigir telefone são tasks novas, achadas em 14/09 |
+| 11 | Push | 1 | 12 | — | Registro do token do aparelho pronto; enviar depende da conta Apple (APNs) e de um projeto Firebase (FCM) — nenhum dos dois existe ainda; o MODELO do que notificar também depende de decisão do Juan |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
-| 14 | Segurança | 5 | 15 | — | Isolamento e limite feitos; falta LGPD, retenção e a trilha de auditoria |
+| 14 | Segurança | 6 | 15 | — | Isolamento, limite e a trilha de auditoria feitos; falta LGPD e retenção |
 | 15 | Testes | 9 | 14 | — | 605 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
-| 17 | Painel no app | 45 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09" |
-| 18 | Configurar evento | 11 | 17 | ✓ | Falta a API |
+| 17 | Painel no app | 48 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09". Toda a epic fala com a API real agora: organizações, veículos, bloqueio de CPF, base de funcionários, encontrar colaborador, relatórios, cartaz da portaria, criar setor, equipe do setor, trocar senha, excluir acesso e criar acesso de admin — número não recontado por falta de lista tarefa a tarefa desta epic |
+| 18 | Configurar evento | 17 | 17 | ✓ | Completo: editar evento, dias de trabalho, batida do meio e criar evento, reais e ligados pelo `ClienteHttp` |
 | 19 | Gastos (produto do Produtor) | 0 | 6 | — | Produto novo e isolado do credenciamento — escopo a confirmar com o Juan |
 
 ---
@@ -169,6 +228,8 @@ nada do resto importa ainda.
 - Leitura pela câmera no scanner do portão
 - `faseAtualDoQR`: crachá de evento que vira a noite não recusa na virada do dia — trazido do site (11/09), com o bug que corrigia lá corrigido aqui também (`meuQr` e o painel do supervisor usavam `faseDoDia` sozinho)
 - Escanear QR: o operador não escolhe mais Entrada/Saída — `inferirMomentoDoScanner` decide sozinho, com carência de 5 min e reabertura de turno pra quem sai e volta no mesmo dia (`ResultadoDaLeitura` ganhou a situação `reaberto`)
+- Captura de tela bloqueada no crachá (`expo-screen-capture`), 12/09
+- Liberação do QR perto da hora de bater (`liberacaoDoQR`), 18/09 — embaça até a janela abrir (com folga configurável), destrava sozinho, e não se aplica a dia sem trabalho, cancelado ou com batida livre
 
 **Epic 7 — Offline**
 - Fila ligada ao app, acima das telas e viva em segundo plano
@@ -203,6 +264,9 @@ nada do resto importa ainda.
 - Marcar e DESMARCAR pagamento, e o valor individual a receber
 - Histórico com dias escalados, trabalhados, faltas e horas
 - Botão de voltar em toda tela que não é aba
+- Tirar da equipe (descredencia, reversível) e trazer de volta
+- Excluir de vez (apaga cadastro e batidas, sem volta) — só master/admin/supervisor
+- Corrigir telefone — caminho de recuperação de conta, suporte manual
 
 **Epic 14 — Segurança**
 - Isolamento por pessoa em todos os endpoints
@@ -269,10 +333,13 @@ entra por baixo. Nenhuma tela muda na troca.
 1. **O que o mapeamento de 31/08 achou** (Epic 17 + 18) — ver a seção logo
    abaixo para a lista com as nove linhas, o que cada uma resolve e onde
    olhar no site.
-2. **Endpoints do painel na API** (Epic 3 + 17). Epic 3 está completa: login,
-   Painel, Escanear QR, Ponto assistido, Atividades e Acessos, todos reais e
-   testados. Falta configurar evento (Epic 18) e as quatro telas da
-   Plataforma. Sem elas, essas telas continuam no servidor falso.
+2. **Endpoints do painel na API** (Epic 3 + 17 + 18). Epic 3 e Epic 18 estão
+   completas: login, Painel, Escanear QR, Ponto assistido, Atividades,
+   Acessos e Configurar evento (editar informações/horários, dias de
+   trabalho, batida do meio e criar evento), todos reais e testados. Falta
+   as quatro telas da Plataforma, e — dentro da Epic 17 — o cartaz da
+   portaria, criar setor e a equipe do setor. Sem elas, essas telas
+   continuam no servidor falso.
 
    **Achado ao começar esta fase**: a API nunca foi de fato ligada a nada —
    não existe arquivo que suba um servidor de verdade (`servidor.ts` só
@@ -282,9 +349,13 @@ entra por baixo. Nenhuma tela muda na troca.
    mais rotas: em algum ponto precisa de um entrypoint publicável e de uma
    decisão de onde ele roda — ainda não é hoje, mas vai ser antes do fim
    desta fase.
-3. **Upload de foto ao storage** (Epic 3 + 7). Hoje a selfie do meio viaja
-   dentro da batida; o caminho que aguenta pico é subir direto ao storage.
-4. **Sessões e limite em tabela** (Epic 3). Hoje na memória do processo.
+3. ~~Upload de foto ao storage~~ (Epic 3 + 7). **Feito em 12/09** — ver as
+   duas notas abaixo. A selfie do meio (autoatendido e assistido) sobe para
+   o bucket `presencas` (o mesmo do site) e os relatórios (`.xlsx`/`.zip`)
+   sobem para um bucket próprio do app (`app-relatorios`), com URL assinada
+   — nenhum dos dois fica mais na memória do processo.
+4. ~~Limite de tentativas em tabela~~ (Epic 3). **Feito em 12/09** — ver a
+   nota abaixo. Sessões já tinham saído da memória antes.
 5. **Rodar as migrações** (Epic 1). Precisa do banco de homologação.
 
 
@@ -325,11 +396,11 @@ não falta mapear.
 | O que | Onde no site | Pra que serve |
 |---|---|---|
 | Criar evento novo | `admin/eventos/novo` | ✅ **Trazido.** Botão "Novo evento" no Painel, para quem `podeGerenciarEventos` |
-| Criar acesso de admin, gerente ou cliente | `admin/usuarios/novo` | "Criar acesso" no app só cria supervisor, de propósito — os outros papéis ainda não têm formulário |
-| Trocar a senha de um acesso | `UsuarioActions` no site | Falta como ação na lista de Acessos |
-| Excluir um acesso | `UsuarioActions` no site | Só o master; hoje dá para bloquear, não para apagar |
+| Criar acesso de admin | `admin/usuarios/novo` | ✅ **Trazido em 12/09.** Mesmo formulário de "Criar acesso" — entra por e-mail/senha, preso à organização; master escolhe qual, quem já é admin só adiciona na própria (`adicionarAdmin` do site). `gerente`/`cliente` são papéis legados que o próprio site não oferece mais; `produtor` é o módulo Gastos, fora de escopo |
+| Trocar a senha de um acesso | `UsuarioActions` no site | ✅ **Trazido.** Ação inline na lista, mesma mensagem do site — "passe a senha para a pessoa, o app não avisa sozinho" |
+| Excluir um acesso | `UsuarioActions` no site | ✅ **Trazido.** Só o master (`podeExcluir`); admin continua só desativando |
 | Ficha da pessoa da base, entre organizações | `admin/pessoas/[cpf]` | ✅ **Trazido.** O nome, em Base de funcionários e Encontre colaborador, abre a ficha |
-| Atribuir pessoa da base a um evento | `AtribuirEvento`, dentro da ficha acima | ✅ **Trazido.** Dentro da ficha, com o mesmo "bloqueada se o setor bateu o teto" do site |
+| Atribuir pessoa da base a um evento | `AtribuirEvento`, dentro da ficha acima | ✅ **Trazido.** Dentro da ficha — sem teto de vaga (o site removeu esse limite em 12/09, ver acima) |
 | WhatsApp: conversas por pessoa | `admin/whatsapp/conversas` | Avisado na própria tela do app como "ainda no computador" |
 | WhatsApp: disparo em massa | `admin/whatsapp/disparo` | Idem |
 | WhatsApp: fluxos automáticos | `admin/whatsapp/fluxos` | Idem |
@@ -360,7 +431,7 @@ countable, cada linha já dentro do total da tabela acima.
 | Criar setor pede o supervisor (nome, CPF, WhatsApp) no mesmo formulário | 17 | ✅ **Trazido** — mesmo CPF reaproveita supervisor já existente, sem login novo |
 | Atividades: reescrita com as 7 visões, seletor de dia sempre visível | 17 | ✅ **Trazido** — `cliente.atividades(eventoId, { visao, dia })`, uma régua só |
 | Acessos: operador de portão e Suporte como opções na criação | 17 | ✅ **Trazido** — Produtor fica de fora (módulo Gastos) |
-| Acessos: aba "Funções ligadas" — catálogo de capacidades por acesso, 3 camadas (usuário → organização → padrão do código) | 17 | ⚠️ **Parcial** — catálogo (`capacidadesDoPapel`) e a aba na criação de acesso prontos, override é gravado e volta na lista; falta ligar o override no menu/rotas (só a 1ª das 3 camadas roda) e a tela de Configurações que edita a 2ª (organização). Catálogo restrito a Escanear/Acompanhar/Veículos — só o que já é tela no app |
+| Acessos: aba "Funções ligadas" — catálogo de capacidades por acesso, 3 camadas (usuário → organização → padrão do código) | 17 | ✅ **Trazido em 13/09/2026** — as 3 camadas resolvem de ponta a ponta agora, ver nota abaixo. Catálogo continua restrito a Escanear/Acompanhar/Veículos — só o que já é tela no app |
 | Veículos: cadastro por evento, consulta manual na portaria | 17 | ✅ **Trazido** — `podeGerenciarVeiculos` novo no domínio (master/admin/suporte); condutor primeiro, o resto só depois |
 | Bloquear CPF do evento inteiro, sem apagar histórico | 17 | ✅ **Trazido** — `podeBloquearCpf` novo no domínio; supervisor entra, operador de portão não |
 | Conferência de equipe (D-1): supervisor confirma a lista antes do evento | 17 | ✅ **Trazido** — abre 24h antes e não fecha mais; `packages/dominio` tem a janela |
@@ -370,19 +441,682 @@ countable, cada linha já dentro do total da tabela acima.
 | Editar colaborador: atalho que busca em todos os setores do evento | 17 | ✅ **Trazido** — reaproveita a ficha que já existe; sem supervisor de propósito |
 | Auto-atendimento no dia principal (`checkin_autonomo`) | 18 | ✅ **Trazido** — só entrada, nunca saída (decisão do Juan); QR fixo/cartaz físico ficou de fora desta rodada |
 | Configuração do meio por setor + dia (não mais por horário) | 18 | ✅ **Trazido** — tela em Editar evento; supervisor/pendência da equipe ainda não leem o novo interruptor, só a credencial do colaborador |
-| Trilha de auditoria — visualização simples de quem alterou o quê | 14 | Falta |
+| Trilha de auditoria — visualização simples de quem alterou o quê | 14 | ✅ **Trazido em 13/09/2026** — ver nota abaixo |
 | Gastos — produto do Produtor (voz, manual, lista, painel, exportação) | 19 | Falta — **escopo ainda não confirmado com o Juan**, ver abaixo |
 
-**Deliberadamente fora da contagem**, porque ainda não foi decidido SE vira
-tela do app (não é "esquecido", é "não decidido"): Financeiro completo
-(dashboard do master), Auditoria completa (a linha acima é só uma versão
-enxuta), e o Backlog Operacional (ferramenta interna da agência, não dos
-clientes da plataforma).
+**Deliberadamente fora da contagem, e agora decidido — 18/09/2026: o app NÃO
+vai ter.** Financeiro completo (dashboard do master) e o Backlog Operacional
+(ferramenta interna da agência, não dos clientes da plataforma) — decisão
+do Juan, não falta de tempo. Auditoria completa continua de fora do mesmo
+jeito (a linha acima é só a versão enxuta, essa sim trazida).
 
----
+> **12/09/2026 — sessões saem da memória do processo, vão para uma tabela.**
+> `SessoesNoSupabase` (`apps/api/src/sessoes-supabase.ts`) substitui
+> `SessoesEmMemoria` em `principal.ts`, sobre a tabela nova `app_sessoes`
+> (migração `004-sessoes-em-tabela.sql`, isolada — nenhuma tela do site lê
+> ou escreve nela, RLS ligado sem nenhuma política pública). Conferido com
+> um teste direto na tabela (inserir, ler, apagar) e com a API rodando
+> contra o Supabase real, sem quebrar o login. **Não mudou o número do
+> backlog**: Epic 3 já estava 32/32 — isto é uma melhora de robustez em
+> cima de trabalho já contado, não uma task nova; contar de novo aqui seria
+> estimar, não contar.
+>
+> **12/09/2026 — limite de tentativas sai da memória do processo, vai para
+> uma tabela.** Mesmo desenho de `Sessoes`/`SessoesNoSupabase`: nova
+> interface `LimiteDeTentativas` (`apps/api/src/limite.ts`) com duas
+> implementações — `LimiteEmMemoria` (testes) e `LimiteNoSupabase`
+> (`limite-supabase.ts`), sobre a tabela nova `app_limites` (migração
+> `005-limite-de-tentativas.sql`, mesmo isolamento da 004: RLS ligado, sem
+> nenhuma política, nada lido ou escrito pelo site). Os dois — sessões e
+> limite — usam o MESMO cliente Supabase dedicado (`semSessao`, em
+> `principal.ts`), nunca o `auth` que faz `signInWithPassword` — reusar
+> aquele quebra por RLS, achado testando o login de verdade. Conferido ao
+> vivo contra a API real: quatro tentativas seguidas de pedir código pro
+> mesmo telefone, as três primeiras passam e a quarta é barrada, sem erro.
+> **Não muda o número do backlog**, mesmo motivo da nota de sessões acima —
+> Epic 3 já estava 32/32.
+>
+> **12/09/2026 — a selfie do meio sobe de verdade para o Storage.** Até
+> aqui a câmera capturava a foto (`CameraDeRosto`), ela viajava até
+> `ClienteHttp.registrarBatida`... e era descartada ali mesmo, de propósito
+> (comentário antigo dizia "a foto ainda não sobe por aqui"); no registro
+> assistido (`ponto-assistido.ts`) a foto era só VALIDADA como obrigatória
+> e jogada fora depois. `Repositorio` ganhou `subirFotoDoMeio` e
+> `subirFotoAssistida` — `RepositorioSupabase` decodifica a data URL que a
+> câmera já produz e sobe para o bucket `presencas`, o MESMO que o site já
+> usa (privado, criado pela migração dele — conferido ao vivo que já
+> existe no projeto Supabase compartilhado; não foi preciso criar nada).
+> Esquema de caminho igual ao do site: `evento/participação/meio-dia.ext`
+> para o autoatendido, `evento/participação/assistido-etapa-dia.ext` para
+> o assistido (prefixo diferente para os dois nunca se sobrescreverem no
+> mesmo dia). Upload confirmado ao vivo contra o bucket real. **Fora desta
+> rodada, de propósito**: URL assinada para MOSTRAR a foto de volta (não
+> existe tela ainda que peça isso) e a exclusão automática em 90 dias
+> (decisão já tomada, mas nem o site tem a rotina automática — ver
+> `docs/decisoes/003`). **Não muda o número do backlog** — mesmo motivo
+> das notas acima, é robustez em cima de uma feature já contada.
+>
+> **12/09/2026 — o relatório (.xlsx/.zip) também sai da memória, vai para o
+> Storage.** Mesmo espírito das notas acima: nova interface `Arquivos`
+> (`apps/api/src/arquivos.ts`) no lugar das funções soltas
+> `guardarArquivo`/`buscarArquivo` — `ArquivosEmMemoria` (testes, com o
+> mesmo token opaco de antes) e `ArquivosNoSupabase`
+> (`arquivos-supabase.ts`, a de verdade). Diferente da foto: aqui NÃO havia
+> bucket para reaproveitar (o site gera a planilha e devolve na hora, na
+> própria resposta HTTP — nunca precisou de um link para compartilhar
+> depois), então foi criado um bucket NOVO e isolado, `app-relatorios`
+> (privado, só para esta API), pela Storage API do Supabase — sem exigir
+> SQL, é uma chamada de service role, não uma alteração de schema. Upload
+> com `upsert: true` sobre um caminho determinístico (evento/relatório), e
+> o link devolvido passa a ser uma URL ASSINADA do próprio Supabase (15
+> minutos, `download: true` para continuar baixando com o nome certo em vez
+> de abrir inline) — não mais um token guardado no processo. `/arquivos/:token`
+> continua existindo em `servidor.ts`, mas só serve a versão em memória
+> (testes); a versão real nunca passa por ali. Confirmado ao vivo: upload,
+> geração da URL assinada e download de volta pela mesma URL, conteúdo
+> batendo. **Não muda o número do backlog** — mesmo motivo das notas
+> acima.
+>
+> **12/09/2026 — criar acesso de admin, e captura de tela no crachá.**
+> "Criar acesso" ganhou a quarta função: admin entra por e-mail e senha,
+> preso à organização (nunca a um evento) — o mesmo formulário do site
+> (`NovoUsuarioForm`), que trata admin como só mais uma opção, não uma tela
+> separada na Plataforma. Master escolhe a organização; um admin só
+> adiciona outro na própria (`adicionarAdmin`). Com isso, a Fase 1 fica
+> só com as três telas de WhatsApp, deliberadamente adiadas. Também
+> instalado `expo-screen-capture` no crachá do colaborador: bloqueia
+> print e gravação de tela no Android enquanto a tela está aberta (no
+> iOS só a gravação — a plataforma não deixa impedir print). Testado
+> (rotas + servidor falso) e conferido ao vivo no navegador nos dois
+> casos.
+>
+> **12/09/2026 — trocar senha e excluir acesso, trazidos do site
+> (`redefinirSenha`/`deletarUsuario` em `lib/actions.ts`).** A tela de
+> Acessos ganhou as duas ações que faltavam desde sempre: admin/master
+> trocam a senha de qualquer acesso da própria organização (min. 6
+> caracteres, ninguém troca a própria por aqui — existe o fluxo de conta
+> para isso), e só o master exclui de vez (`podeExcluir`, já existia no
+> domínio sem nunca ter sido usado) — o resto continua só desativando, sem
+> perder histórico. Simplificação conhecida: o site também deixa o suporte
+> trocar senha de supervisor/operador dentro do escopo dele, com motivo
+> obrigatório; esta rota ainda não tem esse terceiro caminho.
+>
+> **12/09/2026 — a "tela de pendências do evento" não existe mais no site
+> para portar.** Conferido no código: `admin/eventos/[id]/pendencias` hoje é
+> só um redirect para `/presenca?ver=faltam` — as duas telas divergiam sobre
+> quem estava faltando (um incidente real, com um evento de 679 pessoas
+> mostrando "587 faltando" por contar quem nem tinha chegado a hora ainda) e
+> foram fundidas. `faltam` é só uma das sete visões de "Presença" — que é
+> exatamente o que a Atividades do app já é (`cliente.atividades(eventoId,
+> { visao, dia })`, trazida em 11/09, com as mesmas sete visões e a mesma
+> régua `presenca-visoes.ts`). Não sobrou nada para construir; a linha saiu
+> da Fase 1 (8→7 tasks da Epic 17, e a Fase 1 de 7 para 6 restantes).
+>
+> **13/09/2026 — "Conferência de equipe" estava marcada ✅ Trazido, mas só
+> tinha a tela e o servidor falso — a API de verdade nunca existiu.**
+> `ClienteHttp` jogava `AindaNaoNaApi` nas três chamadas (achado comparando
+> a tela com o site a pedido do Juan). Faltava tudo do lado do servidor:
+> ler/gravar `conferencias_equipe`, "tirar" (que é descredenciar, sem
+> apagar nada), confirmar (carimba quem/quando/os números, bloqueado antes
+> de abrir), o CSV de "Baixar planilha", e a visão geral do organizador
+> ("X de Y setores confirmaram") — essa última nem tinha TELA nenhuma,
+> nem de mentira. Construído tudo (`rotas/conferencia.ts`, novo; métodos
+> novos no `Repositorio`; a tela nova em `evento/[id]/index.tsx`, no mesmo
+> lugar que o site põe `PainelConferencias`), com 17 testes novos.
+>
+> De brinde, um bug de verdade em produção: `setoresDoEvento` (a base de
+> "Fornecedores e setores", que TAMBÉM está ✅ desde a Epic 17) usava
+> `perfis(...)` sem dizer qual das duas relações entre `fornecedores` e
+> `perfis` o Postgres devia seguir — o PostgREST recusa a consulta
+> INTEIRA nesse caso ("more than one relationship was found"), então
+> qualquer evento pego por essa ambiguidade aparecia sem setor nenhum,
+> silenciosamente. Corrigido com o hint `perfis!fornecedor_id(...)`,
+> conferido ao vivo contra o banco real nos dois lugares (o antigo e o
+> novo). **Não muda o número do backlog** — a task já estava contada; isto
+> é a mesma robustez das notas anteriores, só que puxada pelo Juan
+> revisando tela por tela contra o site, não por mim sozinho.
+>
+> **13/09/2026 — o cartão de setor ("Fornecedores e setores") também estava
+> ✅ Trazido incompleto: dava para ver e criar, mas não editar, desligar o
+> link nem excluir.** Achado do mesmo jeito que a conferência — o Juan
+> mandou o print do card do app e pediu para ficar igual ao
+> `FornecedorCard.tsx` do site. Faltavam, ponta a ponta (contrato, API,
+> repositório e tela): `editarSetor` (nome/valor/pedido do meio —
+> `editarFornecedor` no site), `alternarLinkDoSetor` (liga/desliga só o
+> link deste setor, sem mexer no do evento inteiro — a coluna `link_ativo`
+> já existia no banco compartilhado, só nunca tinha sido lida por aqui) e
+> `excluirSetor` (só o master, recusa se tiver supervisor vinculado —
+> `deletarFornecedor`). O popup de planilhas também foi refeito do zero
+> pixel a pixel (era tela cheia; virou o popup centralizado do site, com os
+> três rótulos exatos: "Importar lista", "Baixar modelo", "Lista de
+> funcionários"). Diferença deliberada do site a pedido do Juan: desligar o
+> link e excluir agora pedem confirmação num popup antes de agir — o site
+> não tem esse freio. 6 testes novos de rota (`configurar-evento.teste.ts`).
+> **Não muda o número do backlog** — "Criar setor" e "Setor com link
+> próprio de cadastro e supervisores vinculados" já estavam contadas ✅;
+> isto fecha a mesma lacuna de robustez das duas notas acima, achada pela
+> mesma revisão tela a tela.
+>
+> **13/09/2026 — continuação da mesma revisão: adicionar/editar supervisor
+> de um setor já existente, e suspender o cadastro por link do evento
+> inteiro.** Duas lacunas que só apareciam olhando o `FornecedorCard.tsx` e
+> o `CadastroPorLinkCard.tsx` do site lado a lado com o app:
+>
+> - **Supervisor**: dava pra CRIAR um setor com supervisor junto, mas não
+>   adicionar um supervisor a um setor que já existia, nem editar
+>   nome/telefone/situação de um já vinculado. Novo `adicionarSupervisor`
+>   (mesma regra de CPF de `criarSetor`, sem criar setor) e `editarSupervisor`
+>   (sem CPF nem senha — não mudam depois de criado; senha já tem caminho
+>   próprio em Acessos). 8 testes novos.
+> - **Cadastro por link do evento inteiro**: o app só tinha o interruptor
+>   POR SETOR (`alternarLinkDoSetor`); o do site que fecha TODOS os setores
+>   e o cartaz da portaria de uma vez (`eventos.cadastro_suspenso`, coluna
+>   já existente no banco) nunca tinha sido trazido. Novo
+>   `alternarCadastroPorLink`, com o mesmo popup de confirmação que o
+>   resto do app já usa. 3 testes novos. Simplificação conhecida: o site
+>   também deixa o master reabrir um cadastro individual por 48h com o
+>   geral suspenso — esse caminho ainda não existe aqui.
+>
+> Também nesta revisão: os cards de setor viraram grade de 2 colunas (com
+> as ações que antes eram botões de texto — "Ver equipe", "Link do
+> formulário" — recolhidas em ícones e num toque no próprio card), a lista
+> de "Conferência de equipe" e a de setores de "Batida do meio" (em Editar
+> evento) viraram um botão que abre um popup com a lista, em vez de ficarem
+> sempre abertas na tela, e o mesmo pro filtro de cidade em "Encontre
+> colaborador". Só arrumação de tela — nenhuma regra nova.
+>
+> **Não muda o número do backlog** de propósito: supervisor e cadastro por
+> link são lacunas nas MESMAS tasks já contadas ✅ ("Setor com link próprio
+> de cadastro e supervisores vinculados"); o resto é só layout.
+>
+> **13/09/2026 — "Copiar links" em massa, cópia do site's `CopiarLinks.tsx`.**
+> Última peça pendente desta revisão da tela: antes só dava para copiar o
+> link de cadastro setor por setor (botão dentro de cada card). Agora um
+> botão ao lado de "Novo Setor" abre a lista com todos os setores já
+> marcados (desmarcar é menos trabalho que marcar todos, mesma lógica do
+> site), busca quando passa de 6 setores, e copia tudo formatado — nome em
+> negrito, link embaixo, uma divisória entre setores — pronto pra colar no
+> grupo de WhatsApp da produção. 100% no app: não precisou de rota nova,
+> só usa o `linkDoFormulario` que a lista de setores já trazia.
+>
+> Com isso, as três lacunas que sobravam do `FornecedorCard`/tela de
+> setores ficam em: widget de Operadores de portão e o link individual de
+> 48h (ambos ainda pendentes, adiados a pedido do Juan — não é a prioridade
+> agora). **Não muda o número do backlog** — mesma task já contada.
+>
+> **13/09/2026 — widget de Operadores de portão na tela do evento**, cópia
+> do site's `OperadorPortariaCard.tsx`. São da ORGANIZAÇÃO, não do evento
+> sozinho (não há como prender um perfil sem setor a um evento) — a nova
+> rota `operadoresDoEvento` já filtra pela organização do evento sendo
+> visto, não pela do usuário logado (importa pro master, que vê eventos de
+> organizações diferentes). Criar e editar reaproveitam os MESMOS métodos
+> que o supervisor já usava (`criarAcesso`/`editarSupervisor` — só o papel
+> muda), e os dois modais do card de setor ganharam um título por fora
+> para servir aos dois casos, em vez de duplicar componente. De brinde: o
+> tipo `Acesso` do contrato ganhou o campo `telefone` (faltava para
+> pré-preencher o formulário de editar — antes só existia na camada de
+> repositório). 4 testes novos de rota (`acessos.teste.ts`).
+>
+> Com isso, só fica pendente o link individual de 48h (exceção do master
+> com o cadastro geral suspenso) — adiado, não é prioridade agora. **Não
+> muda o número do backlog** — mesma task já contada (Epic 17).
+>
+> **13/09/2026 — link individual de 48h, última lacuna desta revisão.**
+> Cópia do site's `criarLinkCadastroIndividual`/`lib/cadastro-individual.ts`:
+> com o cadastro geral suspenso, o master ainda pode reabrir UM setor por 48
+> horas sem religar o link do evento inteiro — o caso de alguém precisar
+> entrar depois de a lista já ter fechado. O token é hash SHA-256, gravado
+> em `sistema_estado` (`cadastro_individual:<hash>`) — MESMA tabela e MESMO
+> esquema de chave que o site já usa, então um link gerado por qualquer um
+> dos dois sistemas é lido pelo validador público do formulário do site sem
+> tradução nenhuma. Novo em `Repositorio.salvarAutorizacaoIndividual`, rota
+> `criarLinkCadastroIndividual` (master-only), e o painel "Reabrir para uma
+> pessoa" dentro do card de "Cadastro por link", com seletor de setor em
+> popup e o link pronto pra copiar ao gerar. 3 testes novos
+> (`configurar-evento.teste.ts`).
+>
+> Fecha as três lacunas do `FornecedorCard`/`CadastroPorLinkCard` que
+> vinham sendo revisadas desde o início desta seção. **Não muda o número do
+> backlog** — mesma task já contada (Epic 17, "Setor com link próprio de
+> cadastro e supervisores vinculados").
+>
+> **13/09/2026 — "Funções ligadas" completa: as 3 camadas resolvem de ponta
+> a ponta.** Cópia do site's `resolver`/`capacidade` (`lib/permissions.ts`):
+> `podeEscanear`/`podeAcompanhar`/`podeGerenciarVeiculos` (as 3 capacidades
+> do catálogo do app) agora aceitam o ACESSO inteiro, não só o papel, e
+> resolvem override do usuário → exceção da organização → padrão do código,
+> na mesma ordem e com o mesmo "master nunca é afetado" do site. As 7 rotas
+> que travavam por `perfil.papel` (escanear, atividades, conferência ×2,
+> ficha da pessoa, ponto assistido, setor, veículos) passaram a travar por
+> `perfil` inteiro — o `Perfil` do repositório ganhou `permissoesUsuario` e
+> `permissoesOrganizacao`, carregados junto em `perfilPorId` (mesma consulta
+> que o site faz em `getPerfil`, incluindo o merge plataforma→organização de
+> `excecoesDePermissao`). O menu do app faz o mesmo — novo
+> `useAlvoDePermissao` busca `minhas-permissoes` e o menu decide com o
+> override, não só o papel salvo na sessão do aparelho.
+>
+> **A tabela `permissoes_organizacao` e a coluna `perfis.permissoes_usuario`
+> já existiam no banco compartilhado, com dado real** (conferido ao vivo
+> antes de escrever qualquer código) — o site já usa as duas; não foi
+> preciso nenhuma migração.
+>
+> Nova tela `/configuracoes` (master-only, mesmo gate do site): escolhe o
+> escopo (padrão da plataforma, ou uma organização) e liga/desliga cada
+> capacidade por papel — desenho próprio (uma seção por papel, não a grade
+> de tabela do site, que não cabe na largura de um celular), mesma regra
+> (`permitido: null` apaga a exceção e volta ao padrão do código). De
+> brinde: `editarSupervisor` passou a aceitar `permissoesUsuario` também na
+> EDIÇÃO, não só na criação — a aba "Funções ligadas" apareceu também no
+> modal de editar supervisor/operador de portão, dentro do card do setor.
+> 21 testes novos no domínio, 9 na API, 4 no cliente falso.
+>
+> **Não muda o número do backlog** — a linha já estava contada como
+> ⚠️ Parcial (Epic 17); isto fecha a mesma task, não abre uma nova.
+>
+> **13/09/2026 — Trilha de auditoria (Epic 14): quem alterou o quê.** Cópia
+> reduzida do site's `admin/auditoria` (`registrarAuditoria`/`obterAuditoria`,
+> sobre a tabela `alteracoes_cadastro` — já existia no banco compartilhado,
+> com dado real, conferido ao vivo antes de escrever qualquer código).
+> Escopo combinado com o Juan: ligar auditoria nas ações que JÁ existem no
+> app, sem construir mutações novas de outras epics (editar CPF/telefone,
+> mover de setor, ativar/desativar ou excluir funcionário, excluir ponto,
+> encerrar evento e o papel Produtor — todas de outras epics, ficam de
+> fora). As 7 rotas que já existiam ganharam a chamada: bloquear/desbloquear
+> CPF, mudar situação/trocar senha/editar/criar acesso (inclusive admin),
+> adicionar supervisor a um setor, link individual de 48h, salvar permissão
+> de organização, confirmar conferência de equipe, reabrir turno no
+> scanner, e registro assistido (entrada/saída/meio, cada um com a ação
+> certa). Nova tela `/auditoria` (visível a quem gerencia usuários, e ao
+> suporte — que só vê o que ele mesmo fez, régua no servidor): período
+> (Hoje/7 dias/30 dias/Tudo) e cartão por linha, sem o filtro em cascata
+> nem a exportação `.xlsx` do site — "visualização simples", como o próprio
+> backlog já descrevia. 12 testes novos na API, 2 no cliente falso.
+>
+> **Muda o número do backlog: Epic 14 vai de 5/15 para 6/15** — total
+> 189/332. É escopo genuinamente novo (a trilha nunca existiu no app,
+> nem para ler nem para gravar), não uma correção sobre algo já contado.
+>
+> **13/09/2026 — achado na revisão da Epic 9 (Histórico): "Meu pagamento"
+> pode estar mostrando o valor errado.** `meuFinanceiro`
+> (`apps/api/src/rotas/eventos.ts:280`) calcula
+> `valorPrevisto = valorReceber * diasTrabalhados`. Conferido contra as
+> migrações do site: `funcionarios.valor_receber` é descrito lá como
+> *"um valor a receber dos demais integrantes do setor (ex: quem organiza a
+> equipe recebe uma comissão dos colegas)"* — uma comissão interna, com
+> `default 0` (ou seja, zero pra quase todo mundo) — não uma diária. O valor
+> que de fato representa o combinado por pessoa é
+> `fornecedores.valor_combinado` ("valor combinado por funcionário" para o
+> evento inteiro), que esta conta nunca busca. O site em si NUNCA multiplica
+> nada por dia trabalhado — só mostra o valor combinado fixo pro admin. Ou
+> seja: hoje, pra quem não tem comissão configurada (a maioria), a tela
+> provavelmente mostra R$ 0,00 previsto, quando a pessoa tem, sim, um valor
+> combinado a receber. **Apontado ao Juan, que pediu para não mexer agora**
+> — fica registrado aqui para não se perder, e decidir quando fizer sentido
+> revisitar. Não muda o número do backlog: é um achado, não uma correção
+> ainda aplicada.
+>
+> **13/09/2026 — quatro lacunas fechadas em "Meus dias"/"Meu pagamento"
+> (Epic 9), achadas na mesma revisão.** Comparado campo a campo com
+> `lib/historico.ts` do site:
+>
+> - **Bug de verdade corrigido**: dia `cancelado` (o produtor desmarcou o
+>   expediente) não existia no contrato nem na rota — o dia aparecia pro
+>   colaborador como "ausente", contando falta de um dia que nem deveria
+>   ter existido mais. Agora `DiaDaParticipacao.cancelado` viaja da coluna
+>   `jornada_dias.cancelado` (já lida em `diasDoEvento`, só morria ali) até
+>   a tela, com status próprio ("Cancelado", cinza) e excluído de TODAS as
+>   contagens do resumo — mesma régua do site ("dia cancelado não conta
+>   como escalado, ninguém falta a ele").
+> - **`diasEscalados` no resumo** — sem ele, "faltou 3" não dizia de
+>   quantos. Trazido pro resumo de Meus Dias E corrigido na ficha da pessoa
+>   (`ficha-da-pessoa.tsx`, que já mostrava "Dias escalados" mas contava
+>   `ficha.dias.length` bruto, incluindo cancelados — mesmo bug, achado de
+>   graça).
+> - **Batida "assistida"** (feita pelo supervisor em nome da pessoa, não
+>   pela própria) — o app registrava mas nunca mostrava; agora aparece em
+>   âmbar do lado do horário, nos dois lugares (Meus Dias e na ficha da
+>   pessoa), mesmo tratamento do site.
+> - **Chave PIX exibida em "Meu pagamento"** — no site esse dado só é
+>   escrito UMA VEZ, no formulário público, e quem não tem conta nunca mais
+>   consegue rever; o app, que TEM conta permanente, agora mostra o que
+>   está cadastrado (`funcionarios.chave_pix`, nunca lido em lugar nenhum
+>   antes desta revisão). Só leitura por enquanto — corrigir a própria
+>   chave fica para outra rodada.
+>
+> 8 testes novos na API, 3 no domínio do app (`historico.teste.ts`).
+> **Não muda o número do backlog** — as quatro são correções/complementos
+> dentro de bullets já contados ("Meus dias: cada dia com as três etapas e
+> o status", "Meu pagamento"), não tasks novas e distintas. Os outros
+> itens que a revisão mapeou (recibo/extrato de pagamento — não existe
+> nem no site, seria escopo novo — e a fórmula do valor previsto, nota
+> acima) continuam de fora, sem contar.
+>
+> **14/09/2026 — Epic 10 (Supervisor) fechada de ponta a ponta: as 4 ações
+> da ficha, a planilha, e "tirar da equipe"/"excluir de vez" novos.**
+> Investigando a ficha da pessoa achei o mesmo bug já visto e corrigido em
+> "Conferência de equipe" (nota de 13/09 acima): `moverDeSetor`,
+> `tornarSupervisor`, `marcarPagamento`, `salvarValorAReceber`,
+> `baixarModelo`, `exportarEquipe` e `importarPlanilha` estavam com a tela
+> pronta e o `ClienteHttp` jogando `AindaNaoNaApi` — funcionavam contra o
+> servidor falso e quebravam contra a API de verdade. Os sete agora têm
+> rota real, com a mesma régua de permissão do site
+> (`exigirAcessoFuncionarios`/`podeMexerNaEquipe`) e auditoria nas que o
+> site audita (`ALTERACAO_SETOR`, `ALTERACAO_SUPERVISOR`).
+>
+> Escopo novo, que não existia nem na tela nem na API: **"Tirar da
+> equipe"** (descredencia, reversível, registra `DESCREDENCIAMENTO`) e
+> **"Excluir de vez"** (apaga cadastro e batidas, sem volta — cópia do
+> site's `deletarFuncionario`, `podeExcluirDaEquipe`: master, admin e
+> supervisor, nunca suporte nem operador de portão). As duas na ficha da
+> pessoa, com confirmação em dois passos e motivo opcional para a
+> exclusão.
+>
+> Peça nova de infraestrutura: `apps/api/src/planilha.ts` ganhou
+> `lerXlsxDeEquipe` (leitura de .xlsx com o mesmo catálogo de apelidos de
+> coluna do site's `lib/planilha.ts`), e o repositório ganhou
+> `criarParticipacaoDaImportacao` — o `criarParticipacao` existente não
+> serve para gente NOVA na base, porque sempre reaproveita nome/telefone
+> de um cadastro já existente.
+>
+> **Três recortes conscientes, não esquecimento — para o Juan decidir se
+> quer depois:**
+> - `moverDeSetor` continua só para quem gerencia eventos (master/admin),
+>   sem estender a supervisor/suporte como o site permite. O site usa
+>   `meusSetores` (plural) para isso, e o app só modela UM setor por
+>   supervisor de cada vez — a mesma limitação já escrita no CLAUDE.md
+>   ("Um supervisor só enxerga UM setor por vez"). Estender exigiria essa
+>   tela primeiro.
+> - A importação não replica dois efeitos colaterais do site: sincronizar
+>   com Google Sheets (`adicionarFuncionarioNaPlanilha`) e agendar o
+>   WhatsApp de boas-vindas (`agendarBoasVindasFuncionario`) — o app não
+>   tem nem uma integração nem a outra.
+> - "Ativar/Desativar pessoa" (sem descredenciar) apareceu no mapeamento
+>   da ficha mas não foi pedido nesta rodada — fica registrado para uma
+>   decisão futura, não incluído aqui.
+>
+> 26 testes novos em `ficha-da-pessoa.teste.ts` (rota nova), 6 em
+> `setor.teste.ts` (planilha), 6 em `cliente-falso.teste.ts`, 2 cenários de
+> ponta a ponta em `cliente-real.teste.ts` (HTTP de verdade, servidor Hono
+> real). De brinde, um bug achado nesta revisão: o cliente falso já
+> recusava supervisor em `marcarPagamento`/`salvarValorAReceber` — a régua
+> real do site deixa supervisor mexer na própria equipe; corrigido para
+> não ensinar o app a esperar uma recusa que a API de verdade não dá.
+> **Epic 10 sobe de 11/15 para 13/17** — as 4 ações da ficha e a planilha
+> eram tasks já contadas (só corrigidas); tirar da equipe e excluir de vez
+> são as 2 tasks novas.
+>
+> **14/09/2026 — verificado de ponta a ponta contra a API e o banco de
+> verdade** (conta `teste@credenciei.com`, organização "Homologação" — real
+> em produção, mas isolada de qualquer evento de cliente). Subi a API real,
+> logei pelo caminho "Tenho conta", importei uma pessoa de teste por
+> planilha de verdade, e testei mover o rótulo financeiro, marcar pago,
+> salvar valor, tirar da equipe, trazer de volta e excluir — cada ação
+> conferida direto no banco (a pessoa apareceu, o valor mudou, a auditoria
+> registrou `DESCREDENCIAMENTO` e `EXCLUSAO_FUNCIONARIO` com o motivo
+> certo). Achei e corrigi, no processo, **um bug de verdade que nenhum
+> teste automatizado pegava**: a importação de planilha quebrava na web
+> porque `expo-file-system`'s `readAsStringAsync` (mesmo pela entrada
+> `/legacy`) não tem implementação nenhuma no navegador — só em iOS/Android.
+> A tela mostrava exatamente o erro técnico do Expo pro usuário. Corrigido
+> em `apps/app/src/ui/planilha.tsx`: na web, usa o base64 que o próprio
+> `expo-document-picker` já devolve (opção `base64: true`, é uma data URL —
+> preciso só cortar o prefixo); no app nativo continua lendo pelo
+> `FileSystem`, que funciona lá. Nenhum teste automatizado cobria esse
+> caminho porque `cliente-falso` nunca lê o arquivo de verdade — só um teste
+> que efetivamente clica no seletor de arquivo do navegador pega isto, e é
+> exatamente o motivo de ter feito esta rodada com Puppeteer contra a API
+> real em vez de confiar só na suíte.
+>
+> **14/09/2026 — "Corrigir telefone", o caminho de recuperação de conta que
+> o Juan decidiu (suporte troca manualmente, sem autoatendimento).** Achei
+> que o site já tem exatamente essa regra —
+> `editarTelefoneFuncionario`, em `lib/actions.ts` — então copiei em vez de
+> inventar: mesma validação (10 a 13 dígitos, com ou sem o 55), mesmo
+> código de auditoria (`ALTERACAO_TELEFONE`, que já tinha até tradução
+> pronta em `auditoria-rotulos.ts` desde a rodada da trilha), e o mesmo
+> efeito colateral de atualizar as mensagens do WhatsApp do site que ainda
+> não saíram (`mensagens_agendadas`, `status = 'pendente'`) — sem isso, o
+> aviso agendado sairia pro número antigo mesmo depois da correção. Botão
+> novo na ficha da pessoa, ao lado do telefone. **Recorte consciente,
+> mesmo motivo de `podeExcluirDaEquipe`**: o site também deixa o suporte
+> corrigir dentro do escopo dele, mas o app ainda não modela
+> `suporte_escopo` — fica de fora até essa peça existir. Testado com o
+> mesmo roteiro Puppeteer contra a API e o banco reais desta rodada, mais
+> testes em `ficha-da-pessoa.teste.ts`, `cliente-falso.teste.ts` e
+> `cliente-real.teste.ts`. **Epic 10 sobe de 13/17 para 14/18** — task
+> nova, achada agora, não estava em nenhuma lista anterior.
+>
+> **15/09/2026 — começo da Epic 11 (Push): registro do token do
+> aparelho.** Enquanto o Juan resolve a conta Apple, adiantei a metade do
+> Push que não depende dela: `expo-notifications` + `expo-device` +
+> `expo-constants` instalados, migração `006-tokens-de-push.sql` escrita
+> (não executada — mesma régua da Epic 1, revisar com o Juan antes de
+> rodar), e o fluxo completo — pedir permissão, pegar o token do Expo,
+> mandar pro servidor guardar (`POST /v1/push/token`, upsert pelo TOKEN,
+> não pela pessoa: se outra pessoa usar o mesmo aparelho depois, é ela
+> quem deve receber) — registrado uma vez por login em
+> `apps/app/app/(dentro)/_layout.tsx`. Nunca falha de um jeito visível:
+> sem aparelho de verdade, sem permissão, ou sem projeto EAS configurado,
+> a função sai calada — são os dois pré-requisitos que ainda faltam, não
+> bugs.
+>
+> **Achado nesta rodada, ainda sem solução**: mandar notificação de
+> verdade também precisa de um projeto **Firebase** (FCM, para Android) —
+> um bloqueio que não estava listado antes, e que o Juan ainda não
+> decidiu. Também confirmei que o MODELO do que notificar (lembrete
+> automático × aviso escrito por um admin) continua em aberto — ver seção
+> 7 de `docs/credenciei-web-estado-atual.md` — e não faz parte do que foi
+> construído agora.
+>
+> De brinde: reiniciando o servidor web pra testar isto, achei que ele
+> tinha subido a partir da pasta ERRADA (raiz do monorepo, não
+> `apps/app`) — o app carregava em branco, sem erro nenhum na tela. Só
+> apareceu porque testei de verdade num navegador depois de mexer nas
+> dependências; corrigido subindo de `apps/app` de novo. **Epic 11 sobe de
+> 0/12 para 1/12.**
+>
+> **18/09/2026 — mapeamento da Epic 8 (Ponto no app): o que estava faltando
+> tarefa a tarefa, finalmente escrito.** Investigação dedicada (a epic
+> nunca teve a lista das 9 tarefas que faltavam). Achados:
+>
+> - **Dois bugs de verdade, corrigidos**: a credencial (`credencial.tsx`)
+>   mostrava um QR funcionando e as três etapas normalmente mesmo quando
+>   (a) a participação está `aguardando_aprovacao` ou `descredenciado` —
+>   `meuQr` gera um código válido pra qualquer situação, a recusa de
+>   verdade só acontece na LEITURA (`registrarPorQr`), então a pessoa só
+>   descobria o problema na hora errada, na frente de todo mundo — e (b) o
+>   dia de hoje foi cancelado pela produção, caso que `meus-dias.tsx` já
+>   tratava mas a credencial não. **Não muda o número do backlog** —
+>   correção dentro do bullet já contado ("Credencial com as três etapas
+>   do dia e o estado de cada uma"), não task nova.
+> - **Achado, mas não construído — decisão do Juan**: `liberacaoDoQR`
+>   (embaçar o QR até pouco antes do horário, contra print mandado com
+>   antecedência) existe pronta e testada em `packages/dominio/src/
+>   janelas.ts`, copiada do site (`lib/janelas.ts`) — só que **o SITE
+>   também nunca chama essa função em lugar nenhum**. Parece uma feature
+>   que começou dos dois lados e não foi terminada nem lá. Não construí
+>   por não ter uma referência funcionando pra copiar — perguntar ao Juan
+>   se vale desenhar do zero ou deixar como está.
+> - **Achados, ainda sem decisão de escopo**: (1) sem jeito de trocar de
+>   evento quando a pessoa está em dois ao mesmo tempo — os cartões em
+>   `meus-eventos.tsx` não têm toque nenhum; (2) nenhum indicador fora da
+>   tela da credencial de que ainda tem batida na fila esperando subir;
+>   (3) contestar uma batida errada ou que faltou — hoje só existe a
+>   instrução em texto "fale com a produção", sem ação nenhuma no app; o
+>   site nunca teve isso (é admin-only), então pode ser escopo NOVO, não
+>   uma peça faltando de algo que já existe — perguntar antes de construir.
+>
+> **18/09/2026 — item (1) construído: trocar de evento quando a pessoa
+> está em dois ao mesmo tempo.** O Juan confirmou o cenário exato (navio
+> de manhã, lagoa à noite — tocar em cada um mostra o QR daquele evento) e
+> pediu pra seguir. Os cartões de `meus-eventos.tsx` agora navegam pra
+> "Minha credencial"; qual participação mostrar passou a viver num
+> contexto pequeno (`participacao-selecionada.tsx`, `ProvedorDe
+> ParticipacaoSelecionada`, montado em `(dentro)/_layout.tsx`) — sem nada
+> selecionado, "Minha credencial"/"Meus dias"/"Meu pagamento" continuam
+> escolhendo sozinhos do jeito de sempre (o evento em andamento, ou o
+> primeiro); com uma seleção, as três passam a respeitar ela, até a pessoa
+> trocar de novo ou sair da conta. 5 testes novos pra regra de escolha
+> (`participacao-selecionada.teste.ts`).
+>
+> **Limite desta verificação, pra não fingir mais do que foi feito**: o
+> clique de ponta a ponta (tocar no cartão → navegar → ver o QR do evento
+> certo) não foi visto rodando de verdade. O `cliente-falso` só modela UMA
+> participação por colaborador (não dá pra simular alguém em dois eventos
+> nele), e testar pelo caminho real exigiria um número de WhatsApp de
+> verdade — que a regra deste projeto proíbe usar sem necessidade. Typecheck
+> limpo, os 5 testes da regra central passando, e nenhum teste existente
+> quebrou — mas o CLIQUE em si só foi conferido lendo o código, não
+> vendo rodar. **Epic 8 sobe de 4/13 para 5/14.**
+>
+> **18/09/2026 — bug crítico achado tentando ver o clique de cima rodando
+> de verdade: a tela inteira de "Minha credencial" quebrava na web.**
+> Mesmo padrão do bug do `expo-file-system` achado na semana passada:
+> `usePreventScreenCapture()` (o hook pronto do `expo-screen-capture`, que
+> bloqueia print/gravação no crachá) não confere a plataforma sozinho e
+> LANÇA na web — "ScreenCapture.preventScreenCaptureAsync is not available
+> on web". Isso derrubava a tela INTEIRA: ninguém via a própria
+> credencial rodando `npm run web`, e olhando os últimos registros deste
+> arquivo, isso pode ter passado despercebido desde 12/09, quando a
+> proteção foi instalada. Corrigido chamando `preventScreenCaptureAsync`/
+> `allowScreenCaptureAsync` direto, só fora da web — exatamente o
+> comportamento que o comentário do código já dizia que deveria acontecer
+> ("sem efeito na web"), só que a implementação não seguia isso.
+> **Não muda o número do backlog** — correção de bug numa task já
+> contada, não escopo novo.
+>
+> **De brinde, item (2) da lista de achados da Epic 8**: um número na aba
+> "Minha credencial" mostrando quantas batidas ainda não subiram — hoje só
+> aparecia dentro da própria tela; quem navega pra "Meus dias" ou fecha o
+> app só descobre se voltar lá. Usa `tabBarBadge` (nativo do React
+> Navigation, via `expo-router`), contando qualquer batida com
+> `estado !== 'enviada'` — mesmo filtro que a tela já usava, só que
+> somado de qualquer participação, não só a aberta. Não deu pra ver o
+> badge aparecendo de verdade neste evento de demonstração (não tem dia
+> de trabalho hoje, 18/09, então não tem como registrar uma batida pra
+> testar) — o crachá rodando (achado acima) já confirma que a aba em si
+> carrega sem erro; o número em cima do ícone ficou só no typecheck.
+>
+> **18/09/2026 — item (3) construído: contestar uma batida errada ou que
+> faltou.** Escopo genuinamente novo (o site nunca teve isso — colaborador
+> não tem conta lá pra copiar a regra), decidido com o Juan antes de
+> construir: quem vê e resolve é o supervisor do setor e quem gerencia o
+> evento (mesma régua de `podeMexerNaEquipe`, já usada em marcar pagamento
+> e corrigir telefone); vira pendência na aba "Com pendências" da equipe
+> do setor (reusa o indicador que já existe — Push/Epic 11 ainda não está
+> pronto pra mandar notificação de verdade); motivo é obrigatório, texto
+> curto, mesmo padrão de "Excluir de vez".
+>
+> Tabela nova (`app_contestacoes`, migração `007-contestacoes-de-batida.sql`
+> — aditiva e isolada como a 004/005/006, RLS ligado sem política pública,
+> **já executada pelo Juan no SQL Editor**), repositório, contrato,
+> `cliente-falso` e `ClienteHttp` prontos; rotas
+> novas na API (`POST /v1/participacoes/:id/contestar`,
+> `POST /v1/contestacoes/:id/resolver`); UI em "Meus dias" (um botão por
+> dia, "Uma batida está errada ou faltando?", escolhe a etapa e escreve o
+> motivo) e uma seção "CONTESTAÇÕES" na ficha da pessoa, com "Marcar como
+> resolvida" pra quem pode mexer na equipe. 12 testes novos nas quatro
+> camadas (API, contrato, cliente-falso e o roteiro comparado falso×real).
+>
+> **Limite desta verificação**: o clique de ponta a ponta na UI não foi
+> visto rodando — só typecheck limpo e os testes automatizados passando,
+> mesma régua de transparência do item (1) acima. **Epic 8 sobe de 6/15
+> para 7/16.**
+>
+> **18/09/2026 — `liberacaoDoQR`: o Juan decidiu desenhar do zero no app.**
+> Achado no mapeamento de 18/09: a função que embaça o QR até pouco antes
+> da hora de bater (contra print mandado com antecedência) já existia
+> pronta em `packages/dominio/src/janelas.ts`, copiada do site — mas nem lá
+> nem aqui ela chegava a ser chamada em lugar nenhum, e **não tinha teste
+> nenhum** (apesar do comentário antigo dizer o contrário — checado agora,
+> corrigido). Perguntado ao Juan o que fazer: decidiu desenhar do zero no
+> app, sem esperar o site terminar.
+>
+> Achado ao ligar: a função não tratava `batida_livre` (dia do evento sem
+> janela fixa) — ficaria embaçando o QR esperando um horário que já não
+> impede nem libera nada. Corrigido nos DOIS lados (aqui e no site, mesmo
+> a função nunca tendo sido chamada lá) — é regra de negócio, a
+> sincronização é bidirecional. 18 testes novos no domínio (a suíte que
+> faltava), cobrindo folga/tolerância, as duas janelas do dia principal,
+> dia de preparação com e sem horário próprio, dia cancelado e batida
+> livre.
+>
+> Ligado em `meuQr` (API, contrato, `cliente-falso`, `ClienteHttp`): o
+> retorno ganhou `liberado`/`liberaEm`. Decisão de design (não perguntada
+> ao Juan, por ser detalhe de implementação dentro do escopo já aprovado):
+> dia sem trabalho hoje OU dia cancelado NÃO embaçam — a tela já explica
+> isso com outro aviso, e embaçar sem uma janela real pra esperar só
+> confundiria sem proteger nada. Na tela ("Minha credencial"), o QR embaça
+> com "Libera às HH:MM" (ou "Fora do horário de hoje" quando não há mais
+> janela pra esperar hoje) e destrava sozinho — sem toque pra revelar antes
+> da hora, diferente do embaçado "por segurança" que já existia (esse
+> continua com toque pra mostrar de novo). 6 testes novos (3 na API sobre
+> achar o dia certo, 3 no `cliente-falso`), mais 2 de paridade de forma no
+> roteiro comparado falso×real.
+>
+> **Limite desta verificação**: mesma régua de sempre — typecheck limpo e
+> os testes automatizados passando, clique na UI não visto rodando (a
+> contagem regressiva e o destrave sozinho, em especial, só foram
+> conferidos lendo o código). **É proteção do QR, não do ciclo de ponto —
+> conta na Epic 6, não na Epic 8: sobe de 10/15 para 11/16** (mesmo
+> critério usado quando a captura de tela entrou, em 12/09: camada de
+> proteção nova, não uma correção de algo já contado).
+>
+> **21/09/2026 — Ed25519 e código giratório: fase 1 do plano (ADR 009)
+> construída.** As duas palavras que ficavam soltas no backlog há semanas,
+> sem documento nenhum explicando o porquê — pesquisado a fundo (git, os
+> dois repositórios) e confirmado: nunca existiu registro escrito, só um
+> comentário apontando pra um arquivo que nunca foi criado. Perguntado
+> direto ao Juan: o problema real é a portaria sem internet em alguns
+> locais — o scanner hoje depende de rede 100% do tempo. Decisão registrada
+> em `docs/decisoes/009-qr-offline-ed25519.md` e no plano completo
+> (`functional-sprouting-sunset.md`), com faseamento por causa do risco de
+> produção (mudar a assinatura do QR pode recusar credencial em circulação).
+>
+> Fase 1 (das 5): par de chaves Ed25519 documentado, `@noble/curves`
+> adicionado nos dois sistemas, formato novo `c4` (Ed25519 + janela de 2
+> minutos, com uma janela de folga — resolve o código giratório) escrito e
+> **aceito** pelos dois sistemas — ainda NADA gera `c4` em produção, só
+> `lerCodigoQR` já sabe conferir, de propósito (aceitar vem antes de
+> gerar). Verificação cruzada rodada manualmente: a mesma chave privada
+> nos dois sistemas produz o código `c4` BYTE A BYTE idêntico — mesma
+> régua da verificação HMAC que já existia (`c3`), agora repetida pro
+> formato novo. 21 testes novos (14 no domínio, 2 na API). `@noble/hashes`
+> subiu de `^1.5.0` pra `^1.8.0` pra caber a dependência do `@noble/curves`
+> — confirmado que a assinatura HMAC continua idêntica à do sistema web
+> depois do bump, antes de seguir. **Não muda número do backlog** — já
+> estava contado em "Falta Ed25519 e código giratório" (Epic 6, tabela
+> acima); a fase 1 é parte desse mesmo item, não item novo.
+>
+> **Ainda faltam 4 fases** antes disto valer pra portaria de verdade: 2
+> (confirmar em produção que `c4` é aceito sem problema, por um tempo,
+> antes de gerar), 3 (os dois sistemas passam a gerar `c4`), 4 (roster
+> offline + fila de leituras do scanner — a parte que resolve a portaria
+> sem internet de verdade), 5 (nada a fazer). Fica pra sessões futuras,
+> por decisão de escopo — é grande demais pra uma sessão só.
 
 ## Bloqueado, esperando o Juan
 
-- **Conta Apple Developer** → toda a Epic 11 e a 16
-- **Banco de homologação** → executar a Epic 1
-- **Caminho de recuperação de conta** → decisão de produto, antes da produção
+> **14/09/2026 — os três decididos.** Prazo de 12/10 agora é pro backlog
+> inteiro (não só o MVP), então valia a pena resolver os três de vez:
+>
+> - ~~Conta Apple Developer~~ → **criada, confirmado em 21/09.** Ainda falta
+>   a chave APNs (arquivo `.p8`) e o App ID com Push habilitado — o Juan não
+>   sabe fazer sozinho, orientação passada por fora do backlog (via
+>   `npx eas credentials`, que gera a chave direto pelo terminal). Continua
+>   como pendência dele, mas a conta em si não é mais o bloqueio.
+> - ~~Recuperação de conta~~ → **já estava resolvida quando isto foi
+>   escrito, e ninguém tinha voltado aqui pra fechar o item.** `corrigirTelefone`
+>   (ficha da pessoa, Epic 10, construído no mesmo dia 14/09) é exatamente o
+>   fluxo decidido: suporte troca o telefone vinculado ao CPF manualmente,
+>   sem autoatendimento. Fechado em 21/09, sem task nova — já estava contado
+>   dentro da Epic 10.
+> - **Banco de homologação** → decidido rodar as 3 migrações da Epic 1
+>   direto em produção, com cuidado — backup e plano de rollback de cada
+>   uma revisado com o Juan antes de rodar, fora de horário de evento ao
+>   vivo. Não é mais bloqueio de decisão — é trabalho a fazer com cautela.
+>   Migração 006 (tokens de push) apresentada pro Juan rodar em 21/09 —
+>   001 e 003 ainda precisam ser revisadas com ele.
+
+- **Chave APNs e App Id (iOS)** e **projeto Firebase (Android)** → toda a Epic 11 e a 16. Nenhum dos dois existe ainda (confirmado 21/09) — Juan pediu orientação passo a passo
+- **Modelo de notificação** (lembrete automático × aviso escrito por um admin, ou os dois) → decisão de produto antes de continuar a Epic 11 além do registro do token — ver seção 7 de `docs/credenciei-web-estado-atual.md`

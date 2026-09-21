@@ -8,15 +8,16 @@
 // o próprio estado de sessão já decide quando mostrar.
 
 import { useEffect, useState } from 'react'
-import { Pressable, StyleSheet } from 'react-native'
+import { View, StyleSheet } from 'react-native'
 import { useEventListener } from 'expo'
 import { useVideoPlayer, VideoView } from 'expo-video'
 
 /*
  * Bem mais longa que o vídeo (que tem uns 12s) — só existe para o caso raro
- * de o autoplay falhar por algum motivo e ninguém tocar a tela: sem isto, a
- * pessoa ficaria presa num quadro parado do vídeo sem saber que dá pra tocar
- * para pular.
+ * de o autoplay falhar por algum motivo: sem isto, a pessoa ficaria presa
+ * para sempre num quadro parado do vídeo, sem conseguir chegar à tela de
+ * entrar. Não é mais possível pular tocando na tela — decisão do Juan: um
+ * toque durante a animação não pode levar direto ao login.
  */
 const TEMPO_MAXIMO_MS = 20_000
 
@@ -55,9 +56,7 @@ export function AberturaDoApp({ aoTerminar }: { aoTerminar: () => void }) {
   }, [])
 
   return (
-    // Um toque pula a animação — ninguém deve ficar preso esperando um
-    // vídeo para chegar à tela de login.
-    <Pressable style={e.fora} onPress={terminar} accessibilityLabel="Pular animação de abertura">
+    <View style={e.fora}>
       <VideoView
         player={player}
         style={e.video}
@@ -67,8 +66,16 @@ export function AberturaDoApp({ aoTerminar }: { aoTerminar: () => void }) {
         contentFit="contain"
         nativeControls={false}
         pointerEvents="none"
+        // No Android, o padrão ("surfaceView") desenha o vídeo numa camada de
+        // hardware separada da árvore do React Native — com letterbox
+        // ("contain"), essa camada pode ficar um pixel fora de sincronia a
+        // cada quadro, e a sobra pisca em preto porque NENHUMA cor de fundo
+        // do RN alcança essa camada. "textureView" desenha dentro da árvore
+        // normal, mais lento mas sem esse artefato — é a recomendação da
+        // própria documentação do expo-video para este cenário.
+        surfaceType="textureView"
       />
-    </Pressable>
+    </View>
   )
 }
 
@@ -83,5 +90,12 @@ const e = StyleSheet.create({
     backgroundColor: '#ffffff',
     zIndex: 10,
   },
-  video: { flex: 1 },
+  video: {
+    flex: 1,
+    // O `VideoView` é opaco e fica por CIMA do `fora`: pintar branco só no
+    // `fora` não bastava, porque a sobra do "contain" (a proporção do vídeo
+    // não bate exata com a da tela) é pintada pelo próprio VideoView, com o
+    // preto padrão dele — sobrava uma linha preta embaixo do vídeo.
+    backgroundColor: '#ffffff',
+  },
 })

@@ -33,17 +33,19 @@ import type {
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada,
   FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
-  NovoAcesso, Painel, PainelDaEquipe, Portaria,
+  NovoAcesso, Painel, PainelDaEquipe, Portaria, LinkCadastroIndividual,
   BaseDeFuncionarios, BuscaRegional, CentralDeAvisos, DadosDeNovaOrganizacao, FichaDaPessoaNaBase,
   ListaDeOrganizacoes, Organizacao, PainelDoWhatsApp, ResultadoDeAtribuicao,
   ResultadoDaImportacao,
   ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida, ResumoParticipacao,
   SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
-  ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
+  ConferenciaDoSetor, LinhaConferencia, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
   DadosParaLancarPonto, BuscaDeColaboradores,
   DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte,
+  ConfiguracoesDePermissao, LinhaDeAuditoria, MinhasPermissoes,
 } from './tipos.js'
+import type { Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
 
 export type OpcoesDoClienteHttp = {
@@ -253,6 +255,12 @@ export class ClienteHttp implements ClienteApi {
     return r.corpo as unknown as Eu
   }
 
+  async minhasPermissoes(): Promise<MinhasPermissoes> {
+    const r = await this.pedir('/v1/minhas-permissoes')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar suas permissões.'))
+    return r.corpo as unknown as MinhasPermissoes
+  }
+
   // ─── Entrar num evento ────────────────────────────────────────────────────
 
   /*
@@ -314,24 +322,17 @@ export class ClienteHttp implements ClienteApi {
   async meuQr(participacaoId: string) {
     const r = await this.pedir(`/v1/participacoes/${encodeURIComponent(participacaoId)}/qr`)
     if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos gerar seu QR.'))
-    return r.corpo as unknown as { codigo: string; etapa: string }
+    return r.corpo as unknown as { codigo: string; etapa: string; liberado: boolean; liberaEm: string | null }
   }
 
   // ─── Bater ponto ──────────────────────────────────────────────────────────
 
   async registrarBatida(envio: EnvioDeBatida): Promise<RespostaDeBatida> {
     /*
-     * A FOTO AINDA NÃO SOBE POR AQUI.
-     *
-     * O contrato carrega `fotoBase64` e a API espera `fotoPath` — ela quer o
-     * caminho de um arquivo que já está no storage, não a imagem. É o desenho
-     * certo (a foto não deve atravessar a API num pico de evento), mas o envio
-     * direto ao storage ainda não existe.
-     *
-     * Mandar a base64 num campo que a API ignora seria pior que não mandar:
-     * gastaria a rede do evento carregando uma imagem que ninguém guarda, e a
-     * tela diria "registrado com foto" sem foto nenhuma. Enquanto o storage não
-     * entra, a batida sobe sem imagem — e isso está anotado no backlog.
+     * A foto sobe DENTRO do pedido de bater ponto, como no site
+     * (`lib/actions.ts` de lá recebe a mesma base64 por uma chamada de
+     * servidor e decodifica do outro lado) — não é a API que guarda a
+     * imagem, é o Storage; a API só decodifica e repassa. 12/09/2026.
      */
     const r = await this.pedir('/v1/batidas', {
       metodo: 'POST',
@@ -340,6 +341,7 @@ export class ClienteHttp implements ClienteApi {
         participacaoId: envio.participacaoId,
         tipo: envio.tipo,
         registradoEm: envio.registradoEm,
+        ...(envio.fotoBase64 !== undefined ? { fotoBase64: envio.fotoBase64 } : {}),
         ...(envio.lat !== undefined ? { lat: envio.lat } : {}),
         ...(envio.lng !== undefined ? { lng: envio.lng } : {}),
       },
@@ -354,10 +356,30 @@ export class ClienteHttp implements ClienteApi {
   }
 
   async registrarEntradaLivre(
-    _participacaoId: string,
-    _dados: { lat?: number; lng?: number },
+    participacaoId: string,
+    dados: { lat?: number; lng?: number },
   ): Promise<RespostaDeBatida> {
-    throw new AindaNaoNaApi('registrarEntradaLivre')
+    const r = await this.pedir(`/v1/participacoes/${encodeURIComponent(participacaoId)}/entrada-livre`, {
+      metodo: 'POST',
+      corpo: dados,
+    })
+    // 422 é a recusa por regra, e o corpo já vem no formato do contrato —
+    // mesma régua de `registrarBatida`.
+    if (r.status === 200 || r.status === 422) {
+      return r.corpo as unknown as RespostaDeBatida
+    }
+    return { situacao: 'recusado', motivo: this.erroDe(r, 'O servidor não aceitou este registro.') }
+  }
+
+  async contestarBatida(
+    participacaoId: string, tipo: TipoBatida, dataRef: string, motivo: string,
+  ): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/participacoes/${encodeURIComponent(participacaoId)}/contestar`, {
+      metodo: 'POST',
+      corpo: { tipo, dataRef, motivo },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos registrar a contestação.') }
+    return r.corpo as unknown as { erro?: string }
   }
 
   // ─── Painel ───────────────────────────────────────────────────────────────
@@ -445,124 +467,291 @@ export class ClienteHttp implements ClienteApi {
     return r.corpo as unknown as AtividadesDoEvento
   }
 
-  async criarEvento(_dados: DadosDeNovoEvento): Promise<{ eventoId?: string; erro?: string }> {
-    void _dados
-    throw new AindaNaoNaApi('criarEvento')
+  async criarEvento(dados: DadosDeNovoEvento): Promise<{ eventoId?: string; erro?: string }> {
+    const r = await this.pedir('/v1/eventos', { metodo: 'POST', corpo: dados })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos criar o evento.') }
+    return r.corpo as unknown as { eventoId?: string; erro?: string }
   }
 
   // ─── O evento por dentro ──────────────────────────────────────────────────
 
-  async evento(_eventoId: string): Promise<EventoDetalhado> {
-    void _eventoId
-    throw new AindaNaoNaApi('evento')
+  async evento(eventoId: string, dia?: string): Promise<EventoDetalhado> {
+    const query = dia ? `?dia=${encodeURIComponent(dia)}` : ''
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}${query}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos abrir este evento.'))
+    return r.corpo as unknown as EventoDetalhado
   }
 
   async alternarPortaria(
-    _eventoId: string, _aberta: boolean,
+    eventoId: string, aberta: boolean,
   ): Promise<{ portaria?: Portaria; erro?: string }> {
-    void _eventoId; void _aberta
-    throw new AindaNaoNaApi('alternarPortaria')
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/portaria`, {
+      metodo: 'POST',
+      corpo: { aberta },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos mexer na portaria.') }
+    return r.corpo as unknown as { portaria?: Portaria; erro?: string }
   }
 
   async trocarTokenDaPortaria(
-    _eventoId: string,
+    eventoId: string,
   ): Promise<{ portaria?: Portaria; erro?: string }> {
-    void _eventoId
-    throw new AindaNaoNaApi('trocarTokenDaPortaria')
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/portaria/trocar`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos trocar o QR da portaria.') }
+    return r.corpo as unknown as { portaria?: Portaria; erro?: string }
   }
 
-  async configuracaoDoEvento(_eventoId: string): Promise<ConfiguracaoDoEvento> {
-    void _eventoId
-    throw new AindaNaoNaApi('configuracaoDoEvento')
+  async alternarCadastroPorLink(eventoId: string, suspenso: boolean): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/cadastro`, {
+      metodo: 'POST',
+      corpo: { suspenso },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos mudar o cadastro por link deste evento.') }
+    return r.corpo as unknown as { erro?: string }
   }
 
-  async salvarEvento(_eventoId: string, _dados: EdicaoDoEvento): Promise<{ erro?: string }> {
-    void _eventoId; void _dados
-    throw new AindaNaoNaApi('salvarEvento')
+  async criarLinkCadastroIndividual(
+    eventoId: string, setorId: string,
+  ): Promise<{ resultado?: LinkCadastroIndividual; erro?: string }> {
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/cadastro-individual`, {
+      metodo: 'POST',
+      corpo: { setorId },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos gerar o link individual.') }
+    const corpo = r.corpo as { link?: string; expiraEm?: string; setorNome?: string; eventoNome?: string; erro?: string }
+    if (corpo.erro) return { erro: corpo.erro }
+    return {
+      resultado: {
+        link: corpo.link ?? '',
+        expiraEm: corpo.expiraEm ?? '',
+        setorNome: corpo.setorNome ?? '',
+        eventoNome: corpo.eventoNome ?? '',
+      },
+    }
+  }
+
+  async configuracaoDoEvento(eventoId: string): Promise<ConfiguracaoDoEvento> {
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/configuracao`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos abrir a configuração do evento.'))
+    return r.corpo as unknown as ConfiguracaoDoEvento
+  }
+
+  async salvarEvento(eventoId: string, dados: EdicaoDoEvento): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/configuracao`, {
+      metodo: 'POST',
+      corpo: dados,
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar o evento.') }
+    return r.corpo as unknown as { erro?: string }
   }
 
   async salvarDiasDeTrabalho(
-    _eventoId: string, _dias: string[],
+    eventoId: string, dias: string[],
   ): Promise<{ resultado?: ResultadoDosDias; erro?: string }> {
-    void _eventoId; void _dias
-    throw new AindaNaoNaApi('salvarDiasDeTrabalho')
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/dias`, {
+      metodo: 'POST',
+      corpo: { dias },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar os dias de trabalho.') }
+    return r.corpo as unknown as { resultado?: ResultadoDosDias; erro?: string }
   }
 
   async criarSetor(
-    _eventoId: string,
-    _dados: {
+    eventoId: string,
+    dados: {
       nome: string
-      estimado?: number | null
       valorPorPessoa?: number | null
       supervisor: { nome: string; cpf: string; telefone: string }
       exigeMeio?: boolean
     },
   ): Promise<{ setor?: SetorDetalhado; erro?: string }> {
-    void _eventoId; void _dados
-    throw new AindaNaoNaApi('criarSetor')
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/setores`, {
+      metodo: 'POST',
+      corpo: dados,
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos criar o setor.') }
+    return r.corpo as unknown as { setor?: SetorDetalhado; erro?: string }
   }
 
-  async configuracaoDoMeio(_eventoId: string): Promise<ConfiguracaoDoMeio> {
-    void _eventoId
-    throw new AindaNaoNaApi('configuracaoDoMeio')
+  async editarSetor(
+    setorId: string,
+    dados: { nome: string; valorPorPessoa?: number | null; exigeMeio?: boolean },
+  ): Promise<{ setor?: SetorDetalhado; erro?: string }> {
+    const r = await this.pedir(`/v1/setores/${encodeURIComponent(setorId)}`, {
+      metodo: 'POST',
+      corpo: dados,
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar as alterações do setor.') }
+    return r.corpo as unknown as { setor?: SetorDetalhado; erro?: string }
+  }
+
+  async alternarLinkDoSetor(setorId: string, ativo: boolean): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/setores/${encodeURIComponent(setorId)}/link`, {
+      metodo: 'POST',
+      corpo: { ativo },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos mudar o link deste setor.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async excluirSetor(setorId: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/setores/${encodeURIComponent(setorId)}/excluir`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos excluir este setor.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async adicionarSupervisor(
+    setorId: string,
+    dados: { nome: string; cpf: string; telefone: string },
+  ): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/setores/${encodeURIComponent(setorId)}/supervisores`, {
+      metodo: 'POST',
+      corpo: dados,
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos adicionar este supervisor.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async editarSupervisor(
+    id: string,
+    dados: { nome: string; telefone: string; ativo: boolean; permissoesUsuario?: Record<string, boolean> },
+  ): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/acessos/${encodeURIComponent(id)}/editar`, {
+      metodo: 'POST',
+      corpo: dados,
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar as alterações deste supervisor.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async configuracaoDoMeio(eventoId: string): Promise<ConfiguracaoDoMeio> {
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/meio`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos abrir a configuração do meio.'))
+    return r.corpo as unknown as ConfiguracaoDoMeio
   }
 
   async salvarConfiguracaoDoMeio(
-    _eventoId: string,
-    _setoresLigados: string[],
-    _diasLigados: string[],
+    eventoId: string,
+    setoresLigados: string[],
+    diasLigados: string[],
   ): Promise<{ setores?: number; dias?: number; erro?: string }> {
-    void _eventoId; void _setoresLigados; void _diasLigados
-    throw new AindaNaoNaApi('salvarConfiguracaoDoMeio')
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/meio`, {
+      metodo: 'POST',
+      corpo: { setoresLigados, diasLigados },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar a configuração do meio.') }
+    return r.corpo as unknown as { setores?: number; dias?: number; erro?: string }
   }
 
-  async equipeDoSetor(_setorId: string): Promise<EquipeDoSetor> {
-    void _setorId
-    throw new AindaNaoNaApi('equipeDoSetor')
+  async equipeDoSetor(setorId: string): Promise<EquipeDoSetor> {
+    const r = await this.pedir(`/v1/setores/${encodeURIComponent(setorId)}/equipe`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos abrir a equipe deste setor.'))
+    return r.corpo as unknown as EquipeDoSetor
   }
 
-  async fichaDaPessoa(_participacaoId: string): Promise<FichaDaPessoa> {
-    void _participacaoId
-    throw new AindaNaoNaApi('fichaDaPessoa')
+  async fichaDaPessoa(participacaoId: string): Promise<FichaDaPessoa> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/ficha`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos abrir esta ficha.'))
+    return r.corpo as unknown as FichaDaPessoa
   }
 
-  async moverDeSetor(_participacaoId: string, _setorId: string): Promise<{ erro?: string }> {
-    void _participacaoId; void _setorId
-    throw new AindaNaoNaApi('moverDeSetor')
+  async moverDeSetor(participacaoId: string, setorId: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/mover`, {
+      metodo: 'POST',
+      corpo: { setorId },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos mover esta pessoa de setor.') }
+    return r.corpo as unknown as { erro?: string }
   }
 
-  async tornarSupervisor(_participacaoId: string, _telefone: string): Promise<{ erro?: string }> {
-    void _participacaoId; void _telefone
-    throw new AindaNaoNaApi('tornarSupervisor')
+  async tornarSupervisor(participacaoId: string, telefone: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/tornar-supervisor`, {
+      metodo: 'POST',
+      corpo: { telefone },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos tornar esta pessoa supervisora.') }
+    return r.corpo as unknown as { erro?: string }
   }
 
-  async marcarPagamento(_participacaoId: string, _pago: boolean): Promise<{ erro?: string }> {
-    void _participacaoId; void _pago
-    throw new AindaNaoNaApi('marcarPagamento')
+  async marcarPagamento(participacaoId: string, pago: boolean): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/pagamento`, {
+      metodo: 'POST',
+      corpo: { pago },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos atualizar o pagamento.') }
+    return r.corpo as unknown as { erro?: string }
   }
 
-  async salvarValorAReceber(_participacaoId: string, _valor: number): Promise<{ erro?: string }> {
-    void _participacaoId; void _valor
-    throw new AindaNaoNaApi('salvarValorAReceber')
+  async salvarValorAReceber(participacaoId: string, valor: number): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/valor-a-receber`, {
+      metodo: 'POST',
+      corpo: { valor },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar o valor a receber.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async tirarDaEquipe(participacaoId: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/tirar`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos tirar esta pessoa da equipe.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async trazerDeVolta(participacaoId: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/trazer-de-volta`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos trazer esta pessoa de volta.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async excluirDaEquipe(participacaoId: string, motivo?: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/excluir`, {
+      metodo: 'POST',
+      corpo: { motivo },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos excluir esta pessoa.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async corrigirTelefone(participacaoId: string, telefone: string, motivo?: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/telefone`, {
+      metodo: 'POST',
+      corpo: { telefone, motivo },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos corrigir o telefone.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async resolverContestacao(id: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/contestacoes/${encodeURIComponent(id)}/resolver`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos resolver esta contestação.') }
+    return r.corpo as unknown as { erro?: string }
   }
 
   // ─── Planilhas ────────────────────────────────────────────────────────────
 
   async baixarModelo(): Promise<ArquivoDePlanilha> {
-    throw new AindaNaoNaApi('baixarModelo')
+    const r = await this.pedir('/v1/setores/modelo-de-importacao')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos gerar o modelo.'))
+    return r.corpo as unknown as ArquivoDePlanilha
   }
 
-  async exportarEquipe(_setorId: string, _op?: { dia?: string }): Promise<ArquivoDePlanilha> {
-    void _setorId; void _op
-    throw new AindaNaoNaApi('exportarEquipe')
+  async exportarEquipe(setorId: string, op?: { dia?: string }): Promise<ArquivoDePlanilha> {
+    const query = op?.dia ? `?dia=${encodeURIComponent(op.dia)}` : ''
+    const r = await this.pedir(`/v1/setores/${encodeURIComponent(setorId)}/planilha${query}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos gerar a planilha desta equipe.'))
+    return r.corpo as unknown as ArquivoDePlanilha
   }
 
   async importarPlanilha(
-    _setorId: string,
-    _arquivo: { nome: string; base64: string },
+    setorId: string,
+    arquivo: { nome: string; base64: string },
   ): Promise<{ resultado?: ResultadoDaImportacao; erro?: string }> {
-    void _setorId; void _arquivo
-    throw new AindaNaoNaApi('importarPlanilha')
+    const r = await this.pedir(`/v1/setores/${encodeURIComponent(setorId)}/importar`, {
+      metodo: 'POST',
+      corpo: { base64: arquivo.base64 },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos importar esta planilha.') }
+    return r.corpo as unknown as { resultado?: ResultadoDaImportacao; erro?: string }
   }
 
   // ─── Acessos ──────────────────────────────────────────────────────────────
@@ -587,10 +776,31 @@ export class ClienteHttp implements ClienteApi {
     return r.corpo as unknown as { erro?: string }
   }
 
+  async trocarSenhaDoAcesso(id: string, novaSenha: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/acessos/${encodeURIComponent(id)}/senha`, {
+      metodo: 'POST',
+      corpo: { senha: novaSenha },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos trocar a senha.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async excluirAcesso(id: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/acessos/${encodeURIComponent(id)}/excluir`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos excluir este acesso.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
   async eventosComSetores(): Promise<EventoComSetores[]> {
     const r = await this.pedir('/v1/acessos/eventos')
     if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar os eventos.'))
     return (Array.isArray(r.corpo) ? r.corpo : []) as unknown as EventoComSetores[]
+  }
+
+  async operadoresDoEvento(eventoId: string): Promise<Acesso[]> {
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/operadores-portao`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar os operadores de portão.'))
+    return (Array.isArray(r.corpo) ? r.corpo : []) as unknown as Acesso[]
   }
 
   async criarAcesso(dados: NovoAcesso): Promise<{ acesso?: Acesso; erro?: string }> {
@@ -602,41 +812,85 @@ export class ClienteHttp implements ClienteApi {
   // ─── Plataforma ───────────────────────────────────────────────────────────
 
   async organizacoes(): Promise<ListaDeOrganizacoes> {
-    throw new AindaNaoNaApi('organizacoes')
+    const r = await this.pedir('/v1/organizacoes')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar as organizações.'))
+    return r.corpo as unknown as ListaDeOrganizacoes
   }
 
-  async criarOrganizacao(_dados: DadosDeNovaOrganizacao): Promise<{ organizacao?: Organizacao; erro?: string }> {
-    void _dados
-    throw new AindaNaoNaApi('criarOrganizacao')
+  async criarOrganizacao(dados: DadosDeNovaOrganizacao): Promise<{ organizacao?: Organizacao; erro?: string }> {
+    const r = await this.pedir('/v1/organizacoes', { metodo: 'POST', corpo: dados })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos criar a organização.') }
+    return r.corpo as unknown as { organizacao?: Organizacao; erro?: string }
   }
 
-  async alternarOrganizacao(_id: string, _ativa: boolean): Promise<{ erro?: string }> {
-    void _id; void _ativa
-    throw new AindaNaoNaApi('alternarOrganizacao')
+  async alternarOrganizacao(id: string, ativa: boolean): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/organizacoes/${encodeURIComponent(id)}/situacao`, {
+      metodo: 'POST',
+      corpo: { ativa },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos mudar esta organização.') }
+    return r.corpo as unknown as { erro?: string }
   }
 
-  async baseDeFuncionarios(_busca?: string): Promise<BaseDeFuncionarios> {
-    void _busca
-    throw new AindaNaoNaApi('baseDeFuncionarios')
+  async permissoesDaOrganizacao(organizacaoId: string | null): Promise<ConfiguracoesDePermissao> {
+    const r = await this.pedir(`/v1/permissoes?organizacao=${encodeURIComponent(organizacaoId ?? 'plataforma')}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar as permissões.'))
+    return r.corpo as unknown as ConfiguracoesDePermissao
+  }
+
+  async salvarPermissaoDaOrganizacao(
+    organizacaoId: string | null, papel: Papel, chave: string, permitido: boolean | null,
+  ): Promise<{ erro?: string }> {
+    const r = await this.pedir('/v1/permissoes', { metodo: 'POST', corpo: { organizacaoId, papel, chave, permitido } })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar esta permissão.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async auditoria(filtro?: { eventoId?: string; dias?: number }): Promise<LinhaDeAuditoria[]> {
+    const params = new URLSearchParams()
+    if (filtro?.eventoId) params.set('eventoId', filtro.eventoId)
+    if (filtro?.dias !== undefined) params.set('dias', String(filtro.dias))
+    const query = params.toString()
+    const r = await this.pedir(`/v1/auditoria${query ? `?${query}` : ''}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar a trilha de auditoria.'))
+    return r.corpo as unknown as LinhaDeAuditoria[]
+  }
+
+  async baseDeFuncionarios(busca?: string): Promise<BaseDeFuncionarios> {
+    const query = busca ? `?busca=${encodeURIComponent(busca)}` : ''
+    const r = await this.pedir(`/v1/base-de-funcionarios${query}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar a base de funcionários.'))
+    return r.corpo as unknown as BaseDeFuncionarios
   }
 
   async encontrarColaborador(
-    _filtro?: { busca?: string; cidade?: string },
+    filtro?: { busca?: string; cidade?: string },
   ): Promise<BuscaRegional> {
-    void _filtro
-    throw new AindaNaoNaApi('encontrarColaborador')
+    const partes: string[] = []
+    if (filtro?.busca) partes.push(`busca=${encodeURIComponent(filtro.busca)}`)
+    if (filtro?.cidade) partes.push(`cidade=${encodeURIComponent(filtro.cidade)}`)
+    const query = partes.length ? `?${partes.join('&')}` : ''
+
+    const r = await this.pedir(`/v1/encontrar-colaborador${query}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar na base regional.'))
+    return r.corpo as unknown as BuscaRegional
   }
 
-  async fichaDaPessoaNaBase(_cpf: string): Promise<FichaDaPessoaNaBase> {
-    void _cpf
-    throw new AindaNaoNaApi('fichaDaPessoaNaBase')
+  async fichaDaPessoaNaBase(cpf: string): Promise<FichaDaPessoaNaBase> {
+    const r = await this.pedir(`/v1/base-de-funcionarios/${encodeURIComponent(cpf)}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos abrir esta ficha.'))
+    return r.corpo as unknown as FichaDaPessoaNaBase
   }
 
   async atribuirPessoaAoEvento(
-    _cpf: string, _setorId: string,
+    cpf: string, setorId: string,
   ): Promise<{ resultado?: ResultadoDeAtribuicao; erro?: string }> {
-    void _cpf; void _setorId
-    throw new AindaNaoNaApi('atribuirPessoaAoEvento')
+    const r = await this.pedir(`/v1/base-de-funcionarios/${encodeURIComponent(cpf)}/atribuir`, {
+      metodo: 'POST',
+      corpo: { setorId },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos atribuir esta pessoa.') }
+    return r.corpo as unknown as { resultado?: ResultadoDeAtribuicao; erro?: string }
   }
 
   async painelDoWhatsApp(): Promise<PainelDoWhatsApp> {
@@ -682,103 +936,159 @@ export class ClienteHttp implements ClienteApi {
   // ─── Veículos ───────────────────────────────────────────────────────────
 
   async eventosParaVeiculos(): Promise<EventoEscaneavel[]> {
-    throw new AindaNaoNaApi('eventosParaVeiculos')
+    const r = await this.pedir('/v1/veiculos/eventos')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar os eventos.'))
+    return (Array.isArray(r.corpo) ? r.corpo : []) as unknown as EventoEscaneavel[]
   }
 
-  async veiculosDoEvento(_eventoId: string): Promise<VeiculosDoEvento> {
-    void _eventoId
-    throw new AindaNaoNaApi('veiculosDoEvento')
+  async veiculosDoEvento(eventoId: string): Promise<VeiculosDoEvento> {
+    const r = await this.pedir(`/v1/veiculos/${encodeURIComponent(eventoId)}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar os veículos.'))
+    return r.corpo as unknown as VeiculosDoEvento
   }
 
   async buscarCondutorPorCpf(
-    _eventoId: string, _cpf: string,
+    eventoId: string, cpf: string,
   ): Promise<{ condutor?: CondutorEncontrado; erro?: string }> {
-    void _eventoId; void _cpf
-    throw new AindaNaoNaApi('buscarCondutorPorCpf')
+    const r = await this.pedir(`/v1/veiculos/${encodeURIComponent(eventoId)}/condutor`, {
+      metodo: 'POST',
+      corpo: { cpf },
+    })
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar o condutor.'))
+    return r.corpo as unknown as { condutor?: CondutorEncontrado; erro?: string }
   }
 
   async cadastrarVeiculo(
-    _eventoId: string, _dados: DadosDeVeiculo,
+    eventoId: string, dados: DadosDeVeiculo,
   ): Promise<{ placa?: string; condutor?: string; erro?: string }> {
-    void _eventoId; void _dados
-    throw new AindaNaoNaApi('cadastrarVeiculo')
+    const r = await this.pedir(`/v1/veiculos/${encodeURIComponent(eventoId)}`, { metodo: 'POST', corpo: dados })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos cadastrar o veículo.') }
+    return r.corpo as unknown as { placa?: string; condutor?: string; erro?: string }
   }
 
-  async excluirVeiculo(_veiculoId: string, _eventoId: string): Promise<{ erro?: string }> {
-    void _veiculoId; void _eventoId
-    throw new AindaNaoNaApi('excluirVeiculo')
+  async excluirVeiculo(veiculoId: string, eventoId: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/veiculos/${encodeURIComponent(eventoId)}/excluir`, {
+      metodo: 'POST',
+      corpo: { veiculoId },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos excluir o veículo.') }
+    return r.corpo as unknown as { erro?: string }
   }
 
   // ─── Bloquear CPF ─────────────────────────────────────────────────────────
 
   async eventosParaBloqueio(): Promise<EventoEscaneavel[]> {
-    throw new AindaNaoNaApi('eventosParaBloqueio')
+    const r = await this.pedir('/v1/bloqueio-cpf/eventos')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar os eventos.'))
+    return (Array.isArray(r.corpo) ? r.corpo : []) as unknown as EventoEscaneavel[]
   }
 
-  async bloqueiosDoEvento(_eventoId: string): Promise<CpfBloqueado[]> {
-    void _eventoId
-    throw new AindaNaoNaApi('bloqueiosDoEvento')
+  async bloqueiosDoEvento(eventoId: string): Promise<CpfBloqueado[]> {
+    const r = await this.pedir(`/v1/bloqueio-cpf/${encodeURIComponent(eventoId)}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar os bloqueios.'))
+    return (Array.isArray(r.corpo) ? r.corpo : []) as unknown as CpfBloqueado[]
   }
 
   async bloquearCpf(
-    _eventoId: string, _cpf: string, _motivo?: string,
+    eventoId: string, cpf: string, motivo?: string,
   ): Promise<{ cpf?: string; erro?: string }> {
-    void _eventoId; void _cpf; void _motivo
-    throw new AindaNaoNaApi('bloquearCpf')
+    const r = await this.pedir(`/v1/bloqueio-cpf/${encodeURIComponent(eventoId)}`, {
+      metodo: 'POST',
+      corpo: { cpf, motivo },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos bloquear este CPF.') }
+    return r.corpo as unknown as { cpf?: string; erro?: string }
   }
 
-  async desbloquearCpf(_bloqueioId: string, _eventoId: string): Promise<{ erro?: string }> {
-    void _bloqueioId; void _eventoId
-    throw new AindaNaoNaApi('desbloquearCpf')
+  async desbloquearCpf(bloqueioId: string, eventoId: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/bloqueio-cpf/${encodeURIComponent(eventoId)}/desbloquear`, {
+      metodo: 'POST',
+      corpo: { bloqueioId },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos liberar este CPF.') }
+    return r.corpo as unknown as { erro?: string }
   }
 
   // ─── Conferência de equipe ────────────────────────────────────────────────
 
-  async conferenciaDoSetor(_setorId: string): Promise<ConferenciaDoSetor> {
-    void _setorId
-    throw new AindaNaoNaApi('conferenciaDoSetor')
+  async conferenciasDoEvento(eventoId: string): Promise<LinhaConferencia[]> {
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/conferencias`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar as conferências.'))
+    return (Array.isArray(r.corpo) ? r.corpo : []) as unknown as LinhaConferencia[]
   }
 
-  async removerDaConferencia(_funcionarioId: string, _setorId: string): Promise<{ erro?: string }> {
-    void _funcionarioId; void _setorId
-    throw new AindaNaoNaApi('removerDaConferencia')
+  async conferenciaDoSetor(setorId: string): Promise<ConferenciaDoSetor> {
+    const r = await this.pedir(`/v1/conferencia/${encodeURIComponent(setorId)}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos abrir esta conferência.'))
+    return r.corpo as unknown as ConferenciaDoSetor
   }
 
-  async confirmarConferencia(_setorId: string): Promise<{ erro?: string }> {
-    void _setorId
-    throw new AindaNaoNaApi('confirmarConferencia')
+  async removerDaConferencia(funcionarioId: string, setorId: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/conferencia/${encodeURIComponent(setorId)}/remover`, {
+      metodo: 'POST',
+      corpo: { funcionarioId },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos tirar esta pessoa.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async confirmarConferencia(setorId: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/conferencia/${encodeURIComponent(setorId)}/confirmar`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos confirmar a equipe.') }
+    return r.corpo as unknown as { erro?: string }
+  }
+
+  async planilhaDaConferencia(setorId: string): Promise<ArquivoDePlanilha> {
+    const r = await this.pedir(`/v1/conferencia/${encodeURIComponent(setorId)}/planilha`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos gerar a planilha.'))
+    return r.corpo as unknown as ArquivoDePlanilha
   }
 
   // ─── Relatórios ───────────────────────────────────────────────────────────
 
   async eventosParaRelatorios(): Promise<EventoEscaneavel[]> {
-    throw new AindaNaoNaApi('eventosParaRelatorios')
+    const r = await this.pedir('/v1/relatorios/eventos')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar os eventos.'))
+    return (Array.isArray(r.corpo) ? r.corpo : []) as unknown as EventoEscaneavel[]
   }
 
-  async resumoDeRelatorios(_eventoId: string): Promise<ResumoDeRelatorios> {
-    void _eventoId
-    throw new AindaNaoNaApi('resumoDeRelatorios')
+  async resumoDeRelatorios(eventoId: string): Promise<ResumoDeRelatorios> {
+    const r = await this.pedir(`/v1/relatorios/${encodeURIComponent(eventoId)}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos montar o resumo.'))
+    return r.corpo as unknown as ResumoDeRelatorios
   }
 
   async relatorioDoEvento(
-    _eventoId: string, _periodo: Periodo, _quem: QuemNoRelatorio,
+    eventoId: string, periodo: Periodo, quem: QuemNoRelatorio,
   ): Promise<ArquivoDePlanilha> {
-    void _eventoId; void _periodo; void _quem
-    throw new AindaNaoNaApi('relatorioDoEvento')
+    const r = await this.pedir(
+      `/v1/relatorios/${encodeURIComponent(eventoId)}/arquivo`
+      + `?de=${encodeURIComponent(periodo.de)}&ate=${encodeURIComponent(periodo.ate)}&quem=${quem}`,
+    )
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos gerar o relatório.'))
+    return r.corpo as unknown as ArquivoDePlanilha
   }
 
   async relatorioDoSetor(
-    _eventoId: string, _setorId: string, _periodo: Periodo, _quem: QuemNoRelatorio,
+    eventoId: string, setorId: string, periodo: Periodo, quem: QuemNoRelatorio,
   ): Promise<ArquivoDePlanilha> {
-    void _eventoId; void _setorId; void _periodo; void _quem
-    throw new AindaNaoNaApi('relatorioDoSetor')
+    const r = await this.pedir(
+      `/v1/relatorios/${encodeURIComponent(eventoId)}/setor/${encodeURIComponent(setorId)}/arquivo`
+      + `?de=${encodeURIComponent(periodo.de)}&ate=${encodeURIComponent(periodo.ate)}&quem=${quem}`,
+    )
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos gerar o relatório.'))
+    return r.corpo as unknown as ArquivoDePlanilha
   }
 
   async relatoriosPorSetorZip(
-    _eventoId: string, _periodo: Periodo, _quem: QuemNoRelatorio,
+    eventoId: string, periodo: Periodo, quem: QuemNoRelatorio,
   ): Promise<ArquivoDePlanilha> {
-    void _eventoId; void _periodo; void _quem
-    throw new AindaNaoNaApi('relatoriosPorSetorZip')
+    const r = await this.pedir(
+      `/v1/relatorios/${encodeURIComponent(eventoId)}/zip`
+      + `?de=${encodeURIComponent(periodo.de)}&ate=${encodeURIComponent(periodo.ate)}&quem=${quem}`,
+    )
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos gerar os relatórios.'))
+    return r.corpo as unknown as ArquivoDePlanilha
   }
 
   // ─── Lançar ponto manual ──────────────────────────────────────────────────
@@ -829,5 +1139,11 @@ export class ClienteHttp implements ClienteApi {
   async revogarSuporte(_id: string): Promise<{ erro?: string }> {
     void _id
     throw new AindaNaoNaApi('revogarSuporte')
+  }
+
+  async registrarTokenDePush(token: string, plataforma: 'ios' | 'android'): Promise<{ erro?: string }> {
+    const r = await this.pedir('/v1/push/token', { metodo: 'POST', corpo: { token, plataforma } })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos registrar este aparelho.') }
+    return r.corpo as unknown as { erro?: string }
   }
 }

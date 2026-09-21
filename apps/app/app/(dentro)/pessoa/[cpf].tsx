@@ -95,7 +95,7 @@ export default function TelaDaFichaDaPessoa() {
                   valor={i.valor}
                   sub={i.sub}
                   tom={i.tom}
-                  icone={<Icone nome={ICONE[i.chave] ?? 'User'} tamanho={16} tom="#ffffff" />}
+                  icone={ICONE[i.chave] ?? 'User'}
                 />
               </View>
             ))}

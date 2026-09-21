@@ -91,11 +91,21 @@ export type ResumoParticipacao = {
 export type DiaDaParticipacao = {
   data: string
   etapa: 'montagem' | 'evento' | 'desmontagem'
+  /**
+   * O produtor desmarcou este dia depois de ele ter sido criado — não conta
+   * como escalado, e ninguém falta a ele. Cópia da mesma regra do site
+   * (`lib/historico.ts`): "dia cancelado não conta como escalado".
+   */
+  cancelado: boolean
   entrada: string | null
+  /** A batida foi feita por OUTRA pessoa (registro assistido), não pela própria. */
+  entradaAssistida: boolean
   meioEsperado: string | null
   meio: string | null
+  meioAssistido: boolean
   meioAtrasoMin: number | null
   saida: string | null
+  saidaAssistida: boolean
   compareceu: boolean
   horas: number | null
   /**
@@ -118,6 +128,14 @@ export type FinanceiroDaParticipacao = {
   valorPrevisto: number | null
   situacao: 'pendente' | 'em_processamento' | 'pago'
   pagoEm: string | null
+  /**
+   * A chave PIX que a própria pessoa escreveu no auto-cadastro. No site esse
+   * campo só é colhido UMA VEZ, no formulário público, e quem não tem conta
+   * nunca mais consegue rever nem corrigir — como o app TEM conta permanente,
+   * pelo menos mostrar o que está cadastrado já é uma conferência que o
+   * colaborador não tinha antes. `null` = nunca preenchida.
+   */
+  chavePix: string | null
 }
 
 // ─── Bater ponto ────────────────────────────────────────────────────────────
@@ -240,6 +258,13 @@ export type Painel = {
    * ainda não abriu? A frase resolve, e é a mesma que o painel web mostra.
    */
   legendaDaJanela: string | null
+  /**
+   * Quantas batidas (entrada + meio + saída) aconteceram na janela — sempre
+   * calculado, mesmo para o master, que não tem mais "Batidas na janela"
+   * como cartão (ele vê outros números ali, ver `indicadores`). O gráfico do
+   * fluxo de credenciamento é o mesmo pra todo mundo, só os cartões mudam.
+   */
+  batidasNaJanela: number
 }
 
 // ─── Operação: escanear e registrar por outra pessoa ────────────────────────
@@ -462,6 +487,8 @@ export type Acesso = {
   ativo: boolean
   /** Supervisor mostra o setor; os outros papéis, quantos eventos. */
   setorNome: string | null
+  /** `null` para admin/master, que entram por e-mail — os outros papéis sempre têm. */
+  telefone: string | null
   eventos: number
   criadoEm: string
   /** Só o suporte tem — opcional. Passada a data, o acesso para sozinho. */
@@ -489,6 +516,52 @@ export type ListaDeAcessos = {
   inativos: number
 }
 
+/**
+ * Uma exceção que uma ORGANIZAÇÃO (ou a plataforma inteira, se
+ * `organizacaoId` for `null`) configurou pra um papel numa capacidade do
+ * catálogo — a camada 2 de `capacidade()` (`@credenciei/dominio`). Ver a
+ * tela de Configurações.
+ */
+export type ExcecaoDePermissao = {
+  organizacaoId: string | null
+  papel: Papel
+  chave: string
+  permitido: boolean
+}
+
+/** As duas camadas de override que valem para ESTE acesso — o menu do app usa para decidir o que mostrar. */
+export type MinhasPermissoes = {
+  permissoesUsuario: Record<string, boolean>
+  permissoesOrganizacao: Record<string, boolean>
+}
+
+/** O que a tela de Configurações mostra: as organizações (o seletor de escopo) e o que já foi configurado no escopo pedido. */
+export type ConfiguracoesDePermissao = {
+  organizacoes: { organizacaoId: string; nome: string }[]
+  salvas: ExcecaoDePermissao[]
+}
+
+/**
+ * Uma linha da trilha de auditoria — quem alterou o quê. Cópia (reduzida) do
+ * site's `alteracoes_cadastro`/`obterAuditoria`: aqui é "visualização
+ * simples" — período e evento, sem o filtro em cascata nem a exportação
+ * .xlsx do site.
+ */
+export type LinhaDeAuditoria = {
+  id: string
+  /** ISO. */
+  quando: string
+  autorNome: string
+  /** Ver `ACAO_LABELS` no app — cada valor é um código estável (ex.: `BLOQUEIO_CPF`), não o rótulo. */
+  acao: string
+  campoAlterado: string | null
+  valorAnterior: string | null
+  valorNovo: string | null
+  motivo: string | null
+  eventoId: string | null
+  eventoNome: string | null
+}
+
 export type FiltroDeAcessos = {
   busca?: string
   situacao?: 'todos' | 'ativos' | 'inativos'
@@ -507,19 +580,23 @@ export type EventoComSetores = {
  * A função de quem está sendo criado — decide o vínculo que a tela pede.
  *
  * Trazido do site em 11/09/2026, do formulário `NovoUsuarioForm`: eram só
- * "supervisor" antes. Fica fora `admin` e `produtor` de propósito — admin é
- * criado pela plataforma, noutro lugar; produtor é do módulo Gastos, que o
- * app não tem (Epic 19).
+ * "supervisor" antes. Fica fora `produtor` de propósito — é do módulo
+ * Gastos, que o app não tem (Epic 19). `admin` foi adicionado em 12/09: o
+ * próprio `NovoUsuarioForm` do site trata admin como só mais uma opção do
+ * mesmo formulário (`adicionarAdmin`), não uma tela à parte — corrigido aqui
+ * para bater com o site.
  */
-export type FuncaoDeAcesso = 'supervisor' | 'operador_portao' | 'suporte'
+export type FuncaoDeAcesso = 'supervisor' | 'operador_portao' | 'suporte' | 'admin'
 
 export type NovoAcesso = {
   funcao: FuncaoDeAcesso
   nome: string
-  cpf: string
-  telefone: string
-  eventoId: string
-  /** Só o supervisor tem: os outros dois são do evento inteiro, sem setor. */
+  /** Todo papel por CPF (supervisor, operador de portão, suporte) — admin não tem. */
+  cpf?: string
+  telefone?: string
+  /** Todo papel preso a um evento — admin não tem, é preso à organização. */
+  eventoId?: string
+  /** Só o supervisor tem: os outros são do evento inteiro, sem setor. */
   setorId?: string
   /** Só o suporte tem — opcional. Passada a data, o acesso para sozinho. */
   expiraEm?: string | null
@@ -534,6 +611,11 @@ export type NovoAcesso = {
    * ausente = nasce com o padrão inteiro, sem override nenhum.
    */
   permissoesUsuario?: Record<string, boolean>
+  /** Só o admin tem — entra por e-mail e senha escolhida na hora, não por CPF. */
+  email?: string
+  senha?: string
+  /** Só o admin tem. Master escolhe; para os demais papéis, o servidor decide pela própria organização de quem cria. */
+  organizacaoId?: string
 }
 
 
@@ -550,6 +632,15 @@ export type SupervisorDoSetor = {
   id: string
   nome: string
   ativo: boolean
+  /** Pré-preenche o formulário de editar — `null` só em fixture antiga. */
+  telefone: string | null
+  /**
+   * O override de "Funções ligadas" deste supervisor — ver
+   * `Acesso.permissoesUsuario`. Opcional (e não `{}`) pelo mesmo motivo de
+   * `Evento.cadastroSuspenso`: não quebrar toda fixture de teste já escrita
+   * sem este campo. `undefined` == `{}` para quem consome.
+   */
+  permissoesUsuario?: Record<string, boolean>
 }
 
 /**
@@ -563,16 +654,13 @@ export type SetorDetalhado = {
   setorId: string
   nome: string
   pessoas: number
-  /**
-   * Quantas pessoas o setor espera ter.
-   *
-   * Quando existe, vira barra de progresso — que diz o que o número sozinho não
-   * diz: o quanto falta. Sem teto para comparar, a barra não aparece.
-   */
-  estimado: number | null
   valorPorPessoa: number | null
   /** O link que a equipe usa para se cadastrar sozinha neste setor. */
   linkDoFormulario: string
+  /** Falso = este setor não aceita cadastro novo, mesmo com a portaria ligada. */
+  linkAtivo: boolean
+  /** Pede a confirmação do meio? Só faz sentido em equipe paga por pessoa. */
+  exigeMeio: boolean
   supervisores: SupervisorDoSetor[]
 }
 
@@ -591,6 +679,14 @@ export type Portaria = {
   /** O endereço do cartaz. `null` enquanto a portaria nunca foi ligada. */
   endereco: string | null
   cadastrados: number
+}
+
+/** O link de exceção de 48h que reabre o cadastro de UM setor — ver `criarLinkCadastroIndividual`. */
+export type LinkCadastroIndividual = {
+  link: string
+  expiraEm: string
+  setorNome: string
+  eventoNome: string
 }
 
 export type ProgressoDaEtapa = {
@@ -615,10 +711,19 @@ export type EventoDetalhado = {
    * evento valem os horários configurados.
    */
   diasDePreparacao: number
-  /** Setores · Funcionários · Presentes agora · Ainda não chegaram. */
+  /**
+   * Os dias em que a equipe trabalha, em ordem — governa o seletor "Dia" e
+   * os indicadores abaixo, que descrevem só UM dia por vez (nunca o evento
+   * inteiro: ver o comentário de `diaEscolhido` na API, `eventoDetalhado`).
+   */
+  diasDaOperacao: string[]
+  /** Qual desses dias os indicadores abaixo descrevem — hoje, se hoje for dia de operação. */
+  diaEscolhido: string
+  /** Funcionários do evento · Presentes no momento · Entradas hoje · Batida do meio hoje · Saídas hoje. */
   indicadores: IndicadorDoPainel[]
-  progresso: ProgressoDaEtapa[]
   portaria: Portaria
+  /** Fecha o cadastro por link do evento INTEIRO — setores e portaria continuam iguais, só passam a recusar. */
+  cadastroSuspenso: boolean
   setores: SetorDetalhado[]
   totalPessoas: number
 }
@@ -664,6 +769,12 @@ export type PessoaDoSetor = {
   statusEntrada: StatusDaEtapa
   statusMeio: StatusDaEtapa
   statusFim: StatusDaEtapa
+  /**
+   * A própria pessoa contestou uma batida errada ou que faltou, e ninguém
+   * resolveu ainda — conta como pendência junto com as de etapa fechada.
+   * Ver a ficha da pessoa pra ler o motivo e resolver.
+   */
+  temContestacaoAberta: boolean
 }
 
 export type EquipeDoSetor = {
@@ -846,6 +957,8 @@ export type FichaDaPessoa = {
   setorId: string
   setorNome: string
   ativo: boolean
+  /** `null` = credenciada. Preenchido = foi tirada da equipe ("descredenciada") — o vínculo fechou, sem apagar nada. */
+  descredenciadoEm: string | null
 
   valorReceber: number
   pago: boolean
@@ -874,6 +987,38 @@ export type FichaDaPessoa = {
   podeMover: boolean
   /** A mesma permissão que criar acesso já exige. */
   podeTornarSupervisor: boolean
+  /**
+   * Só master, admin e supervisor do PRÓPRIO setor — cópia de
+   * `podeExcluirDaEquipe` no site. Suporte fica de fora aqui (diferente do
+   * site) porque o app ainda não modela o escopo dele por evento/organização
+   * (`suporte_escopo`) — sem essa checagem, seria abrir uma porta sem saber
+   * o tamanho dela.
+   */
+  podeExcluirDaEquipe: boolean
+  /**
+   * Corrigir o telefone — cópia de `editarTelefoneFuncionario` no site.
+   * Lá o suporte também entra, desde que dentro do escopo dele; fica de
+   * fora aqui pelo mesmo motivo de `podeExcluirDaEquipe` (sem
+   * `suporte_escopo` modelado, não dá pra checar o tamanho da porta).
+   */
+  podeCorrigirTelefone: boolean
+
+  /**
+   * O que a própria pessoa contestou (batida errada ou que faltou) e
+   * ninguém resolveu ainda — recurso que só existe no app, escopo decidido
+   * com o Juan em 18/09/2026. Vazio a maior parte do tempo.
+   */
+  contestacoesAbertas: Contestacao[]
+}
+
+/** Uma contestação — o colaborador avisando que uma batida saiu errada ou faltou. */
+export type Contestacao = {
+  id: string
+  tipo: TipoBatida
+  /** O dia a que a batida contestada pertence, YYYY-MM-DD. */
+  dataRef: string
+  motivo: string
+  criadoEm: string
 }
 
 
@@ -960,7 +1105,10 @@ export type PessoaDaBase = {
 export type BaseDeFuncionarios = {
   /** Pessoas na base · Cadastros feitos · Organizações · Já em 2+ eventos. */
   indicadores: IndicadorDoPainel[]
+  /** Cortada em 50 — ver `encontrados` para saber quantas a busca achou de verdade. */
   pessoas: PessoaDaBase[]
+  /** Quantas a busca encontrou — pode ser mais que `pessoas.length` (cortado em 50). */
+  encontrados: number
   /** Quantas existem no total, mesmo quando a busca recorta. */
   total: number
 }
@@ -990,7 +1138,9 @@ export type PessoaRegional = {
 }
 
 export type BuscaRegional = {
+  /** "Pessoas encontradas" já conta o achado de verdade, não o cortado — ver `pessoas`. */
   indicadores: IndicadorDoPainel[]
+  /** Cortada em 50 — o indicador "Pessoas encontradas", acima, tem a conta cheia. */
   pessoas: PessoaRegional[]
   /** As cidades que existem na base, para o filtro não ser um campo em branco. */
   cidades: string[]
@@ -1223,6 +1373,18 @@ export type MembroDaConferencia = {
   cpf: string
   telefone: string | null
   cargo: string | null
+}
+
+/** Uma linha da visão geral do organizador — setor a setor, quem já conferiu. */
+export type LinhaConferencia = {
+  setorId: string
+  setorNome: string
+  supervisorNome: string | null
+  temSupervisor: boolean
+  status: 'pendente' | 'confirmada'
+  confirmadaEm: string | null
+  totalMantidos: number | null
+  totalRemovidos: number | null
 }
 
 export type ConferenciaDoSetor = {

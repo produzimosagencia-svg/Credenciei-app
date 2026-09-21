@@ -17,17 +17,12 @@
 //
 // ─── O QUE ESTE ARQUIVO NÃO FAZ AINDA ───────────────────────────────────────
 //
-// A foto (`dados.fotoBase64`) é só VALIDADA — a API ainda não sobe nada para
-// o Supabase Storage. Nenhuma rota desta API faz upload hoje (ver
-// `registrarBatida`, que já recebe `fotoPath` pronto); resolver isso é
-// trabalho à parte, não desta feature. O registro grava com `fotoPath: null`.
-//
-// A auditoria (autor, GPS, dispositivo, motivo) e o fechamento automático do
-// vínculo na saída do dia principal (`descredenciar`) também ainda são só do
-// servidor de mentira. Ver `docs/backlog.md`.
+// O fechamento automático do vínculo na saída do dia principal
+// (`descredenciar`) ainda é só do servidor de mentira. Ver `docs/backlog.md`.
+// A auditoria (13/09/2026) já está ligada — ver `registrarAuditoria` abaixo.
 
 import {
-  diaBRT, diaDeReferenciaAssistida, distanciaEntreCpfs, podeAcompanhar, ehMaster,
+  diaBRT, diaDeReferenciaAssistida, distanciaEntreCpfs, podeAcompanhar, ehMaster, formatarBR,
   TOLERANCIA_DE_CPF, type RegistroParaInferencia,
 } from '@credenciei/dominio'
 import type { BatidaAssistida, CandidatoLocalizado, FichaLocalizada, TipoBatida } from '@credenciei/contrato'
@@ -46,7 +41,7 @@ const ROTULO_DA_ETAPA: Record<TipoBatida, string> = {
 
 async function exigirPodeAcompanhar(repo: Repositorio, pessoaId: string): Promise<Perfil> {
   const perfil = await repo.perfilPorId(pessoaId)
-  if (!perfil || !podeAcompanhar(perfil.papel)) throw new Error('Você não tem permissão para localizar pessoas.')
+  if (!perfil || !podeAcompanhar(perfil)) throw new Error('Você não tem permissão para localizar pessoas.')
   return perfil
 }
 
@@ -237,6 +232,10 @@ export async function registrarPresencaAssistida(
    * correção, não duplicata. Apaga a antiga (se existir) e grava por cima,
    * no mesmo espírito do índice único do banco de produção.
    */
+  const fotoPath = await repo.subirFotoAssistida(
+    item.eventoId, item.participacaoId, dados.tipo, dataRef, dados.fotoBase64,
+  )
+
   await repo.apagarRegistroDoTipo(item.participacaoId, dados.tipo, dataRef)
   await repo.gravarRegistro({
     id: crypto.randomUUID(),
@@ -244,12 +243,22 @@ export async function registrarPresencaAssistida(
     tipo: dados.tipo,
     dataRef,
     registradoEm: agora.toISOString(),
-    // O upload para o Storage ainda não existe nesta API — ver o topo do
-    // arquivo. `fotoBase64` já foi validada (obrigatória) acima.
-    fotoPath: null,
+    fotoPath,
     lat: dados.lat ?? null,
     lng: dados.lng ?? null,
     manual: true,
+  })
+
+  // Entrada/saída ganham ação própria; "meio" reaproveita CORRECAO_PONTO —
+  // mesma régua do site (`registrarPresencaAssistida`).
+  const ACAO_POR_ETAPA: Record<TipoBatida, string> = {
+    entrada: 'REGISTRO_ENTRADA_ASSISTIDA', fim: 'REGISTRO_SAIDA_ASSISTIDA', meio: 'CORRECAO_PONTO',
+  }
+  await repo.registrarAuditoria({
+    autorId: pessoaId, autorNome: perfil.nome, acao: ACAO_POR_ETAPA[dados.tipo],
+    campoAlterado: `${ROTULO_DA_ETAPA[dados.tipo]} de ${item.nome}`,
+    valorNovo: formatarBR(agora.toISOString(), 'completo'),
+    participacaoId: item.participacaoId, eventoId: item.eventoId, organizacaoId: perfil.organizacaoId ?? undefined,
   })
 
   return { nome: item.nome, etapa: ROTULO_DA_ETAPA[dados.tipo] }

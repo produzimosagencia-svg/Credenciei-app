@@ -16,11 +16,15 @@ function dia(p: Partial<DiaDaParticipacao> = {}): DiaDaParticipacao {
   return {
     data: '2026-09-05',
     etapa: 'evento',
+    cancelado: false,
     entrada: null,
+    entradaAssistida: false,
     meioEsperado: null,
     meio: null,
+    meioAssistido: false,
     meioAtrasoMin: null,
     saida: null,
+    saidaAssistida: false,
     compareceu: false,
     horas: null,
     meioExigido: true,
@@ -66,6 +70,20 @@ test('etapa pulada dentro de um dia trabalhado continua gritando', () => {
   assert.equal(celulaSilenciosa({ ...COMPLETO, meio: null }), false)
 })
 
+test('dia cancelado é status próprio, mesmo sem nenhuma batida', () => {
+  // O produtor desmarcou o expediente — não é "ausente" (ninguém faltou a um
+  // dia que não existe mais), é um status à parte. Mesma régua do site.
+  assert.equal(statusDoDia(dia({ cancelado: true })), 'cancelado')
+  assert.equal(celulaSilenciosa(dia({ cancelado: true })), true)
+})
+
+test('cancelado vence mesmo se, por algum motivo, tiver batida gravada', () => {
+  // Acontece quando o produtor desmarca um dia DEPOIS de alguém já ter
+  // trabalhado nele — a batida continua existindo, mas o dia não conta mais
+  // como escalado (é o resumo, abaixo, que de fato ignora esses dias).
+  assert.equal(statusDoDia({ ...COMPLETO, cancelado: true }), 'cancelado')
+})
+
 test('o resumo separa trabalhado, faltado e incompleto', () => {
   const resumo = resumoDoHistorico([
     COMPLETO,
@@ -73,9 +91,25 @@ test('o resumo separa trabalhado, faltado e incompleto', () => {
     dia({ data: '2026-09-03' }),
   ])
 
+  assert.equal(resumo.diasEscalados, 3)
   assert.equal(resumo.diasTrabalhados, 2)
   assert.equal(resumo.diasFaltados, 1)
   assert.equal(resumo.diasIncompletos, 1)
+})
+
+test('dia cancelado não conta como escalado, nem entra em falta, trabalhado ou hora', () => {
+  // Mesma régua do site (`lib/historico.ts`): "dia cancelado não conta como
+  // escalado — o organizador desmarcou o expediente, ninguém faltou a ele".
+  const resumo = resumoDoHistorico([
+    COMPLETO,
+    dia({ data: '2026-09-03' }), // faltou de verdade, dia normal
+    dia({ data: '2026-09-02', cancelado: true }), // desmarcado — não conta
+  ])
+
+  assert.equal(resumo.diasEscalados, 2)
+  assert.equal(resumo.diasTrabalhados, 1)
+  assert.equal(resumo.diasFaltados, 1)
+  assert.equal(resumo.horasTotais, 9)
 })
 
 test('incompleto conta como trabalhado, e não como faltado', () => {

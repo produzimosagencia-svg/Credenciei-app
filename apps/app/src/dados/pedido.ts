@@ -24,6 +24,27 @@ export function mensagemDoErro(erro: unknown): string {
   return 'Não conseguimos falar com o servidor. Tente de novo.'
 }
 
+/**
+ * O valor, só depois que a pessoa PARA de digitar por `atrasoMs`.
+ *
+ * Sem isto, uma busca em `usePedido` dispara uma chamada ao servidor a cada
+ * tecla — numa base de milhares de pessoas, cada letra custava uma consulta
+ * inteira, e a tela virava um "carregando" piscando sem parar (achado
+ * 12/09/2026, relatado como "trava toda vez que entro em Encontre um
+ * colaborador"). 350ms é curto o bastante pra não parecer devagar, e comprido
+ * o bastante pra cobrir a digitação normal de um nome.
+ */
+export function useValorComAtraso<T>(valor: T, atrasoMs = 350): T {
+  const [atrasado, setAtrasado] = useState(valor)
+
+  useEffect(() => {
+    const id = setTimeout(() => setAtrasado(valor), atrasoMs)
+    return () => clearTimeout(id)
+  }, [valor, atrasoMs])
+
+  return atrasado
+}
+
 export function usePedido<T>(
   buscar: () => Promise<T>,
   deps: DependencyList = [],

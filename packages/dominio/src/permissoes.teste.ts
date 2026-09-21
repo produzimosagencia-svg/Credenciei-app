@@ -10,7 +10,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   ehDePainel, ehMaster, ehSuporte, NOME_DO_PAPEL, podeAcompanhar, podeBloquearCpf,
-  podeEscanear, podeExcluir, podeGerenciarEventos, podeGerenciarOrganizacoes,
+  podeEscanear, podeExcluir, podeExcluirDaEquipe, podeGerenciarEventos, podeGerenciarOrganizacoes,
   podeGerenciarUsuarios, podeGerenciarVeiculos, veTodosEventos, type Papel,
 } from './permissoes.js'
 
@@ -21,7 +21,7 @@ const TODOS: Papel[] = [
 const PODERES = [
   ehMaster, veTodosEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
   podeGerenciarEventos, podeExcluir, podeEscanear, podeAcompanhar, podeGerenciarVeiculos,
-  podeBloquearCpf,
+  podeBloquearCpf, podeExcluirDaEquipe,
 ]
 
 test('o colaborador não pode NADA do painel', () => {
@@ -135,4 +135,71 @@ test('todo papel tem um nome para mostrar na tela', () => {
   for (const papel of TODOS) {
     assert.ok(NOME_DO_PAPEL[papel], `falta o nome de ${papel}`)
   }
+})
+
+/*
+ * As 3 camadas — usuário, organização, código — só existem para as
+ * capacidades do catálogo (`escanear`, `acompanhar`, `gerenciar_veiculos`).
+ * `podeGerenciarUsuarios` e as demais continuam só `papel?: string`.
+ */
+test('override do ACESSO vence a exceção da organização, que vence o padrão do código', () => {
+  // Padrão: supervisor não escaneia.
+  assert.equal(podeEscanear('supervisor'), false)
+  assert.equal(podeEscanear({ papel: 'supervisor' }), false)
+
+  // A organização liberou escanear pra todo supervisor dela.
+  assert.equal(
+    podeEscanear({ papel: 'supervisor', permissoesOrganizacao: { 'supervisor:escanear': true } }),
+    true,
+  )
+
+  // Mas ESTE acesso específico foi desligado de novo — o override do
+  // acesso é mais específico e vence a exceção da organização.
+  assert.equal(
+    podeEscanear({
+      papel: 'supervisor',
+      permissoesOrganizacao: { 'supervisor:escanear': true },
+      permissoesUsuario: { escanear: false },
+    }),
+    false,
+  )
+})
+
+test('master nunca é afetado, mesmo com override gravado por engano', () => {
+  assert.equal(
+    podeEscanear({
+      papel: 'master',
+      permissoesOrganizacao: { 'master:escanear': false },
+      permissoesUsuario: { escanear: false },
+    }),
+    true,
+  )
+})
+
+test('exceção da organização é só para o PRÓPRIO papel — não vaza para outro', () => {
+  assert.equal(
+    podeEscanear({ papel: 'admin', permissoesOrganizacao: { 'supervisor:escanear': true } }),
+    true, // admin já escaneia por padrão — a linha do supervisor não muda isso
+  )
+  assert.equal(
+    podeGerenciarVeiculos({ papel: 'admin', permissoesOrganizacao: { 'supervisor:escanear': true } }),
+    true, // admin gerencia veículos por padrão, exceção de outra chave não mexe
+  )
+  assert.equal(
+    podeGerenciarVeiculos({ papel: 'gerente', permissoesOrganizacao: { 'supervisor:gerenciar_veiculos': true } }),
+    false, // exceção é do supervisor, não do gerente — não vaza
+  )
+})
+
+test('excluir da equipe: master, admin e supervisor — nem suporte, nem operador de portão', () => {
+  for (const papel of TODOS) {
+    const esperado = papel === 'master' || papel === 'admin' || papel === 'supervisor'
+    assert.equal(podeExcluirDaEquipe(papel), esperado, `podeExcluirDaEquipe(${papel})`)
+  }
+})
+
+test('ausência de override em qualquer camada cai no padrão de sempre', () => {
+  assert.equal(podeAcompanhar({ papel: 'suporte' }), true)
+  assert.equal(podeAcompanhar({ papel: 'suporte', permissoesUsuario: {} }), true)
+  assert.equal(podeAcompanhar({ papel: 'suporte', permissoesOrganizacao: {} }), true)
 })

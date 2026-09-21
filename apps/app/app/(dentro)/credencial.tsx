@@ -29,11 +29,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import QRCode from 'react-native-qrcode-svg'
 import * as Location from 'expo-location'
+import { allowScreenCaptureAsync, preventScreenCaptureAsync } from 'expo-screen-capture'
 import { diaBRT, formatarBR, janelaMeio, NOME_DA_FASE } from '@credenciei/dominio'
 import type { DiaDaParticipacao, ResumoParticipacao, TipoBatida } from '@credenciei/contrato'
 import type { BatidaPendente } from '@credenciei/offline'
 import { usePedido } from '../../src/dados/pedido'
 import { useFila } from '../../src/fila/contexto'
+import { escolherParticipacao, useParticipacaoSelecionada } from '../../src/participacao-selecionada'
 import { useSessao } from '../../src/sessao/contexto'
 import { CameraDeRosto } from '../../src/ui/camera-de-rosto'
 import {
@@ -49,15 +51,17 @@ const ROTULO: Record<TipoBatida, string> = { entrada: 'Entrada', meio: 'Meio', f
 export default function Credencial() {
   const { cliente } = useSessao()
   const fila = useFila()
+  const { participacaoId: selecionada } = useParticipacaoSelecionada()
   const [camera, setCamera] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [registrandoLivre, setRegistrandoLivre] = useState(false)
 
   const { pedido, recarregar } = usePedido(async () => {
     const participacoes = await cliente.minhasParticipacoes()
-    // A que está acontecendo. Sem ela, a primeira — a pessoa que só tem evento
-    // futuro ainda quer ver a credencial dele.
-    const p = participacoes.find(x => x.emAndamento) ?? participacoes[0]
+    // A escolhida em "Meus eventos", se ainda existir; senão a que está
+    // acontecendo; sem essa, a primeira — quem só tem evento futuro ainda
+    // quer ver a credencial dele. Ver `participacao-selecionada.tsx`.
+    const p = escolherParticipacao(participacoes, selecionada)
     if (!p) return null
 
     const [qr, dias] = await Promise.all([
@@ -65,7 +69,7 @@ export default function Credencial() {
       cliente.meusDias(p.participacaoId),
     ])
     return { participacao: p, qr, dias }
-  }, [cliente])
+  }, [cliente, selecionada])
 
   const dados = pedido.estado === 'pronto' ? pedido.dados : null
   const hoje = diaBRT(new Date())
@@ -151,54 +155,75 @@ export default function Credencial() {
           <Legenda>{dados.participacao.eventoNome}</Legenda>
           <Respiro />
 
-          <CartaoDoQr codigo={dados.qr.codigo} etapa={dados.qr.etapa} />
-
-          <Respiro altura={espaco.s} />
-          <TituloDeCartao>Hoje</TituloDeCartao>
-          <Legenda>
-            {diaDeHoje
-              ? `${formatarBR(`${hoje}T12:00:00-03:00`, 'data')} · ${NOME_DA_FASE[diaDeHoje.etapa]}`
-              : 'Hoje não é dia de trabalho neste evento'}
-          </Legenda>
-          <Respiro altura={espaco.s} />
-
-          {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
-
-          {diaDeHoje ? (
-            <>
-              <EtapaDoDia
-                tipo="entrada"
-                feitoEm={diaDeHoje.entrada}
-                naFila={naFila.find(i => i.tipo === 'entrada')}
-                instrucao="Mostre o QR acima no credenciamento."
-                podeAutoRegistrar={podeAutoRegistrar}
-                registrandoLivre={registrandoLivre}
-                aoRegistrarLivre={registrarEntradaLivre}
-              />
-
-              {diaDeHoje.meioExigido || diaDeHoje.meio ? (
-                <EtapaDoMeio
-                  dia={diaDeHoje}
-                  naFila={naFila.find(i => i.tipo === 'meio')}
-                  aoRegistrar={() => setCamera(true)}
-                  aoDescartar={id => { void fila.descartar(id) }}
-                />
-              ) : null}
-
-              <EtapaDoDia
-                tipo="fim"
-                feitoEm={diaDeHoje.saida}
-                naFila={naFila.find(i => i.tipo === 'fim')}
-                instrucao="Mostre o QR acima na saída."
-              />
-            </>
+          {dados.participacao.situacao !== 'credenciado' ? (
+            <SituacaoNaoCredenciado situacao={dados.participacao.situacao} />
           ) : (
-            <Cartao>
-              <Corpo>
-                Este evento não tem trabalho marcado para hoje. O QR acima
-                continua sendo o seu — ele muda quando muda a etapa do evento.
-              </Corpo>
-            </Cartao>
+            <>
+              <CartaoDoQr
+                codigo={dados.qr.codigo}
+                etapa={dados.qr.etapa}
+                liberado={dados.qr.liberado}
+                liberaEm={dados.qr.liberaEm}
+                aoChegarAHora={recarregar}
+              />
+
+              <Respiro altura={espaco.s} />
+              <TituloDeCartao>Hoje</TituloDeCartao>
+              <Legenda>
+                {diaDeHoje
+                  ? diaDeHoje.cancelado
+                    ? `${formatarBR(`${hoje}T12:00:00-03:00`, 'data')} · Cancelado`
+                    : `${formatarBR(`${hoje}T12:00:00-03:00`, 'data')} · ${NOME_DA_FASE[diaDeHoje.etapa]}`
+                  : 'Hoje não é dia de trabalho neste evento'}
+              </Legenda>
+              <Respiro altura={espaco.s} />
+
+              {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
+
+              {diaDeHoje?.cancelado ? (
+                <Cartao>
+                  <Corpo>
+                    A produção cancelou o expediente de hoje. Não é preciso
+                    registrar nada — o dia não conta como falta.
+                  </Corpo>
+                </Cartao>
+              ) : diaDeHoje ? (
+                <>
+                  <EtapaDoDia
+                    tipo="entrada"
+                    feitoEm={diaDeHoje.entrada}
+                    naFila={naFila.find(i => i.tipo === 'entrada')}
+                    instrucao="Mostre o QR acima no credenciamento."
+                    podeAutoRegistrar={podeAutoRegistrar}
+                    registrandoLivre={registrandoLivre}
+                    aoRegistrarLivre={registrarEntradaLivre}
+                  />
+
+                  {diaDeHoje.meioExigido || diaDeHoje.meio ? (
+                    <EtapaDoMeio
+                      dia={diaDeHoje}
+                      naFila={naFila.find(i => i.tipo === 'meio')}
+                      aoRegistrar={() => setCamera(true)}
+                      aoDescartar={id => { void fila.descartar(id) }}
+                    />
+                  ) : null}
+
+                  <EtapaDoDia
+                    tipo="fim"
+                    feitoEm={diaDeHoje.saida}
+                    naFila={naFila.find(i => i.tipo === 'fim')}
+                    instrucao="Mostre o QR acima na saída."
+                  />
+                </>
+              ) : (
+                <Cartao>
+                  <Corpo>
+                    Este evento não tem trabalho marcado para hoje. O QR acima
+                    continua sendo o seu — ele muda quando muda a etapa do evento.
+                  </Corpo>
+                </Cartao>
+              )}
+            </>
           )}
         </>
       ) : null}
@@ -212,27 +237,95 @@ export default function Credencial() {
   )
 }
 
+/**
+ * Quando a participação não está credenciada — esconde o QR e as etapas em
+ * vez de mostrar um crachá que PARECE funcionar e é recusado no portão. O
+ * `meuQr` gera um código válido para qualquer situação (a recusa de
+ * verdade acontece na leitura, `registrarPorQr`); sem este aviso, a pessoa
+ * só descobre o problema na hora errada, na frente de todo mundo.
+ */
+function SituacaoNaoCredenciado({
+  situacao,
+}: { situacao: 'aguardando_aprovacao' | 'descredenciado' }) {
+  const textos = {
+    aguardando_aprovacao: {
+      titulo: 'Aguardando aprovação',
+      texto: 'Seu cadastro neste evento ainda não foi liberado pela produção. '
+        + 'A credencial aparece aqui assim que for aprovada.',
+    },
+    descredenciado: {
+      titulo: 'Fora da equipe deste evento',
+      texto: 'Você não está mais credenciado neste evento, então não é '
+        + 'possível registrar presença. Se acha que isto é um engano, fale '
+        + 'com a produção.',
+    },
+  }[situacao]
+
+  return (
+    <Cartao>
+      <TituloDeCartao>{textos.titulo}</TituloDeCartao>
+      <Respiro altura={espaco.s} />
+      <Corpo>{textos.texto}</Corpo>
+    </Cartao>
+  )
+}
+
 // ─── O QR ───────────────────────────────────────────────────────────────────
 
 /**
  * O crachá.
  *
- * ─── SOBRE O QUE ESCONDER PROTEGE, E O QUE NÃO ─────────────────────────────
+ * ─── SOBRE O QUE PROTEGE, E O QUE NÃO ──────────────────────────────────────
  *
- * O QR some quando o app sai do primeiro plano. Isso atrapalha gravação de tela
- * e cobre o caso de passar o aparelho desbloqueado para outra pessoa — mas não
- * impede nada: ninguém é avisado de um print, e dá para fotografar a tela com
- * um segundo celular.
+ * `preventScreenCaptureAsync` bloqueia print e gravação de tela ENQUANTO
+ * esta tela está aberta — no Android de verdade (`FLAG_SECURE`); no iOS só
+ * cobre gravação, porque a plataforma não deixa impedir print, só avisar
+ * depois (o app ainda não lê esse aviso). Sem efeito na web — não existe o
+ * conceito lá, e é onde ninguém credencia de verdade mesmo. Achado
+ * testando de verdade num navegador, 18/09/2026: o hook pronto do pacote
+ * (`usePreventScreenCapture`) não checa a plataforma sozinho e LANÇA na
+ * web ("not available on web"), o que derrubava a tela inteira — daí
+ * chamar a função direto, só fora da web.
+ *
+ * O QR também some quando o app sai do primeiro plano — cobre o caso de
+ * passar o aparelho desbloqueado para outra pessoa, e dá uma segunda camada
+ * contra gravação. Mesmo com os dois, dá pra fotografar a tela com um
+ * segundo celular — nenhuma proteção de tela impede isso.
  *
  * Quem protege de verdade é o CÓDIGO: ele vale só na etapa em que foi gerado.
  * Um crachá da montagem não passa no dia do evento. Dentro da mesma etapa, a
  * defesa é humana e já existe — o scanner mostra nome, setor e função de quem
  * está sendo lido, e quem credencia vê na hora se confere com a pessoa à frente.
+ *
+ * ─── A LIBERAÇÃO DO QR, PERTO DA HORA DE BATER ──────────────────────────────
+ *
+ * Decisão do Juan, 18/09/2026: além de sumir com o app em segundo plano, o QR
+ * também fica embaçado até pouco antes da janela de entrada/saída abrir —
+ * contra o print mandado com antecedência pra alguém entrar no lugar da
+ * pessoa (`liberacaoDoQR`, no domínio, decide isso; a API já manda pronto em
+ * `liberado`/`liberaEm`). Diferente do embaçado "por segurança" (que a
+ * própria pessoa destrava tocando, é só pra quando o app volta do fundo),
+ * este NÃO tem toque pra revelar — revelar antes da hora anularia a proteção.
  */
-function CartaoDoQr({ codigo, etapa }: { codigo: string; etapa: string }) {
+function CartaoDoQr({
+  codigo, etapa, liberado, liberaEm, aoChegarAHora,
+}: {
+  codigo: string
+  etapa: string
+  liberado: boolean
+  liberaEm: string | null
+  /** Avisado quando o horário de liberação chega, pra recarregar e destravar sozinho. */
+  aoChegarAHora: () => void
+}) {
   const { cor, uso } = useTema()
   const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
   const [oculto, setOculto] = useState(false)
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return
+    void preventScreenCaptureAsync()
+    return () => { void allowScreenCaptureAsync() }
+  }, [])
 
   useEffect(() => {
     const assinatura = AppState.addEventListener('change', estado => {
@@ -241,12 +334,31 @@ function CartaoDoQr({ codigo, etapa }: { codigo: string; etapa: string }) {
     return () => assinatura.remove()
   }, [])
 
+  useEffect(() => {
+    if (liberado || !liberaEm) return
+    const faltam = Date.parse(liberaEm) - Date.now()
+    if (faltam <= 0) { aoChegarAHora(); return }
+    const id = setTimeout(aoChegarAHora, faltam + 500)
+    return () => clearTimeout(id)
+  }, [liberado, liberaEm, aoChegarAHora])
+
   return (
     <Cartao>
       <View style={e.qrFora}>
         <View style={e.qrMoldura}>
           <QRCode value={codigo} size={196} backgroundColor="#ffffff" color={cor.neutro900} />
-          {oculto ? (
+          {!liberado ? (
+            <View style={e.qrTampa}>
+              <Icone nome="Clock" tamanho={24} tom="#ffffff" />
+              <Text style={e.qrTampaTitulo}>
+                {liberaEm ? `Libera às ${formatarBR(liberaEm, 'hora')}` : 'Fora do horário de hoje'}
+              </Text>
+              <Text style={e.qrTampaTexto}>
+                O QR só aparece perto da hora de bater, contra print mandado
+                com antecedência.
+              </Text>
+            </View>
+          ) : oculto ? (
             <Pressable onPress={() => setOculto(false)} style={e.qrTampa}>
               <Icone nome="EyeOff" tamanho={24} tom="#ffffff" />
               <Text style={e.qrTampaTitulo}>QR ocultado por segurança</Text>

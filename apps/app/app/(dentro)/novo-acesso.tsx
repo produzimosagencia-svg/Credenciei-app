@@ -1,22 +1,27 @@
 // Criar um acesso.
 //
-// ─── AS TRÊS FUNÇÕES QUE ESTA TELA CRIA ─────────────────────────────────────
+// ─── AS QUATRO FUNÇÕES QUE ESTA TELA CRIA ───────────────────────────────────
 //
-// Trazido do site em 11/09/2026: eram só supervisor antes. Agora são três,
-// cada uma com um vínculo diferente:
+// Trazido do site em 11/09/2026: eram só supervisor antes. Depois vieram
+// operador de portão e suporte. `admin` entrou em 12/09 — o próprio
+// formulário do site (`NovoUsuarioForm`) trata admin como só mais uma opção
+// aqui, não uma tela à parte na Plataforma. Cada uma com um vínculo diferente:
 //
-//   supervisor        preso a UM setor de um evento — só enxerga aquele
-//                      setor, equipe e presença.
-//   operador de portão preso ao EVENTO inteiro, sem setor — lê o QR e
-//                      registra ponto, não gerencia nada. É o posto de
-//                      credenciamento em si.
-//   suporte            preso ao EVENTO inteiro, sem setor, com validade
-//                      opcional — apoio contratado pro dia, corrige a
-//                      operação, nunca administra.
+//   admin              preso à ORGANIZAÇÃO inteira — gerencia eventos,
+//                       setores, equipe e acessos dela. Entra por e-mail e
+//                       senha, nunca por CPF. Master escolhe a organização;
+//                       quem já é admin só adiciona outro na PRÓPRIA.
+//   supervisor         preso a UM setor de um evento — só enxerga aquele
+//                       setor, equipe e presença.
+//   operador de portão  preso ao EVENTO inteiro, sem setor — lê o QR e
+//                       registra ponto, não gerencia nada. É o posto de
+//                       credenciamento em si.
+//   suporte             preso ao EVENTO inteiro, sem setor, com validade
+//                       opcional — apoio contratado pro dia, corrige a
+//                       operação, nunca administra.
 //
-// Admin e master ficam fora deste formulário de propósito: são criados pela
-// plataforma, noutro lugar. Produtor também fica fora — é o módulo Gastos,
-// que o app ainda não tem (ver Epic 19 do backlog).
+// Produtor fica fora de propósito — é o módulo Gastos, que o app ainda não
+// tem (ver Epic 19 do backlog).
 //
 // ─── A ABA "FUNÇÕES LIGADAS" ────────────────────────────────────────────────
 //
@@ -35,7 +40,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { capacidadesDoPapel, formatCpf, formatTelefone, titleCaseNome } from '@credenciei/dominio'
-import type { EventoComSetores, FuncaoDeAcesso } from '@credenciei/contrato'
+import type { EventoComSetores, FuncaoDeAcesso, Organizacao } from '@credenciei/contrato'
 import { mascararData } from '../../src/campos'
 import { mensagemDoErro } from '../../src/dados/pedido'
 import { useSessao } from '../../src/sessao/contexto'
@@ -54,6 +59,10 @@ const FUNCOES: {
   vinculo: string
   ajuda: string
 }[] = [
+  {
+    valor: 'admin', rotulo: 'Admin', icone: 'Building2', vinculo: 'organização',
+    ajuda: 'Gerencia a organização inteira — eventos, setores, equipe e acessos. Entra por e-mail e senha.',
+  },
   {
     valor: 'supervisor', rotulo: 'Supervisor', icone: 'Users', vinculo: 'evento + setor',
     ajuda: 'Fica preso a um único setor: enxerga só a equipe daquele setor. Se cuida de dois, crie dois acessos.',
@@ -77,17 +86,22 @@ function paraISO(dataDigitada: string): string | null {
 
 export default function NovoAcesso() {
   const router = useRouter()
-  const { cliente } = useSessao()
+  const { cliente, sessao } = useSessao()
   const { cor, uso } = useTema()
   const e = useMemo(() => criarEstilos(cor, uso), [cor, uso])
+  const souMaster = sessao?.papel === 'master'
 
   const [eventos, setEventos] = useState<EventoComSetores[] | null>(null)
+  const [organizacoes, setOrganizacoes] = useState<Organizacao[] | null>(null)
   const [funcao, setFuncao] = useState<FuncaoDeAcesso>('supervisor')
   const [eventoId, setEventoId] = useState('')
   const [setorId, setSetorId] = useState('')
+  const [organizacaoId, setOrganizacaoId] = useState('')
   const [nome, setNome] = useState('')
   const [cpf, setCpf] = useState('')
   const [telefone, setTelefone] = useState('')
+  const [email, setEmail] = useState('')
+  const [senha, setSenha] = useState('')
   const [expiraEm, setExpiraEm] = useState('')
   const [ativo, setAtivo] = useState(true)
   const [ligadas, setLigadas] = useState<Record<string, boolean>>({})
@@ -110,6 +124,21 @@ export default function NovoAcesso() {
       .catch(e => { if (vivo) setErro(mensagemDoErro(e)) })
     return () => { vivo = false }
   }, [cliente])
+
+  // Só o master escolhe a organização do admin novo — quem já é admin
+  // adiciona sempre na própria, e o servidor resolve isso sozinho.
+  useEffect(() => {
+    if (!souMaster) return
+    let vivo = true
+    cliente.organizacoes()
+      .then(lista => {
+        if (!vivo) return
+        setOrganizacoes(lista.itens)
+        setOrganizacaoId(lista.itens[0]?.organizacaoId ?? '')
+      })
+      .catch(e => { if (vivo) setErro(mensagemDoErro(e)) })
+    return () => { vivo = false }
+  }, [cliente, souMaster])
 
   const evento = eventos?.find(x => x.eventoId === eventoId)
   const setores = evento?.setores ?? []
@@ -142,8 +171,26 @@ export default function NovoAcesso() {
       setErro('Escolha o setor do supervisor.')
       return
     }
+    if (funcao === 'admin' && souMaster && !organizacaoId) {
+      setErro('Escolha a organização deste admin.')
+      return
+    }
     setSalvando(true)
     try {
+      if (funcao === 'admin') {
+        const r = await cliente.criarAcesso({
+          funcao: 'admin',
+          nome,
+          email,
+          senha,
+          ativo,
+          ...(souMaster ? { organizacaoId } : {}),
+        })
+        if (r.erro) return setErro(r.erro)
+        setCriado(r.acesso?.nome ?? nome)
+        return
+      }
+
       // Só o que DIFERE do padrão vai pro override — o resto o servidor
       // completa sozinho pela função.
       const permissoesUsuario: Record<string, boolean> = {}
@@ -181,9 +228,11 @@ export default function NovoAcesso() {
             <TituloDeCartao>Acesso criado</TituloDeCartao>
             <Corpo><Corpo forte>{criado}</Corpo> já aparece na lista de acessos.</Corpo>
             <Legenda>
-              {ativo
-                ? 'Ela recebe um link para criar a senha e já pode entrar.'
-                : 'O acesso foi criado bloqueado. Libere na lista quando for a hora.'}
+              {funcao === 'admin'
+                ? (ativo ? 'Já pode entrar com o e-mail e a senha cadastrados.' : 'O acesso foi criado bloqueado. Libere na lista quando for a hora.')
+                : ativo
+                  ? 'Ela recebe um link para criar a senha e já pode entrar.'
+                  : 'O acesso foi criado bloqueado. Libere na lista quando for a hora.'}
             </Legenda>
           </View>
           <Respiro />
@@ -191,7 +240,10 @@ export default function NovoAcesso() {
           <Respiro altura={espaco.s} />
           <Botao
             titulo="Criar outro"
-            onPress={() => { setCriado(null); setNome(''); setCpf(''); setTelefone(''); setExpiraEm('') }}
+            onPress={() => {
+              setCriado(null); setNome(''); setCpf(''); setTelefone('')
+              setEmail(''); setSenha(''); setExpiraEm('')
+            }}
             tipo="secundario"
           />
         </Cartao>
@@ -201,21 +253,6 @@ export default function NovoAcesso() {
 
   if (!eventos) {
     return <Tela>{erro ? <Aviso tipo="erro">{erro}</Aviso> : <Carregando />}</Tela>
-  }
-
-  if (eventos.length === 0) {
-    return (
-      <Tela>
-        <TituloDaTela>Criar acesso</TituloDaTela>
-        <Respiro />
-        <Cartao>
-          <Corpo>
-            Cadastre um evento antes de criar acessos — supervisor, gestor de
-            credenciamento ou suporte, todos precisam de um evento para atuar.
-          </Corpo>
-        </Cartao>
-      </Tela>
-    )
   }
 
   return (
@@ -259,23 +296,50 @@ export default function NovoAcesso() {
           placeholder="Maria Aparecida Rocha"
           autoCapitalize="words"
         />
-        <Campo
-          rotulo="CPF"
-          value={cpf}
-          onChangeText={t => setCpf(formatCpf(t))}
-          placeholder="000.000.000-00"
-          keyboardType="number-pad"
-          maxLength={14}
-          ajuda="É por ele que a pessoa entra no sistema."
-        />
-        <Campo
-          rotulo="Telefone"
-          value={telefone}
-          onChangeText={t => setTelefone(formatTelefone(t))}
-          placeholder="(27) 99999-9999"
-          keyboardType="phone-pad"
-          maxLength={15}
-        />
+        {funcao === 'admin' ? (
+          <>
+            <Campo
+              rotulo="E-mail"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="nome@empresa.com.br"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              ajuda="É por ele que o admin entra."
+            />
+            <Campo
+              rotulo="Senha"
+              value={senha}
+              onChangeText={setSenha}
+              placeholder="Ao menos 6 caracteres"
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              ajuda="Passe a senha para a pessoa — o app não avisa sozinho."
+            />
+          </>
+        ) : (
+          <>
+            <Campo
+              rotulo="CPF"
+              value={cpf}
+              onChangeText={t => setCpf(formatCpf(t))}
+              placeholder="000.000.000-00"
+              keyboardType="number-pad"
+              maxLength={14}
+              ajuda="É por ele que a pessoa entra no sistema."
+            />
+            <Campo
+              rotulo="Telefone"
+              value={telefone}
+              onChangeText={t => setTelefone(formatTelefone(t))}
+              placeholder="(27) 99999-9999"
+              keyboardType="phone-pad"
+              maxLength={15}
+            />
+          </>
+        )}
         {funcao === 'suporte' ? (
           <Campo
             rotulo="Acesso expira em (opcional)"
@@ -289,54 +353,89 @@ export default function NovoAcesso() {
         ) : null}
       </Cartao>
 
-      <Cartao>
-        <TituloDeCartao>Onde ele vai atuar</TituloDeCartao>
-        <Respiro altura={espaco.m} />
-
-        <Text style={e.rotulo}>EVENTO</Text>
-        <Respiro altura={espaco.s} />
-        {eventos.map(ev => {
-          const marcado = ev.eventoId === eventoId
-          return (
-            <Pressable
-              key={ev.eventoId}
-              onPress={() => trocarEvento(ev.eventoId)}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: marcado }}
-              style={({ pressed }) => [e.opcao, marcado && e.opcaoMarcada, pressed && e.opcaoTocada]}
-            >
-              <View style={[e.marcador, marcado && e.marcadorAtivo]}>
-                {marcado ? <Icone nome="Check" tamanho={12} tom="#ffffff" espessura={3} /> : null}
-              </View>
-              <Text style={[e.opcaoTexto, marcado && e.opcaoTextoMarcado]} numberOfLines={1}>
-                {ev.nome}
-              </Text>
-            </Pressable>
-          )
-        })}
-
-        {funcao === 'supervisor' ? (
-          <>
-            <Respiro />
-            <Text style={e.rotulo}>SETOR</Text>
-            <Respiro altura={espaco.s} />
-            {setores.length === 0 ? (
-              <Corpo>Este evento ainda não tem setores.</Corpo>
+      {funcao === 'admin' ? (
+        souMaster ? (
+          <Cartao>
+            <TituloDeCartao>Organização</TituloDeCartao>
+            <Respiro altura={espaco.m} />
+            {!organizacoes ? (
+              <Carregando />
+            ) : organizacoes.length === 0 ? (
+              <Corpo>Nenhuma organização cadastrada ainda.</Corpo>
             ) : (
               <Escolha
-                opcoes={setores.map(s => s.nome)}
-                valor={setores.find(s => s.setorId === setorId)?.nome ?? null}
-                aoEscolher={nomeDoSetor => {
-                  const achado = setores.find(s => s.nome === nomeDoSetor)
-                  if (achado) setSetorId(achado.setorId)
+                opcoes={organizacoes.map(o => o.nome)}
+                valor={organizacoes.find(o => o.organizacaoId === organizacaoId)?.nome ?? null}
+                aoEscolher={nomeDaOrg => {
+                  const achada = organizacoes.find(o => o.nome === nomeDaOrg)
+                  if (achada) setOrganizacaoId(achada.organizacaoId)
                 }}
               />
             )}
-          </>
-        ) : null}
-      </Cartao>
+          </Cartao>
+        ) : (
+          <Cartao>
+            <TituloDeCartao>Onde ele vai atuar</TituloDeCartao>
+            <Respiro altura={espaco.xs} />
+            <Corpo>Na sua própria organização — o servidor decide sozinho, pelo que você já gerencia.</Corpo>
+          </Cartao>
+        )
+      ) : (
+        <Cartao>
+          <TituloDeCartao>Onde ele vai atuar</TituloDeCartao>
+          <Respiro altura={espaco.m} />
 
-      {capacidades.length > 0 ? (
+          {eventos.length === 0 ? (
+            <Corpo>Cadastre um evento antes de criar este acesso.</Corpo>
+          ) : (
+            <>
+              <Text style={e.rotulo}>EVENTO</Text>
+              <Respiro altura={espaco.s} />
+              {eventos.map(ev => {
+                const marcado = ev.eventoId === eventoId
+                return (
+                  <Pressable
+                    key={ev.eventoId}
+                    onPress={() => trocarEvento(ev.eventoId)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: marcado }}
+                    style={({ pressed }) => [e.opcao, marcado && e.opcaoMarcada, pressed && e.opcaoTocada]}
+                  >
+                    <View style={[e.marcador, marcado && e.marcadorAtivo]}>
+                      {marcado ? <Icone nome="Check" tamanho={12} tom="#ffffff" espessura={3} /> : null}
+                    </View>
+                    <Text style={[e.opcaoTexto, marcado && e.opcaoTextoMarcado]} numberOfLines={1}>
+                      {ev.nome}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+
+              {funcao === 'supervisor' ? (
+                <>
+                  <Respiro />
+                  <Text style={e.rotulo}>SETOR</Text>
+                  <Respiro altura={espaco.s} />
+                  {setores.length === 0 ? (
+                    <Corpo>Este evento ainda não tem setores.</Corpo>
+                  ) : (
+                    <Escolha
+                      opcoes={setores.map(s => s.nome)}
+                      valor={setores.find(s => s.setorId === setorId)?.nome ?? null}
+                      aoEscolher={nomeDoSetor => {
+                        const achado = setores.find(s => s.nome === nomeDoSetor)
+                        if (achado) setSetorId(achado.setorId)
+                      }}
+                    />
+                  )}
+                </>
+              ) : null}
+            </>
+          )}
+        </Cartao>
+      )}
+
+      {funcao !== 'admin' && capacidades.length > 0 ? (
         <Cartao>
           <TituloDeCartao>Funções ligadas</TituloDeCartao>
           <Legenda>

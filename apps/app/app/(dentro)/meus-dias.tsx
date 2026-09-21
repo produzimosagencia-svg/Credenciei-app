@@ -13,32 +13,36 @@
 //
 // A regra está em `src/historico.ts`, com teste, porque é regra e não desenho.
 
-import { useMemo } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { useMemo, useState } from 'react'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatarBR, NOME_DA_FASE } from '@credenciei/dominio'
 import type { DiaDaParticipacao, TipoBatida } from '@credenciei/contrato'
-import { usePedido } from '../../src/dados/pedido'
+import { mensagemDoErro, usePedido } from '../../src/dados/pedido'
+import { escolherParticipacao, useParticipacaoSelecionada } from '../../src/participacao-selecionada'
 import { useSessao } from '../../src/sessao/contexto'
 import {
   celulaSilenciosa, NOME_DO_STATUS, resumoDoHistorico, statusDoDia,
 } from '../../src/historico'
 import {
-  Aviso, Botao, Carregando, Cartao, Corpo, Legenda, Respiro, Selo, Separador,
+  Aviso, Botao, Campo, Carregando, Cartao, Corpo, Legenda, Respiro, Selo, Separador,
   Tela, TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { corDaEtapa, espaco, raio, texto, tipo } from '../../src/ui/tema'
 import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
+const ROTULO_DA_ETAPA: Record<TipoBatida, string> = { entrada: 'Entrada', meio: 'Meio', fim: 'Saída' }
+
 export default function MeusDias() {
   const { cliente } = useSessao()
+  const { participacaoId: selecionada } = useParticipacaoSelecionada()
   const e = useEstilos()
 
   const { pedido, recarregar } = usePedido(async () => {
     const participacoes = await cliente.minhasParticipacoes()
-    const p = participacoes.find(x => x.emAndamento) ?? participacoes[0]
+    const p = escolherParticipacao(participacoes, selecionada)
     if (!p) return null
     return { participacao: p, dias: await cliente.meusDias(p.participacaoId) }
-  }, [cliente])
+  }, [cliente, selecionada])
 
   const dados = pedido.estado === 'pronto' ? pedido.dados : null
   const resumo = dados ? resumoDoHistorico(dados.dias) : null
@@ -74,6 +78,7 @@ export default function MeusDias() {
             <Respiro altura={espaco.m} />
 
             <View style={e.numeros}>
+              <Numero valor={resumo.diasEscalados} rotulo="dias escalados" />
               <Numero valor={resumo.diasTrabalhados} rotulo="dias trabalhados" destaque />
               <Numero valor={resumo.diasFaltados} rotulo="faltados" />
               <Numero valor={resumo.diasIncompletos} rotulo="incompletos" />
@@ -96,25 +101,27 @@ export default function MeusDias() {
           </Cartao>
 
           <Respiro altura={espaco.s} />
-          {dados.dias.map(d => <CartaoDoDia key={d.data} dia={d} />)}
+          {dados.dias.map(d => (
+            <CartaoDoDia key={d.data} dia={d} participacaoId={dados.participacao.participacaoId} />
+          ))}
         </>
       ) : null}
     </Tela>
   )
 }
 
-function CartaoDoDia({ dia }: { dia: DiaDaParticipacao }) {
+function CartaoDoDia({ dia, participacaoId }: { dia: DiaDaParticipacao; participacaoId: string }) {
   const e = useEstilos()
   const status = statusDoDia(dia)
   const silencioso = celulaSilenciosa(dia)
-  const tom = { presente: 'sucesso', incompleto: 'aviso', ausente: 'erro' } as const
+  const tom = { presente: 'sucesso', incompleto: 'aviso', ausente: 'erro', cancelado: 'info' } as const
 
   return (
     <Cartao>
       <View style={e.cabecalho}>
         <View style={e.cabecalhoTexto}>
           <TituloDeCartao>{formatarBR(`${dia.data}T12:00:00-03:00`, 'data')}</TituloDeCartao>
-          <Legenda>{NOME_DA_FASE[dia.etapa]}</Legenda>
+          <Legenda>{dia.cancelado ? '—' : NOME_DA_FASE[dia.etapa]}</Legenda>
         </View>
         <Selo texto={NOME_DO_STATUS[status]} tipo={tom[status]} />
       </View>
@@ -122,9 +129,9 @@ function CartaoDoDia({ dia }: { dia: DiaDaParticipacao }) {
       <Respiro altura={espaco.m} />
 
       <View style={e.etapas}>
-        <Celula tipo="entrada" em={dia.entrada} silencioso={silencioso} />
-        <Celula tipo="meio" em={dia.meio} silencioso={silencioso} atrasoMin={dia.meioAtrasoMin} />
-        <Celula tipo="fim" em={dia.saida} silencioso={silencioso} />
+        <Celula tipo="entrada" em={dia.entrada} silencioso={silencioso} assistida={dia.entradaAssistida} />
+        <Celula tipo="meio" em={dia.meio} silencioso={silencioso} atrasoMin={dia.meioAtrasoMin} assistida={dia.meioAssistido} />
+        <Celula tipo="fim" em={dia.saida} silencioso={silencioso} assistida={dia.saidaAssistida} />
       </View>
 
       {dia.horas !== null ? (
@@ -133,7 +140,113 @@ function CartaoDoDia({ dia }: { dia: DiaDaParticipacao }) {
           <Legenda>{dia.horas}h no evento</Legenda>
         </>
       ) : null}
+
+      {!dia.cancelado ? (
+        <ContestarBatida dia={dia} participacaoId={participacaoId} />
+      ) : null}
     </Cartao>
+  )
+}
+
+/**
+ * "Uma batida errada ou que faltou" — o colaborador é quem primeiro percebe,
+ * e antes disso não tinha como avisar (site é admin-only, ele não tem conta
+ * lá). Escopo decidido com o Juan em 18/09/2026: vira pendência na equipe do
+ * setor, resolvida por quem já mexe na equipe — não manda notificação
+ * (Epic 11/Push ainda não está pronto pra isso).
+ */
+function ContestarBatida({ dia, participacaoId }: { dia: DiaDaParticipacao; participacaoId: string }) {
+  const { cliente } = useSessao()
+  const e = useEstilos()
+  const [aberto, setAberto] = useState(false)
+  const [tipoEscolhido, setTipoEscolhido] = useState<TipoBatida>('entrada')
+  const [motivo, setMotivo] = useState('')
+  const [ocupado, setOcupado] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const [enviada, setEnviada] = useState(false)
+
+  if (enviada) {
+    return (
+      <>
+        <Respiro altura={espaco.m} />
+        <Aviso tipo="sucesso">
+          Contestação enviada. A supervisão do setor vai revisar.
+        </Aviso>
+      </>
+    )
+  }
+
+  if (!aberto) {
+    return (
+      <>
+        <Respiro altura={espaco.s} />
+        <Botao
+          titulo="Uma batida está errada ou faltando?"
+          tipo="fantasma"
+          onPress={() => setAberto(true)}
+        />
+      </>
+    )
+  }
+
+  return (
+    <>
+      <Respiro altura={espaco.m} />
+      <Separador />
+      <Respiro altura={espaco.m} />
+      {erro ? <Aviso tipo="erro">{erro}</Aviso> : null}
+
+      <Legenda>Qual etapa?</Legenda>
+      <Respiro altura={espaco.s} />
+      <View style={e.contestarEtapas}>
+        {(['entrada', 'meio', 'fim'] as const).map(t => {
+          const marcada = tipoEscolhido === t
+          return (
+            <Pressable
+              key={t}
+              onPress={() => setTipoEscolhido(t)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: marcada }}
+              style={[e.contestarEtapaBotao, marcada && e.contestarEtapaBotaoMarcada]}
+            >
+              <Text style={[e.contestarEtapaTexto, marcada && e.contestarEtapaTextoMarcado]}>
+                {ROTULO_DA_ETAPA[t]}
+              </Text>
+            </Pressable>
+          )
+        })}
+      </View>
+
+      <Respiro altura={espaco.m} />
+      <Campo
+        rotulo="O que aconteceu?"
+        value={motivo}
+        onChangeText={setMotivo}
+        placeholder="Ex.: bati o meio e não gravou"
+        multiline
+      />
+
+      <Respiro altura={espaco.m} />
+      <Botao
+        titulo="Enviar contestação"
+        ocupado={ocupado}
+        onPress={async () => {
+          setErro(null)
+          setOcupado(true)
+          try {
+            const r = await cliente.contestarBatida(participacaoId, tipoEscolhido, dia.data, motivo)
+            if (r.erro) return setErro(r.erro)
+            setEnviada(true)
+          } catch (err) {
+            setErro(mensagemDoErro(err))
+          } finally {
+            setOcupado(false)
+          }
+        }}
+      />
+      <Respiro altura={espaco.s} />
+      <Botao titulo="Cancelar" tipo="fantasma" onPress={() => setAberto(false)} />
+    </>
   )
 }
 
@@ -146,12 +259,14 @@ function CartaoDoDia({ dia }: { dia: DiaDaParticipacao }) {
  * uma ausência do posto que ainda vai ser conversada.
  */
 function Celula({
-  tipo, em, silencioso, atrasoMin,
+  tipo, em, silencioso, atrasoMin, assistida,
 }: {
   tipo: TipoBatida
   em: string | null
   silencioso: boolean
   atrasoMin?: number | null
+  /** Batida feita por outra pessoa (registro assistido) — precisa ficar visível, é a que alguém pode contestar. */
+  assistida?: boolean
 }) {
   const e = useEstilos()
   const rotulo = { entrada: 'Entrada', meio: 'Meio', fim: 'Saída' }[tipo]
@@ -167,6 +282,7 @@ function Celula({
         <>
           <Text style={e.celulaHora}>{formatarBR(em, 'hora')}</Text>
           {atrasoMin ? <Text style={e.celulaAtraso}>{atrasoMin} min tarde</Text> : null}
+          {assistida ? <Text style={e.celulaAssistida}>assistida</Text> : null}
         </>
       ) : silencioso ? (
         // O dia inteiro foi ausência: o selo lá em cima já contou a história.
@@ -219,6 +335,19 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
   cabecalho: { flexDirection: 'row', alignItems: 'center', gap: espaco.m },
   cabecalhoTexto: { flex: 1, minWidth: 0 },
 
+  contestarEtapas: { flexDirection: 'row', gap: espaco.s },
+  contestarEtapaBotao: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: espaco.m,
+    borderRadius: raio.campo,
+    borderWidth: 1,
+    borderColor: uso.borda,
+  },
+  contestarEtapaBotaoMarcada: { borderColor: cor.acento200, backgroundColor: cor.acento50 },
+  contestarEtapaTexto: { ...texto.xs, fontFamily: tipo.semi, color: uso.tintaMedia },
+  contestarEtapaTextoMarcado: { color: cor.acento700 },
+
   etapas: { flexDirection: 'row', gap: espaco.s },
   celula: {
     flex: 1,
@@ -234,6 +363,7 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
   celulaRotulo: { ...texto.xxs, color: uso.tintaFraca },
   celulaHora: { ...texto.corpoForte, color: uso.tinta },
   celulaAtraso: { ...texto.xxs, color: cor.aviso700 },
+  celulaAssistida: { ...texto.xxs, color: cor.aviso600 },
   /* O traço quieto do dia inteiro ausente. */
   celulaQuieta: { ...texto.corpoForte, color: cor.neutro300 },
   celulaFalta: { ...texto.xxs, fontFamily: tipo.semi, color: cor.erro600, letterSpacing: 0.4 },

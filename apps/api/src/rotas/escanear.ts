@@ -33,7 +33,7 @@ import type { Repositorio } from '../dados/repositorio.js'
 
 async function exigirPodeEscanear(repo: Repositorio, pessoaId: string) {
   const perfil = await repo.perfilPorId(pessoaId)
-  if (!perfil || !podeEscanear(perfil.papel)) throw new Error('Você não tem permissão para escanear.')
+  if (!perfil || !podeEscanear(perfil)) throw new Error('Você não tem permissão para escanear.')
   return perfil
 }
 
@@ -62,6 +62,8 @@ export async function eventosParaEscanear(repo: Repositorio, pessoaId: string): 
 export async function registrarPorQr(
   repo: Repositorio,
   segredoQr: string,
+  /** `null` enquanto `c4` (Ed25519) não estiver ligado — ver ADR 009. */
+  chavePublicaQrEd25519: Uint8Array | null,
   pessoaId: string,
   eventoId: string,
   codigoLido: string,
@@ -80,7 +82,7 @@ export async function registrarPorQr(
   // e é a fase que decide qual QR a credencial mostra AGORA.
   const faseDeHoje = faseAtualDoQR(agora, evento.dataInicio, evento.dataFim)
 
-  const lido = lerCodigoQR(segredoQr, codigoLido, hoje)
+  const lido = lerCodigoQR(segredoQr, codigoLido, hoje, chavePublicaQrEd25519, agora)
   if (!lido.ok) return { situacao: 'recusado', mensagem: lido.erro }
 
   const participacao = await repo.participacaoPorQrToken(lido.token)
@@ -124,6 +126,12 @@ export async function registrarPorQr(
 
   if ('reabrir' in decisao) {
     await repo.apagarRegistro(decisao.reabrir.registroId)
+    await repo.registrarAuditoria({
+      autorId: pessoaId, autorNome: perfil.nome, acao: 'REABERTURA_TURNO',
+      campoAlterado: `Turno de ${resumo.nome || 'alguém'}`,
+      valorAnterior: `Saída às ${formatarBR(decisao.reabrir.em, 'hora')}`, valorNovo: 'Desfeita — turno reaberto',
+      participacaoId: participacao.id, eventoId, organizacaoId: perfil.organizacaoId ?? undefined,
+    })
     return {
       situacao: 'reaberto',
       pessoa: resumo,

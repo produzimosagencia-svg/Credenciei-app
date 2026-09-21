@@ -97,7 +97,7 @@ export default function WhatsApp() {
                   valor={i.valor}
                   sub={i.sub}
                   tom={i.tom}
-                  icone={<Icone nome={ICONE[i.chave] ?? 'MessageCircle'} tamanho={16} tom="#ffffff" />}
+                  icone={ICONE[i.chave] ?? 'MessageCircle'}
                 />
               </View>
             ))}

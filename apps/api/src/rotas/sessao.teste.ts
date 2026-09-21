@@ -4,10 +4,10 @@
  * É a porta da frente de vinte mil contas. Os testes aqui cobrem menos "o
  * caminho feliz funciona" e mais "o que um curioso consegue descobrir".
  */
-import { test, beforeEach } from 'node:test'
+import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
-import { esquecerLimites } from '../limite.js'
+import { LimiteEmMemoria } from '../limite.js'
 import {
   entrar, entrarComSenha, pedirCodigo, TENTATIVAS_MAXIMAS, VALIDADE_DO_CODIGO_MS,
   type AutenticarComSenha, type CodigoPendente, type Dependencias, type GuardaDeCodigos,
@@ -34,6 +34,7 @@ function montar(agora = () => Date.parse('2026-09-01T10:00:00-03:00')) {
     codigos,
     enviar: async (telefone, codigo) => { enviados.push({ telefone, codigo }) },
     sortear: () => '123456',
+    limite: new LimiteEmMemoria(),
     agora,
   }
   return { dep, repo, pessoa, enviados, codigos }
@@ -62,11 +63,11 @@ function montarComSenha(agora = () => Date.parse('2026-09-01T10:00:00-03:00')) {
     '12345678900@supervisor.credenciei': { senha: 'segredo123', userId: admin.id },
     'ana@produzimos.com.br': { senha: 'segredo123', userId: adminSuspenso.id },
   })
-  const dep: Dependencias = { repo, codigos: guardaFalsa(), enviar: async () => {}, autenticar, agora }
+  const dep: Dependencias = {
+    repo, codigos: guardaFalsa(), enviar: async () => {}, autenticar, limite: new LimiteEmMemoria(), agora,
+  }
   return { dep, repo, master, admin, adminSuspenso }
 }
-
-beforeEach(() => esquecerLimites())
 
 // ─── Pedir o código ─────────────────────────────────────────────────────────
 
@@ -235,6 +236,7 @@ test('identificador ou senha em branco nem chega a perguntar pro Auth', async ()
     codigos: guardaFalsa(),
     enviar: async () => {},
     autenticar: async () => { chamadas++; return null },
+    limite: new LimiteEmMemoria(),
   }
 
   await entrarComSenha(dep, '', 'segredo123')

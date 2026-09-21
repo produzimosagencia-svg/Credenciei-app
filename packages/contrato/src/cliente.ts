@@ -15,16 +15,18 @@ import type {
   ArquivoDePlanilha, ConfiguracaoDoEvento, ConfiguracaoDoMeio, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
-  NovoAcesso, Painel, PainelDaEquipe, Portaria,
+  NovoAcesso, Painel, PainelDaEquipe, Portaria, LinkCadastroIndividual,
   BaseDeFuncionarios, BuscaRegional, CentralDeAvisos, DadosDeNovaOrganizacao, FichaDaPessoaNaBase,
   ListaDeOrganizacoes, Organizacao, PainelDoWhatsApp, ResultadoDeAtribuicao,
   ResultadoDaImportacao, ResultadoDaLeitura, ResultadoDosDias, RespostaDeBatida,
   ResumoParticipacao, SetorDetalhado, Sessao, TipoDeAviso, VisaoDeAtividade,
   CondutorEncontrado, DadosDeVeiculo, VeiculosDoEvento, CpfBloqueado,
-  ConferenciaDoSetor, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
+  ConferenciaDoSetor, LinhaConferencia, Periodo, QuemNoRelatorio, ResumoDeRelatorios,
   DadosParaLancarPonto, BuscaDeColaboradores,
   DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte,
+  ConfiguracoesDePermissao, LinhaDeAuditoria, MinhasPermissoes,
 } from './tipos.js'
+import type { Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
 
 export interface ClienteApi {
@@ -49,6 +51,13 @@ export interface ClienteApi {
   renovar(renovacao: string): Promise<{ sessao?: Sessao; erro?: string }>
   eu(): Promise<Eu>
 
+  /**
+   * As duas camadas de override que valem para ESTE acesso — usuário e
+   * organização. É o que faz o MENU do app decidir o que mostrar sem
+   * esperar o servidor recusar o clique (ver `useAlvoDePermissao`, no app).
+   */
+  minhasPermissoes(): Promise<MinhasPermissoes>
+
   // ── Entrar num evento ───────────────────────────────────────────────────
   /** Confere o código do evento e devolve o que falta preencher. */
   consultarConvite(codigo: string): Promise<{ convite?: ConviteDoEvento; erro?: string }>
@@ -62,8 +71,22 @@ export interface ClienteApi {
   minhasParticipacoes(): Promise<ResumoParticipacao[]>
   meusDias(participacaoId: string): Promise<DiaDaParticipacao[]>
   meuFinanceiro(participacaoId: string): Promise<FinanceiroDaParticipacao>
-  /** O código do QR para a etapa de hoje daquele evento. */
-  meuQr(participacaoId: string): Promise<{ codigo: string; etapa: string }>
+  /**
+   * O código do QR para a etapa de hoje daquele evento.
+   *
+   * `liberado` decide se a tela mostra o QR ou o embaça — decisão do Juan,
+   * 18/09/2026: contra o print mandado com antecedência pra alguém entrar
+   * no lugar da pessoa, o QR só aparece perto da hora de bater
+   * (`liberacaoDoQR`, no domínio). `liberaEm` é o horário em que libera,
+   * para a tela mostrar a contagem e se desbloquear sozinha; `null` quando
+   * já está liberado ou quando não há horário nenhum a esperar.
+   */
+  meuQr(participacaoId: string): Promise<{
+    codigo: string
+    etapa: string
+    liberado: boolean
+    liberaEm: string | null
+  }>
 
   // ── Bater ponto ─────────────────────────────────────────────────────────
   /** Lança exceção em falha de transporte; devolve `recusado` em decisão. */
@@ -90,6 +113,21 @@ export interface ClienteApi {
     participacaoId: string,
     dados: { lat?: number; lng?: number },
   ): Promise<RespostaDeBatida>
+
+  /**
+   * Contestar uma batida errada ou que faltou — recurso que só existe no
+   * app (o site nunca teve, o colaborador não tem conta lá pra copiar a
+   * regra). Escopo decidido com o Juan em 18/09/2026: vira pendência na
+   * tela da equipe do setor, visível pro supervisor e por quem gerencia o
+   * evento; motivo é obrigatório, pra quem for resolver ter por onde
+   * começar.
+   */
+  contestarBatida(
+    participacaoId: string,
+    tipo: TipoBatida,
+    dataRef: string,
+    motivo: string,
+  ): Promise<{ erro?: string }>
 
   // ── Painel ──────────────────────────────────────────────────────────────
   /**
@@ -185,7 +223,7 @@ export interface ClienteApi {
 
   // ── O evento por dentro ─────────────────────────────────────────────────
   /** A tela de configuração de um evento: setores, progresso e portaria. */
-  evento(eventoId: string): Promise<EventoDetalhado>
+  evento(eventoId: string, dia?: string): Promise<EventoDetalhado>
 
   /**
    * Abre ou fecha o cadastro na portaria.
@@ -204,6 +242,25 @@ export interface ClienteApi {
    * cadastrou não é afetado.
    */
   trocarTokenDaPortaria(eventoId: string): Promise<{ portaria?: Portaria; erro?: string }>
+
+  /**
+   * Suspende/reabre o cadastro por link do evento INTEIRO de uma vez — os
+   * links dos setores e o cartaz da portaria continuam os mesmos, só
+   * passam a recusar. Cópia do site's `alternarCadastroPorLink`. Diferente
+   * de `alternarLinkDoSetor`, que fecha só um setor.
+   */
+  alternarCadastroPorLink(eventoId: string, suspenso: boolean): Promise<{ erro?: string }>
+
+  /**
+   * Reabre o cadastro de UM setor por 48h, sem religar o link geral do
+   * evento — a exceção do master quando alguém precisa entrar depois de a
+   * lista ter fechado. Cópia do site's `criarLinkCadastroIndividual`. O
+   * link aponta pro formulário do SITE — quem preenche é a pessoa sendo
+   * credenciada, não este app.
+   */
+  criarLinkCadastroIndividual(
+    eventoId: string, setorId: string,
+  ): Promise<{ resultado?: LinkCadastroIndividual; erro?: string }>
 
   /** O evento como ele está configurado hoje, para a tela de edição. */
   configuracaoDoEvento(eventoId: string): Promise<ConfiguracaoDoEvento>
@@ -241,7 +298,6 @@ export interface ClienteApi {
     eventoId: string,
     dados: {
       nome: string
-      estimado?: number | null
       valorPorPessoa?: number | null
       supervisor: { nome: string; cpf: string; telefone: string }
       /**
@@ -252,6 +308,54 @@ export interface ClienteApi {
       exigeMeio?: boolean
     },
   ): Promise<{ setor?: SetorDetalhado; erro?: string }>
+
+  /**
+   * Muda nome, valor por pessoa e se este setor pede o meio — cópia do site's
+   * `editarFornecedor`. O supervisor não entra aqui: trocar quem responde por
+   * uma equipe é outra decisão, que mora em Acessos.
+   */
+  editarSetor(
+    setorId: string,
+    dados: { nome: string; valorPorPessoa?: number | null; exigeMeio?: boolean },
+  ): Promise<{ setor?: SetorDetalhado; erro?: string }>
+
+  /**
+   * Liga/desliga o link de cadastro DESTE setor — cópia do site's
+   * `alternarLinkDoSetor`. Diferente do interruptor da portaria, que fecha
+   * o evento inteiro de uma vez.
+   */
+  alternarLinkDoSetor(setorId: string, ativo: boolean): Promise<{ erro?: string }>
+
+  /**
+   * Apaga o setor — cópia do site's `deletarFornecedor`. Só o master exclui;
+   * os demais encerram o evento, que resolve sem destruir dado. Recusa
+   * quando há supervisor vinculado.
+   */
+  excluirSetor(setorId: string): Promise<{ erro?: string }>
+
+  /**
+   * Adiciona um supervisor a um setor que JÁ EXISTE — cópia do site's
+   * `criarSupervisor` chamado a partir do card do setor. Reaproveita login
+   * se o CPF já supervisiona outro setor; recusa CPF de outro papel ou de
+   * outra organização.
+   */
+  adicionarSupervisor(
+    setorId: string,
+    dados: { nome: string; cpf: string; telefone: string },
+  ): Promise<{ erro?: string }>
+
+  /**
+   * Muda nome, telefone e situação de um supervisor já vinculado — cópia do
+   * site's `editarSupervisor`, sem CPF nem senha (que têm caminho próprio:
+   * o CPF não muda, e a senha troca por `trocarSenhaDoAcesso`, em Acessos).
+   *
+   * `permissoesUsuario` é opcional e SÓ sobrescreve quando vier — omitir
+   * mantém o que já estava gravado (outra tela pode ter decidido antes).
+   */
+  editarSupervisor(
+    id: string,
+    dados: { nome: string; telefone: string; ativo: boolean; permissoesUsuario?: Record<string, boolean> },
+  ): Promise<{ erro?: string }>
 
   /** A equipe de um setor, com o estado de cada pessoa em cada etapa. */
   equipeDoSetor(setorId: string): Promise<EquipeDoSetor>
@@ -305,6 +409,29 @@ export interface ClienteApi {
   /** Quanto esta pessoa recebe — pode diferir do valor combinado do setor. */
   salvarValorAReceber(participacaoId: string, valor: number): Promise<{ erro?: string }>
 
+  /** "Tirar da equipe" — descredencia, sem apagar nada. Reversível por `trazerDeVolta`. */
+  tirarDaEquipe(participacaoId: string): Promise<{ erro?: string }>
+  /** Desfaz um "tirar da equipe" — reabre o vínculo. */
+  trazerDeVolta(participacaoId: string): Promise<{ erro?: string }>
+  /**
+   * Exclui de vez — cadastro e batidas, sem volta. Diferente de
+   * `tirarDaEquipe`, que é reversível. Só master, admin e supervisor do
+   * próprio setor (ver `podeExcluirDaEquipe`, no domínio).
+   */
+  excluirDaEquipe(participacaoId: string, motivo?: string): Promise<{ erro?: string }>
+  /**
+   * Corrige o telefone vinculado a esta participação — é por ele que a
+   * pessoa recebe a credencial e os avisos pelo WhatsApp. Cópia de
+   * `editarTelefoneFuncionario`, no site.
+   */
+  corrigirTelefone(participacaoId: string, telefone: string, motivo?: string): Promise<{ erro?: string }>
+  /**
+   * Marca uma contestação como resolvida — não corrige a batida sozinha
+   * (isso é lançar ponto manual, ou corrigir na planilha); só tira a
+   * pendência da tela da equipe.
+   */
+  resolverContestacao(id: string): Promise<{ erro?: string }>
+
   // ── Planilhas ───────────────────────────────────────────────────────────
   /** O modelo em branco, com as colunas que a importação espera. */
   baixarModelo(): Promise<ArquivoDePlanilha>
@@ -340,8 +467,29 @@ export interface ClienteApi {
    */
   mudarSituacaoDoAcesso(id: string, ativo: boolean): Promise<{ erro?: string }>
 
+  /**
+   * Troca a senha de um acesso — o caminho de "esqueci a senha" enquanto o
+   * convite por WhatsApp não existe (ver `criarAcesso`). Ninguém troca a
+   * própria senha por aqui: é o fluxo de conta que resolve isso.
+   */
+  trocarSenhaDoAcesso(id: string, novaSenha: string): Promise<{ erro?: string }>
+
+  /**
+   * Apaga o acesso — diferente de `mudarSituacaoDoAcesso`, que só bloqueia o
+   * login sem perder o histórico. Só o master apaga; os demais só desativam.
+   */
+  excluirAcesso(id: string): Promise<{ erro?: string }>
+
   /** Os eventos com os setores de cada um — todo supervisor nasce num setor. */
   eventosComSetores(): Promise<EventoComSetores[]>
+
+  /**
+   * Os operadores de portão da mesma organização deste evento — são da
+   * ORGANIZAÇÃO, não deste evento sozinho (não há como prender um perfil
+   * sem setor a um evento). Widget na tela do evento, ao lado do cartaz da
+   * portaria.
+   */
+  operadoresDoEvento(eventoId: string): Promise<Acesso[]>
 
   /**
    * Cria um acesso — supervisor (preso a um setor), operador de portão ou
@@ -365,6 +513,30 @@ export interface ClienteApi {
 
   /** Suspende ou reativa um cliente. Suspender bloqueia sem apagar histórico. */
   alternarOrganizacao(organizacaoId: string, ativa: boolean): Promise<{ erro?: string }>
+
+  /**
+   * A tela de Configurações: a lista de organizações (o seletor de escopo) e
+   * o que já foi ligado/desligado no escopo pedido. `organizacaoId: null` =
+   * o padrão da PLATAFORMA, que vale pra quem não tiver regra própria.
+   */
+  permissoesDaOrganizacao(organizacaoId: string | null): Promise<ConfiguracoesDePermissao>
+
+  /**
+   * Liga, desliga ou apaga (`permitido: null` volta ao padrão do código)
+   * uma capacidade de um papel — numa organização, ou na plataforma inteira
+   * (`organizacaoId` nulo). Cópia do site's `salvarPermissao`.
+   */
+  salvarPermissaoDaOrganizacao(
+    organizacaoId: string | null, papel: Papel, chave: string, permitido: boolean | null,
+  ): Promise<{ erro?: string }>
+
+  /**
+   * A trilha de auditoria — quem alterou o quê. Master vê tudo; os demais
+   * gestores só a própria organização; suporte só o que ele mesmo fez (a
+   * régua mora no servidor, não aqui). "Visualização simples": período e
+   * evento, sem filtro em cascata nem exportação.
+   */
+  auditoria(filtro?: { eventoId?: string; dias?: number }): Promise<LinhaDeAuditoria[]>
 
   /** Todo mundo que já foi credenciado por qualquer cliente, por CPF. */
   baseDeFuncionarios(busca?: string): Promise<BaseDeFuncionarios>
@@ -465,6 +637,9 @@ export interface ClienteApi {
   // A tela que o supervisor usa 1 dia antes do evento: vê a equipe, tira
   // quem não é dele, confirma. Trazido do site em 11/09/2026.
 
+  /** A visão geral do organizador: setor a setor, quem já confirmou. */
+  conferenciasDoEvento(eventoId: string): Promise<LinhaConferencia[]>
+
   conferenciaDoSetor(setorId: string): Promise<ConferenciaDoSetor>
 
   /** Tira alguém da equipe durante a conferência — o histórico dela fica. */
@@ -472,6 +647,9 @@ export interface ClienteApi {
 
   /** Fecha a conferência: carimba quem, quando, e os números. */
   confirmarConferencia(setorId: string): Promise<{ erro?: string }>
+
+  /** O CSV da equipe do setor — pro botão "Baixar planilha" da tela de conferência. */
+  planilhaDaConferencia(setorId: string): Promise<ArquivoDePlanilha>
 
   // ── Relatórios ───────────────────────────────────────────────────────────
   //
@@ -557,4 +735,13 @@ export interface ClienteApi {
 
   /** Diferente de excluir: o histórico do que a pessoa fez continua na Auditoria. */
   revogarSuporte(id: string): Promise<{ erro?: string }>
+
+  // ── Push ───────────────────────────────────────────────────────────────
+  //
+  // Só guarda o endereço de entrega (o token do aparelho) — não manda
+  // notificação nenhuma. Nunca falha de um jeito que interrompa quem está
+  // usando o app: registrar push é conveniência, não parte essencial do
+  // fluxo.
+
+  registrarTokenDePush(token: string, plataforma: 'ios' | 'android'): Promise<{ erro?: string }>
 }

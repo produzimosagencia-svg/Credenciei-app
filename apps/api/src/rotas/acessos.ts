@@ -24,7 +24,7 @@
 // cadastrado é sempre recusado — mais simples, e o mesmo que o servidor de
 // mentira já faz.
 
-import { ehMaster, formatCpf, podeGerenciarUsuarios } from '@credenciei/dominio'
+import { ehMaster, formatCpf, NOME_DO_PAPEL, podeExcluir, podeGerenciarUsuarios } from '@credenciei/dominio'
 import type {
   Acesso, EventoComSetores, FiltroDeAcessos, ListaDeAcessos, NovoAcesso,
 } from '@credenciei/contrato'
@@ -44,14 +44,13 @@ function paraAcesso(a: AcessoCompleto, pessoaId: string): Acesso {
   return {
     id: a.id,
     nome: a.nome,
-    // Todo papel que esta API cria (supervisor, operador de portão, suporte)
-    // entra por CPF — ver `identificadorParaEmail`. Admin/master, criados
-    // fora desta rota, ainda não têm e-mail modelado em `AcessoCompleto`:
-    // aparecem sem identificador até a Plataforma trazer isso.
-    identificador: a.cpf ? formatCpf(a.cpf) : '',
+    // Supervisor, operador de portão e suporte entram por CPF; admin e
+    // master, por e-mail — nunca os dois ao mesmo tempo para o mesmo acesso.
+    identificador: a.cpf ? formatCpf(a.cpf) : (a.email ?? ''),
     papel: a.papel,
     ativo: a.ativo,
     setorNome: a.papel === 'supervisor' ? a.setorNome : null,
+    telefone: a.telefone,
     eventos: a.eventos,
     criadoEm: a.criadoEm,
     expiraEm: a.expiraEm,
@@ -96,6 +95,101 @@ export async function mudarSituacaoDoAcesso(
   if (!alvo) return { erro: 'Não encontramos este acesso.' }
 
   await repo.definirSituacaoDoAcesso(id, ativo)
+  await repo.registrarAuditoria({
+    autorId: pessoaId, autorNome: perfil.nome, acao: 'ALTERACAO_SUPERVISOR',
+    campoAlterado: `Status do acesso de ${alvo.nome}`, valorNovo: ativo ? 'Ativo' : 'Inativo',
+    organizacaoId: alvo.organizacaoId ?? undefined,
+  })
+  return {}
+}
+
+/**
+ * Troca a senha de qualquer acesso — o caminho que falta desde sempre: só a
+ * própria pessoa tinha como trocar a senha, e quem esquece fica de fora no
+ * dia do evento. Trazido do site em 12/09 (`redefinirSenha`).
+ *
+ * Simplificação conhecida: o site também deixa o suporte trocar senha de
+ * supervisor/operador de portão dentro do escopo dele, com motivo obrigatório
+ * — esta rota ainda não tem esse terceiro caminho, só master e admin.
+ */
+export async function trocarSenhaDoAcesso(
+  repo: Repositorio, pessoaId: string, id: string, novaSenha: string,
+): Promise<{ erro?: string }> {
+  const perfil = await exigirPodeGerenciarUsuarios(repo, pessoaId)
+
+  // Existe o fluxo de conta para a própria senha; um caminho administrativo
+  // sobre si mesmo só serviria para confundir os dois.
+  if (id === pessoaId) return { erro: 'Para trocar a própria senha, use as configurações da conta.' }
+  if (!novaSenha || novaSenha.length < 6) return { erro: 'A senha precisa ter ao menos 6 caracteres.' }
+
+  const alvo = await repo.acessosNoEscopo(ehMaster(perfil.papel) ? undefined : perfil.organizacaoId)
+    .then(todos => todos.find(a => a.id === id))
+  // "Não encontrado" também para o admin mirando um master — nunca "sem permissão",
+  // que revelaria que aquele id existe.
+  if (!alvo || (!ehMaster(perfil.papel) && alvo.papel === 'master')) return { erro: 'Não encontramos este acesso.' }
+
+  await repo.definirSenhaDoAcesso(id, novaSenha)
+  await repo.registrarAuditoria({
+    autorId: pessoaId, autorNome: perfil.nome, acao: 'RESET_SENHA',
+    campoAlterado: `Senha de ${alvo.nome}`, organizacaoId: alvo.organizacaoId ?? undefined,
+  })
+  return {}
+}
+
+/**
+ * Muda nome, telefone e situação de um supervisor (ou outro acesso) já
+ * existente — cópia do site's `editarSupervisor`, sem o CPF (aqui ele nunca
+ * muda depois de criado) nem a troca de senha (já existe
+ * `trocarSenhaDoAcesso`, caminho próprio).
+ */
+export async function editarSupervisor(
+  repo: Repositorio, pessoaId: string, id: string,
+  dados: { nome: string; telefone: string; ativo: boolean; permissoesUsuario?: Record<string, boolean> },
+): Promise<{ erro?: string }> {
+  const perfil = await exigirPodeGerenciarUsuarios(repo, pessoaId)
+
+  const alvo = await repo.acessosNoEscopo(ehMaster(perfil.papel) ? undefined : perfil.organizacaoId)
+    .then(todos => todos.find(a => a.id === id))
+  if (!alvo) return { erro: 'Não encontramos este acesso.' }
+
+  const nome = (dados.nome ?? '').trim()
+  const telefone = (dados.telefone ?? '').replace(/\D/g, '')
+  if (nome.length < 3) return { erro: 'Digite o nome completo da pessoa.' }
+  if (telefone.length < 10 || telefone.length > 13) {
+    return { erro: 'Informe um telefone válido para enviar o acesso pelo WhatsApp.' }
+  }
+
+  await repo.atualizarAcesso(id, { nome, telefone, ativo: dados.ativo === true, permissoesUsuario: dados.permissoesUsuario })
+  await repo.registrarAuditoria({
+    autorId: pessoaId, autorNome: perfil.nome, acao: 'ALTERACAO_SUPERVISOR',
+    campoAlterado: `Dados de ${alvo.nome}`, valorNovo: nome,
+    organizacaoId: alvo.organizacaoId ?? undefined,
+  })
+  return {}
+}
+
+/**
+ * Apaga o acesso — diferente de "Bloquear", que só fecha a porta sem perder
+ * o histórico. Só o master: quem administra usuários da própria organização
+ * pode desativar, nunca apagar (mesma régua do site, `podeExcluir`).
+ */
+export async function excluirAcesso(
+  repo: Repositorio, pessoaId: string, id: string,
+): Promise<{ erro?: string }> {
+  // Quem não gerencia usuários nem abre esta tela — isso é permissão de
+  // verdade, e lança (vira 404, mesmo padrão do resto da API). Quem
+  // gerencia mas não é master PODE estar aqui, só não pode apagar — por
+  // isso é resposta, não exceção.
+  const perfil = await exigirPodeGerenciarUsuarios(repo, pessoaId)
+  if (!podeExcluir(perfil.papel)) {
+    return { erro: 'Só o master exclui acessos. Você pode desativar, que bloqueia o login sem perder o histórico.' }
+  }
+  if (id === pessoaId) return { erro: 'Você não pode excluir o próprio acesso.' }
+
+  const alvo = (await repo.acessosNoEscopo()).find(a => a.id === id)
+  if (!alvo) return { erro: 'Não encontramos este acesso.' }
+
+  await repo.excluirAcesso(id)
   return {}
 }
 
@@ -107,19 +201,75 @@ export async function eventosComSetores(repo: Repositorio, pessoaId: string): Pr
   return Promise.all(ativos.map(async e => ({
     eventoId: e.id,
     nome: e.nome,
-    setores: await repo.equipesDoEvento(e.id),
+    // Só `setorId`/`nome`: o contrato desta tela não conhece `exigeMeio` —
+    // vazar o campo extra seria mudar a resposta sem ninguém ter pedido.
+    setores: (await repo.equipesDoEvento(e.id)).map(s => ({ setorId: s.setorId, nome: s.nome })),
   })))
+}
+
+/**
+ * Os operadores de portão da mesma organização deste evento — cópia do
+ * site's consulta em `page.tsx`: são da ORGANIZAÇÃO, não deste evento
+ * sozinho (não há como prender um perfil sem setor a um evento). Widget na
+ * tela do evento, ao lado do cartaz da portaria — `OperadorPortariaCard.tsx`.
+ */
+export async function operadoresDoEvento(
+  repo: Repositorio, pessoaId: string, eventoId: string,
+): Promise<Acesso[]> {
+  const perfil = await exigirPodeGerenciarUsuarios(repo, pessoaId)
+
+  const evento = await repo.eventoPorId(eventoId)
+  if (!evento || (!ehMaster(perfil.papel) && evento.organizacaoId !== perfil.organizacaoId)) {
+    throw new Error('Não encontramos este evento.')
+  }
+
+  const todos = await repo.acessosNoEscopo(evento.organizacaoId ?? undefined)
+  return todos.filter(a => a.papel === 'operador_portao').map(a => paraAcesso(a, pessoaId))
 }
 
 export async function criarAcesso(
   repo: Repositorio, pessoaId: string, dados: NovoAcesso,
 ): Promise<{ acesso?: Acesso; erro?: string }> {
   const perfil = await exigirPodeGerenciarUsuarios(repo, pessoaId)
+  const funcao = dados.funcao ?? 'supervisor'
+
+  /*
+   * Admin é preso à ORGANIZAÇÃO, não a um evento — entra por e-mail e senha,
+   * nunca por CPF. Master escolhe a organização; quem já gerencia usuários
+   * mas não é master só pode adicionar outro admin na PRÓPRIA organização
+   * (mesma régua de `adicionarAdmin` no site).
+   */
+  if (funcao === 'admin') {
+    const nome = (dados.nome ?? '').trim()
+    const email = (dados.email ?? '').trim().toLowerCase()
+    const senha = (dados.senha ?? '').trim()
+
+    if (nome.length < 3) return { erro: 'Digite o nome completo da pessoa.' }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { erro: 'Informe um e-mail válido — é por ele que o admin entra.' }
+    if (senha.length < 6) return { erro: 'A senha precisa ter ao menos 6 caracteres.' }
+
+    const organizacaoId = ehMaster(perfil.papel) ? (dados.organizacaoId ?? '').trim() : perfil.organizacaoId
+    if (!organizacaoId) return { erro: 'Escolha a organização deste admin.' }
+
+    const organizacao = await repo.organizacaoPorId(organizacaoId)
+    if (!organizacao) return { erro: 'Organização não encontrada.' }
+
+    try {
+      const acesso = await repo.criarAdmin({ nome, email, senha, organizacaoId, ativo: dados.ativo })
+      await repo.registrarAuditoria({
+        autorId: pessoaId, autorNome: perfil.nome, acao: 'ALTERACAO_SUPERVISOR',
+        campoAlterado: `Admin da organização ${organizacao.nome}`,
+        valorNovo: `${nome} — ${email} (acesso novo)`, organizacaoId,
+      })
+      return { acesso: paraAcesso(acesso, pessoaId) }
+    } catch (e) {
+      return { erro: e instanceof Error ? e.message : 'Não foi possível criar o admin.' }
+    }
+  }
 
   const nome = (dados.nome ?? '').trim()
   const cpf = (dados.cpf ?? '').replace(/\D/g, '')
   const telefone = (dados.telefone ?? '').replace(/\D/g, '')
-  const funcao = dados.funcao ?? 'supervisor'
 
   if (nome.length < 3) return { erro: 'Digite o nome completo da pessoa.' }
   if (cpf.length !== 11) return { erro: 'O CPF precisa ter 11 dígitos.' }
@@ -166,6 +316,14 @@ export async function criarAcesso(
     ...(funcao === 'supervisor' ? { setorId: dados.setorId } : {}),
     expiraEm: funcao === 'suporte' ? (dados.expiraEm ?? null) : null,
     permissoesUsuario: dados.permissoesUsuario ?? {},
+  })
+
+  const setorDoAcesso = funcao === 'supervisor' ? setores.find(s => s.setorId === dados.setorId)?.nome : undefined
+  await repo.registrarAuditoria({
+    autorId: pessoaId, autorNome: perfil.nome, acao: 'ALTERACAO_SUPERVISOR',
+    campoAlterado: setorDoAcesso ? `Supervisor do setor ${setorDoAcesso}` : `Acesso de ${NOME_DO_PAPEL[funcao]}`,
+    valorNovo: `${nome} — CPF ${formatCpf(cpf)} (acesso novo)`,
+    eventoId: evento.id, organizacaoId: evento.organizacaoId ?? undefined,
   })
 
   return { acesso: paraAcesso(acesso, pessoaId) }

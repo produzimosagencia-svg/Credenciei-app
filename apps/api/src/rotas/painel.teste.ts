@@ -17,6 +17,7 @@ function comSegundaOrganizacao() {
   const eventoDaOutra: Evento = {
     id: 'ev-outra',
     nome: 'Festa da Outra Empresa',
+    descricao: null,
     organizacaoId: 'org-2',
     organizacaoNome: 'Outra Produtora',
     local: 'Outro local',

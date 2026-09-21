@@ -36,6 +36,7 @@ function comSupervisorEOutroSetor() {
     id: 'part-marcia', pessoaId: 'pes-marcia', eventoId: 'ev-hj', equipeId: 'eq-2', equipeNome: 'Bar',
     funcao: 'Garçonete', supervisorNome: null, ativo: true, descredenciadoEm: null,
     valorReceber: null, pago: false, pagoEm: null, qrToken: 'token-da-marcia',
+    cidade: null, criadoEm: '2026-08-20T10:00:00-03:00',
   })
   return { ...c, supervisor }
 }

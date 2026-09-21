@@ -319,6 +319,37 @@ test('o QR muda de etapa junto com o dia', async () => {
   assert.notEqual(a.codigo, b.codigo, 'o crachá da montagem não serve no dia do evento')
 })
 
+test('dentro da janela de entrada, o QR libera', async () => {
+  const c = new ClienteFalso({ agora: () => Date.parse('2026-09-05T10:00:00-03:00') })
+  await c.pedirCodigo('27999255959')
+  await c.entrar('27999255959', '123456')
+  await c.entrarNoEvento(CODIGO_DO_EVENTO, { funcao: 'Auxiliar', uniforme: 'M' })
+
+  const r = await c.meuQr('part-1')
+  assert.equal(r.liberado, true)
+})
+
+test('bem antes da janela, o QR embaça e diz quando abre', async () => {
+  const c = new ClienteFalso({ agora: () => Date.parse('2026-09-05T03:00:00-03:00') })
+  await c.pedirCodigo('27999255959')
+  await c.entrar('27999255959', '123456')
+  await c.entrarNoEvento(CODIGO_DO_EVENTO, { funcao: 'Auxiliar', uniforme: 'M' })
+
+  const r = await c.meuQr('part-1')
+  assert.equal(r.liberado, false)
+  assert.equal(r.liberaEm, new Date('2026-09-05T06:45:00-03:00').toISOString())
+})
+
+test('dia de preparação libera o QR o dia inteiro', async () => {
+  const c = new ClienteFalso({ agora: () => Date.parse('2026-09-03T03:00:00-03:00') })
+  await c.pedirCodigo('27999255959')
+  await c.entrar('27999255959', '123456')
+  await c.entrarNoEvento(CODIGO_DO_EVENTO, { funcao: 'Auxiliar', uniforme: 'M' })
+
+  const r = await c.meuQr('part-1')
+  assert.equal(r.liberado, true)
+})
+
 // ─── Supervisor ─────────────────────────────────────────────────────────────
 
 test('o painel da equipe aponta a pendência atual', async () => {
@@ -1052,6 +1083,39 @@ test('desativar bloqueia o login sem apagar a pessoa', async () => {
   assert.equal((await c.acessos()).itens.find(a => a.id === alvo.id)?.ativo, true)
 })
 
+test('trocar a senha exige 6 caracteres, e não vale para a própria conta', async () => {
+  const c = await noPortao()
+  const eu = (await c.acessos()).itens.find(a => a.souEu)!
+  const outro = (await c.acessos()).itens.find(a => !a.souEu)!
+
+  assert.ok((await c.trocarSenhaDoAcesso(eu.id, 'novaSenha123')).erro)
+  assert.ok((await c.trocarSenhaDoAcesso(outro.id, '123')).erro)
+  assert.equal((await c.trocarSenhaDoAcesso(outro.id, 'novaSenha123')).erro, undefined)
+})
+
+test('excluir acesso só o master — o admin recebe a explicação de "desativar"', async () => {
+  const c = await noPortao()
+  const alvo = (await c.acessos()).itens.find(a => !a.souEu)!
+
+  const r = await c.excluirAcesso(alvo.id)
+  assert.match(r.erro ?? '', /Só o master exclui/)
+  assert.ok((await c.acessos()).itens.some(a => a.id === alvo.id), 'continua na lista')
+})
+
+test('o master exclui de vez — some da lista', async () => {
+  // Um acesso CRIADO neste teste, não um da base — apagar um dos fixtures
+  // compartilhados quebraria qualquer outro teste que rode depois deste.
+  const m = await comoMaster()
+  const criado = await m.criarAcesso({
+    funcao: 'supervisor', nome: 'Descartável Teste', cpf: '32165498700', telefone: '27999990000',
+    eventoId: 'ev-1', setorId: 's-2', ativo: true,
+  })
+  assert.ok(criado.acesso, criado.erro)
+
+  assert.equal((await m.excluirAcesso(criado.acesso!.id)).erro, undefined)
+  assert.ok(!(await m.acessos()).itens.some(a => a.id === criado.acesso!.id))
+})
+
 test('o admin não enxerga o acesso do master', async () => {
   // É a mesma régua do resto do sistema: admin vê a própria organização.
   const c = await noPortao()
@@ -1080,6 +1144,26 @@ test('criar acesso exige nome, CPF e setor', async () => {
   assert.ok((await c.criarAcesso({ ...base, nome: 'La' })).erro)
   assert.ok((await c.criarAcesso({ ...base, cpf: '123' })).erro)
   assert.ok((await c.criarAcesso({ ...base, setorId: '' })).erro)
+})
+
+test('criar acesso de admin entra por e-mail, preso à organização — não a um evento', async () => {
+  const c = await noPortao()
+  const r = await c.criarAcesso({
+    funcao: 'admin', nome: 'Zuleika Wandick', email: 'zuleika@produzimos.com.br', senha: 'segredo123', ativo: true,
+  })
+  assert.ok(r.acesso, r.erro)
+  assert.equal(r.acesso?.papel, 'admin')
+  assert.equal(r.acesso?.identificador, 'zuleika@produzimos.com.br')
+
+  const lista = await c.acessos()
+  assert.ok(lista.itens.some(a => a.id === r.acesso!.id))
+})
+
+test('criar admin exige e-mail válido e senha de 6 caracteres', async () => {
+  const c = await noPortao()
+  const base = { funcao: 'admin' as const, nome: 'Zuleika Wandick', senha: 'segredo123', ativo: true }
+  assert.ok((await c.criarAcesso({ ...base, email: 'nao-e-email' })).erro)
+  assert.ok((await c.criarAcesso({ ...base, email: 'zuleika2@produzimos.com.br', senha: '123' })).erro)
 })
 
 test('o acesso criado nasce supervisor, preso a um setor', async () => {
@@ -1202,23 +1286,23 @@ test('o supervisor não abre a configuração do evento', async () => {
   await assert.rejects(() => c.evento('ev-1'), /permissão/i)
 })
 
-test('a configuração traz os quatro números e os setores', async () => {
+test('a configuração traz os cinco números e os setores', async () => {
   const c = await noPortao()
   const e = await c.evento('ev-1')
 
   assert.deepEqual(
     e.indicadores.map(i => i.chave),
-    ['setores', 'funcionarios', 'presentes', 'nao_chegaram'],
+    ['funcionarios_do_evento', 'presentes_no_momento', 'entradas_hoje', 'batida_do_meio_hoje', 'saidas_hoje'],
   )
   assert.ok(e.setores.length > 0)
   assert.equal(
-    e.indicadores.find(i => i.chave === 'funcionarios')!.valor,
+    e.indicadores.find(i => i.chave === 'funcionarios_do_evento')!.valor,
     e.setores.reduce((a, s) => a + s.pessoas, 0),
     'o total tem que sair da soma dos setores, e não de outra conta',
   )
 })
 
-test('o progresso conta PESSOAS, não batidas', async () => {
+test('"entradas hoje" conta PESSOAS, não batidas', async () => {
   /*
    * Quem lê o crachá duas vezes seguidas continua sendo uma pessoa que
    * entrou — a segunda leitura é recusada pela carência, nunca vira uma
@@ -1231,7 +1315,7 @@ test('o progresso conta PESSOAS, não batidas', async () => {
   await c.registrarPorQr('ev-1', cracha.codigo)
 
   const e = await c.evento('ev-1')
-  assert.equal(e.progresso.find(p => p.etapa === 'entrada')!.feitos, 1)
+  assert.equal(e.indicadores.find(i => i.chave === 'entradas_hoje')!.valor, `1/${e.totalPessoas}`)
 })
 
 test('cada setor traz o próprio link de cadastro, e eles são diferentes', async () => {
@@ -1306,7 +1390,7 @@ test('setor novo nasce vazio de equipe, mas já com o supervisor', async () => {
    */
   const c = await noPortao()
   const r = await c.criarSetor('ev-1', {
-    nome: 'Segurança', estimado: 30, valorPorPessoa: 200, supervisor: SUPERVISOR_DE_TESTE,
+    nome: 'Segurança', valorPorPessoa: 200, supervisor: SUPERVISOR_DE_TESTE,
   })
 
   assert.ok(r.setor, r.erro)
@@ -1481,7 +1565,10 @@ test('dia com batida é PRESERVADO mesmo vindo desmarcado', async () => {
   // Manda uma lista SEM ele.
   const r = await c.salvarDiasDeTrabalho('ev-1', [])
   assert.equal(r.resultado?.preservados, 1)
-  assert.equal(r.resultado?.dias, 1)
+  // "dias" é só o que foi PEDIDO (nada, a lista veio vazia) — o preservado
+  // conta só em "preservados", senão a mesma data apareceria duas vezes na
+  // mensagem da tela.
+  assert.equal(r.resultado?.dias, 0)
 
   const depois = await c.configuracaoDoEvento('ev-1')
   assert.ok(depois.dias.some(d => d.data === travado.data))
@@ -1699,6 +1786,143 @@ test('pessoa que não existe responde igual em todas as ações', async () => {
   await assert.rejects(() => c.fichaDaPessoa('nao-existe'))
   assert.ok((await c.moverDeSetor('nao-existe', 's-2')).erro)
   assert.ok((await c.marcarPagamento('nao-existe', true)).erro)
+})
+
+// ─── Tirar da equipe / trazer de volta / excluir de vez ─────────────────────
+
+test('tirar da equipe some da lista, mas trazer de volta devolve — sem apagar nada', async () => {
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+
+  assert.equal((await c.tirarDaEquipe(p.participacaoId)).erro, undefined)
+  assert.ok((await c.fichaDaPessoa(p.participacaoId)).descredenciadoEm)
+
+  assert.equal((await c.trazerDeVolta(p.participacaoId)).erro, undefined)
+  assert.equal((await c.fichaDaPessoa(p.participacaoId)).descredenciadoEm, null)
+})
+
+test('supervisor tira e traz de volta a própria equipe', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const p = await alguemDaEquipe(c)
+
+  assert.equal((await c.tirarDaEquipe(p.participacaoId)).erro, undefined)
+  assert.equal((await c.trazerDeVolta(p.participacaoId)).erro, undefined)
+})
+
+test('excluir de vez tira a pessoa da equipe, e volta a diferença de "tirar"', async () => {
+  // Excluir some da lista igual a "tirar", mas não tem volta: não existe
+  // "trazer de volta" depois de um excluído — a ficha nem abre mais.
+  const c = await noPortao()
+  const antes = await c.equipeDoSetor('s-1')
+  const p = await alguemDaEquipe(c)
+
+  assert.equal((await c.excluirDaEquipe(p.participacaoId, 'CPF duplicado')).erro, undefined)
+
+  const depois = await c.equipeDoSetor('s-1')
+  assert.equal(depois.pessoas.length, antes.pessoas.length - 1)
+  await assert.rejects(() => c.fichaDaPessoa(p.participacaoId))
+})
+
+test('quem não pode excluir é orientado a tirar da equipe, que preserva o histórico', async () => {
+  const c = new ClienteFalso({
+    sessaoInicial: {
+      token: 'tok-op', expiraEm: new Date(Date.now() + 999_999).toISOString(),
+      renovacao: 'ren-op', papel: 'operador_portao',
+    },
+  })
+  const p = await alguemDaEquipe(c)
+  const r = await c.excluirDaEquipe(p.participacaoId)
+  assert.match(r.erro ?? '', /Tirar da equipe/)
+})
+
+test('a ficha do supervisor mostra o botão de excluir — mesma régua do site', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const p = await alguemDaEquipe(c)
+  const ficha = await c.fichaDaPessoa(p.participacaoId)
+  assert.equal(ficha.podeExcluirDaEquipe, true)
+})
+
+// ─── Corrigir telefone ──────────────────────────────────────────────────────
+
+test('corrige o telefone, e ele volta atualizado na ficha', async () => {
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+  assert.equal((await c.corrigirTelefone(p.participacaoId, '(27) 98888-7766')).erro, undefined)
+  assert.equal((await c.fichaDaPessoa(p.participacaoId)).telefone, '27988887766')
+})
+
+test('telefone inválido é recusado', async () => {
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+  assert.ok((await c.corrigirTelefone(p.participacaoId, '123')).erro)
+})
+
+test('supervisor corrige o telefone da própria equipe', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const p = await alguemDaEquipe(c)
+  assert.equal((await c.corrigirTelefone(p.participacaoId, '27977776655')).erro, undefined)
+})
+
+test('a ficha do supervisor mostra o botão de corrigir telefone — mesma régua de mexer na equipe', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const p = await alguemDaEquipe(c)
+  assert.equal((await c.fichaDaPessoa(p.participacaoId)).podeCorrigirTelefone, true)
+})
+
+// ─── Contestar batida ───────────────────────────────────────────────────────
+
+test('o colaborador contesta a própria batida, com motivo', async () => {
+  const c = await comParticipacao()
+  const r = await c.contestarBatida('part-1', 'meio', '2026-09-05', 'a foto não subiu')
+  assert.deepEqual(r, {})
+})
+
+test('motivo em branco é recusado', async () => {
+  const c = await comParticipacao()
+  const r = await c.contestarBatida('part-1', 'entrada', '2026-09-05', '   ')
+  assert.match(r.erro ?? '', /Escreva o que está errado/)
+})
+
+test('colaborador não contesta a batida de outra participação', async () => {
+  const c = await comParticipacao()
+  await assert.rejects(
+    c.contestarBatida('part-de-outra-pessoa', 'entrada', '2026-09-05', 'não foi minha'),
+    /acesso a esta participação/,
+  )
+})
+
+test('quem pode mexer na equipe resolve a contestação', async () => {
+  const c = await comParticipacao()
+  await c.contestarBatida('part-1', 'meio', '2026-09-05', 'não gravou')
+
+  // Mesmo aparelho, trocando de sessão pra a de quem resolve — a
+  // contestação (como a participação) é estado do cliente, não da sessão.
+  await entrarComo(c, 'admin')
+  const r = await c.resolverContestacao('cont-part-1-0')
+  assert.deepEqual(r, {})
+})
+
+test('contestação inexistente é recusada', async () => {
+  const admin = await noPortao()
+  const r = await admin.resolverContestacao('cont-inexistente')
+  assert.match(r.erro ?? '', /Não encontramos esta contestação/)
+})
+
+test('suporte e operador de portão não resolvem contestação', async () => {
+  for (const papel of ['suporte', 'operador_portao'] as const) {
+    const c = new ClienteFalso({
+      sessaoInicial: {
+        token: `tok-${papel}`, expiraEm: new Date(Date.now() + 999_999).toISOString(),
+        renovacao: `ren-${papel}`, papel,
+      },
+    })
+    const r = await c.resolverContestacao('cont-qualquer')
+    assert.match(r.erro ?? '', /permissão/, papel)
+  }
 })
 
 // ─── Plataforma ─────────────────────────────────────────────────────────────
@@ -1990,9 +2214,9 @@ test('só o master vê a ficha da pessoa, ou atribui alguém a um evento', async
   await assert.rejects(() => admin.atribuirPessoaAoEvento('76431520891', 's-1'), /permissão/i)
 })
 
-test('atribuir coloca a pessoa no setor — bloqueada se o setor bateu o teto', async () => {
+test('atribuir coloca a pessoa no setor, sempre ativa — não há mais teto de vaga', async () => {
   // Wesley: só 1 dos 2 eventos sintéticos cai em ev-1/ev-2, então ev-3 (setor
-  // s-8, Produção, 2 de 2 — no teto) está livre para atribuir.
+  // s-8) está livre para atribuir.
   const c = await comoMaster()
   const antes = await c.fichaDaPessoaNaBase('30561847210')
   assert.ok(!antes.jaNosEventos.includes('ev-3'))
@@ -2000,7 +2224,7 @@ test('atribuir coloca a pessoa no setor — bloqueada se o setor bateu o teto', 
   const r = await c.atribuirPessoaAoEvento('30561847210', 's-8')
   assert.ok(!r.erro, r.erro)
   assert.equal(r.resultado?.evento, 'Fantastico Mundo do Lukao')
-  assert.equal(r.resultado?.ativo, false, 'o setor já estava no teto')
+  assert.equal(r.resultado?.ativo, true)
   assert.equal(r.resultado?.semTelefone, true, 'Wesley não tem telefone cadastrado')
 
   const depois = await c.fichaDaPessoaNaBase('30561847210')
@@ -2798,4 +3022,73 @@ test('revogar desativa e expira na hora — diferente de excluir, o histórico f
   const revogado = depois.suportes.find(s => s.id === alvo.id)!
   assert.equal(revogado.ativo, false)
   assert.equal(revogado.expirado, true)
+})
+
+// ─── Push ───────────────────────────────────────────────────────────────────
+
+test('registra o token de push de qualquer papel logado, sem exigir permissão nenhuma', async () => {
+  const c = await noPortao()
+  assert.deepEqual(await c.registrarTokenDePush('ExponentPushToken[abc]', 'ios'), {})
+})
+
+test('sem sessão, nem o próprio aparelho registra', async () => {
+  const c = new ClienteFalso()
+  await assert.rejects(() => c.registrarTokenDePush('tok', 'android'), /Sessão/)
+})
+
+// ─── Permissões (as 3 camadas de "Funções ligadas") ─────────────────────────
+
+test('minhasPermissoes vem vazio pra quem nunca teve override nenhum', async () => {
+  const c = await comoMaster()
+  const r = await c.minhasPermissoes()
+  assert.deepEqual(r, { permissoesUsuario: {}, permissoesOrganizacao: {} })
+})
+
+test('só o master abre Configurações', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'admin')
+  await assert.rejects(() => c.permissoesDaOrganizacao(null), /master/)
+  const r = await c.salvarPermissaoDaOrganizacao('org-1', 'supervisor', 'escanear', true)
+  assert.match(r.erro ?? '', /master/)
+})
+
+test('liga uma exceção pra org-1, aparece na leitura e reflete em minhasPermissoes de quem é daquela organização', async () => {
+  const master = await comoMaster()
+  const r1 = await master.salvarPermissaoDaOrganizacao('org-1', 'supervisor', 'escanear', true)
+  assert.equal(r1.erro, undefined)
+
+  const lidas = await master.permissoesDaOrganizacao('org-1')
+  assert.deepEqual(lidas.salvas, [{ organizacaoId: 'org-1', papel: 'supervisor', chave: 'escanear', permitido: true }])
+  assert.ok(lidas.organizacoes.some(o => o.nome === 'Produzimos'))
+
+  // volta ao padrão do código — a linha some
+  await master.salvarPermissaoDaOrganizacao('org-1', 'supervisor', 'escanear', null)
+  const depois = await master.permissoesDaOrganizacao('org-1')
+  assert.deepEqual(depois.salvas, [])
+})
+
+test('papel fora do catálogo configurável, ou chave inventada, é recusado', async () => {
+  const c = await comoMaster()
+  const r1 = await c.salvarPermissaoDaOrganizacao('org-1', 'master' as never, 'escanear', true)
+  assert.match(r1.erro ?? '', /não é configurável/)
+  const r2 = await c.salvarPermissaoDaOrganizacao('org-1', 'supervisor', 'chave-inventada', true)
+  assert.match(r2.erro ?? '', /desconhecida/)
+})
+
+test('a trilha nasce com demonstração, e ganha uma linha nova quando uma ação auditada acontece', async () => {
+  const c = await comoMaster()
+  const antes = (await c.auditoria()).length
+
+  await c.salvarPermissaoDaOrganizacao('org-1', 'supervisor', 'escanear', true)
+
+  const depois = await c.auditoria()
+  assert.equal(depois.length, antes + 1)
+  assert.equal(depois[0]?.acao, 'ALTERACAO_PERMISSAO')
+  assert.equal(depois[0]?.autorNome, 'Juan Muzy')
+})
+
+test('só quem gerencia usuários ou é suporte vê a trilha', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  await assert.rejects(() => c.auditoria(), /permissão/)
 })

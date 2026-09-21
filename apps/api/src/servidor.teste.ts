@@ -5,11 +5,12 @@
  * que traduz: token exigido onde precisa, código de status certo, e nenhum id
  * de pessoa aceito de fora.
  */
-import { test, beforeEach } from 'node:test'
+import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from './dados/memoria.js'
 import { SessoesEmMemoria } from './sessoes.js'
-import { esquecerLimites } from './limite.js'
+import { LimiteEmMemoria } from './limite.js'
+import { ArquivosEmMemoria } from './arquivos.js'
 import { criarServidor, type Ambiente } from './servidor.js'
 import type { CodigoPendente, GuardaDeCodigos } from './rotas/sessao.js'
 
@@ -28,15 +29,20 @@ function montar() {
   }
 
   let n = 0
+  const limite = new LimiteEmMemoria()
   const amb: Ambiente = {
     repo,
     sessoes: new SessoesEmMemoria({ novoToken: () => `tk-${++n}` }),
-    sessao: { repo, codigos, enviar: async () => {}, sortear: () => '123456' },
+    sessao: { repo, codigos, enviar: async () => {}, sortear: () => '123456', limite },
+    limite,
     campos: async () => [
       { chave: 'funcao', rotulo: 'Sua função', tipo: 'texto', obrigatorio: true },
     ],
     segredoQr: 'segredo-de-teste',
+    chavePublicaQrEd25519: null,
     novoToken: () => `qr-${++n}`,
+    arquivos: new ArquivosEmMemoria('http://api.local'),
+    siteUrl: 'http://site.local',
   }
 
   return { app: criarServidor(amb), repo, evento }
@@ -57,8 +63,6 @@ async function autenticado(app: ReturnType<typeof criarServidor>, telefone = '27
   const { sessao } = await r.json() as { sessao: { token: string } }
   return { Authorization: `Bearer ${sessao.token}` }
 }
-
-beforeEach(() => esquecerLimites())
 
 // ─── Saúde ──────────────────────────────────────────────────────────────────
 

@@ -19,7 +19,7 @@
 // para junto com os avisos. É um ponto único de falha conhecido.
 
 import type { Papel } from '@credenciei/dominio'
-import { podePassar } from '../limite.js'
+import type { LimiteDeTentativas } from '../limite.js'
 import { identificadorParaEmail } from '../identificador.js'
 import type { Repositorio } from '../dados/repositorio.js'
 
@@ -73,6 +73,7 @@ export type Dependencias = {
   repo: Repositorio
   codigos: GuardaDeCodigos
   enviar: EnviarPorWhatsapp
+  limite: LimiteDeTentativas
   /**
    * Opcional porque nem todo ambiente de teste precisa dele — só quem chama
    * `entrarComSenha` exige que esteja configurado.
@@ -102,7 +103,7 @@ export async function pedirCodigo(
    * número de outra pessoa e enche o WhatsApp dela — e ainda gasta o envio,
    * que é pago.
    */
-  if (!podePassar(`codigo:${telefone}`, 3, 10 * 60_000, agora())) {
+  if (!(await dep.limite.podePassar(`codigo:${telefone}`, 3, 10 * 60_000, agora()))) {
     return { enviado: false, erro: 'Você já pediu o código algumas vezes. Espere alguns minutos e tente de novo.' }
   }
 
@@ -224,7 +225,7 @@ export async function entrarComSenha(
    * tentativa. O identificador é o que o atacante não pode variar sem também
    * variar a conta que está tentando invadir.
    */
-  if (!podePassar(`senha:${identificador.toLowerCase()}`, 5, 10 * 60_000, agora())) {
+  if (!(await dep.limite.podePassar(`senha:${identificador.toLowerCase()}`, 5, 10 * 60_000, agora()))) {
     return { ok: false, erro: 'Muitas tentativas. Espere alguns minutos e tente de novo.' }
   }
 

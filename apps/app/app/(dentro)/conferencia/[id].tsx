@@ -12,7 +12,7 @@
 
 import { useMemo, useState } from 'react'
 import { useLocalSearchParams } from 'expo-router'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, Share, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatarBR } from '@credenciei/dominio'
 import { usePedido, mensagemDoErro } from '../../../src/dados/pedido'
 import { useSessao } from '../../../src/sessao/contexto'
@@ -34,6 +34,19 @@ export default function ConferenciaDeEquipe() {
   const [erro, setErro] = useState<string | null>(null)
   const [confirmandoFinal, setConfirmandoFinal] = useState(false)
   const [ocupado, setOcupado] = useState(false)
+  const [baixando, setBaixando] = useState(false)
+
+  async function baixarPlanilha() {
+    setBaixando(true)
+    try {
+      const arquivo = await cliente.planilhaDaConferencia(String(id))
+      await Share.share({ message: `${arquivo.nome}\n${arquivo.url}`, url: arquivo.url })
+    } catch (e) {
+      setErro(mensagemDoErro(e))
+    } finally {
+      setBaixando(false)
+    }
+  }
 
   const { pedido, recarregar } = usePedido(
     () => cliente.conferenciaDoSetor(String(id)),
@@ -115,10 +128,20 @@ export default function ConferenciaDeEquipe() {
 
               <Cartao semPadding>
                 <View style={e.cabecalhoLista}>
-                  <Icone nome="Users" tamanho={14} tom={uso.tintaFraca} />
-                  <Text style={e.cabecalhoTexto}>
-                    {dados.equipe.length} {dados.equipe.length === 1 ? 'pessoa' : 'pessoas'} na equipe
-                  </Text>
+                  <View style={e.cabecalhoTitulo}>
+                    <Icone nome="Users" tamanho={14} tom={uso.tintaFraca} />
+                    <Text style={e.cabecalhoTexto}>
+                      {dados.equipe.length} {dados.equipe.length === 1 ? 'pessoa' : 'pessoas'} na equipe
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={baixarPlanilha}
+                    disabled={baixando}
+                    style={({ pressed }) => [e.baixar, pressed && e.baixarTocado, baixando && e.baixarDesabilitado]}
+                  >
+                    <Icone nome="FileDown" tamanho={13} tom={uso.tintaMedia} />
+                    <Text style={e.baixarTexto}>Baixar planilha</Text>
+                  </Pressable>
                 </View>
 
                 {dados.equipe.length === 0 ? (
@@ -211,15 +234,32 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
     cabecalhoLista: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      justifyContent: 'space-between',
+      gap: espaco.s,
       paddingHorizontal: espaco.g,
       paddingVertical: espaco.m,
       borderBottomWidth: 1,
       borderBottomColor: uso.borda,
       backgroundColor: cor.neutro50,
     },
+    cabecalhoTitulo: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 0 },
     cabecalhoTexto: { ...texto.xs, fontFamily: tipo.semi, color: uso.tintaMedia },
     vazio: { paddingVertical: espaco.g, alignItems: 'center' },
+
+    baixar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      minHeight: 32,
+      paddingHorizontal: espaco.s,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: uso.borda,
+      backgroundColor: uso.superficie,
+    },
+    baixarTocado: { backgroundColor: cor.neutro100 },
+    baixarDesabilitado: { opacity: 0.5 },
+    baixarTexto: { ...texto.xxs, fontFamily: tipo.semi, color: uso.tintaMedia },
 
     fio: { height: 1, backgroundColor: uso.borda },
     linha: {
