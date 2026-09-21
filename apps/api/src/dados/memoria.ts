@@ -451,6 +451,12 @@ export class RepositorioEmMemoria implements Repositorio {
     if (pessoa) pessoa.telefone = telefone
   }
 
+  async alternarAtivacaoDaParticipacao(participacaoId: string, ativo: boolean): Promise<void> {
+    const p = this.participacoes.find(x => x.id === participacaoId)
+    if (!p) throw new Error('Não encontramos esta pessoa.')
+    p.ativo = ativo
+  }
+
   async excluirParticipacaoDeVez(participacaoId: string): Promise<void> {
     this.participacoes = this.participacoes.filter(p => p.id !== participacaoId)
     this.registros = this.registros.filter(r => r.participacaoId !== participacaoId)

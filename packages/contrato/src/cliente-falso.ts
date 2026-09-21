@@ -1007,6 +1007,8 @@ export class ClienteFalso implements ClienteApi {
   private excluidosDeVez = new Set<string>()
   /** Telefone corrigido nesta sessão — ausente usa o de mentira original. */
   private telefones = new Map<string, string>()
+  /** participacaoId → ativação mudada nesta sessão. Ausente usa a de mentira original. */
+  private ativacoes = new Map<string, boolean>()
   /** participacaoId → contestações desta sessão, mais recente primeiro. */
   private contestacoes = new Map<string, {
     id: string; tipo: TipoBatida; dataRef: string; motivo: string; criadoEm: string; resolvida: boolean
@@ -2747,6 +2749,7 @@ export class ClienteFalso implements ClienteApi {
     const evento = EVENTOS_DO_PAINEL.find(e => e.eventoId === achado.eventoId)!
     const pessoas = equipeDoSetorDeMentira(setorId, achado.setor.pessoas).map(p => ({
       ...p,
+      ativo: this.ativacoes.get(p.participacaoId) ?? p.ativo,
       valorReceber: achado.setor.valorPorPessoa ?? 0,
       temContestacaoAberta: (this.contestacoes.get(p.participacaoId) ?? []).some(c => !c.resolvida),
     }))
@@ -2828,7 +2831,7 @@ export class ClienteFalso implements ClienteApi {
       eventoNome: evento.nome,
       setorId: setor.setorId,
       setorNome: setor.nome,
-      ativo: pessoa.ativo,
+      ativo: this.ativacoes.get(participacaoId) ?? pessoa.ativo,
       descredenciadoEm: this.descredenciados.get(participacaoId) ?? null,
       valorReceber: this.valores.get(participacaoId) ?? pessoa.valorReceber,
       pago: this.pagamentos.has(participacaoId),
@@ -2843,6 +2846,7 @@ export class ClienteFalso implements ClienteApi {
       podeTornarSupervisor: podeGerenciarUsuarios(this.sessao?.papel),
       podeExcluirDaEquipe: podeExcluirDaEquipe(this.sessao?.papel),
       podeCorrigirTelefone: this.podeMexerNaEquipe(this.sessao?.papel),
+      podeAtivarDesativar: this.podeMexerNaEquipe(this.sessao?.papel),
       contestacoesAbertas: (this.contestacoes.get(participacaoId) ?? [])
         .filter(c => !c.resolvida)
         .map(({ id, tipo, dataRef, motivo, criadoEm }) => ({ id, tipo, dataRef, motivo, criadoEm })),
@@ -2902,6 +2906,16 @@ export class ClienteFalso implements ClienteApi {
       return { erro: 'Telefone inválido. Informe com DDD — ex.: (27) 99999-9999.' }
     }
     this.telefones.set(participacaoId, novo)
+    return {}
+  }
+
+  async alternarAtivacao(participacaoId: string, ativo: boolean): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(this.podeMexerNaEquipe, 'mexer na equipe')
+
+    if (!this.acharNoSetor(participacaoId)) return { erro: 'Não encontramos esta pessoa.' }
+    this.ativacoes.set(participacaoId, ativo)
     return {}
   }
 

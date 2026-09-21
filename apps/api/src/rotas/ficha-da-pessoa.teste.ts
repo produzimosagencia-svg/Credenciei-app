@@ -8,8 +8,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import {
-  corrigirTelefone, excluirDaEquipe, fichaDaPessoa, marcarPagamento, moverDeSetor, resolverContestacao,
-  salvarValorAReceber, tirarDaEquipe, tornarSupervisor, trazerDeVolta,
+  alternarAtivacao, corrigirTelefone, excluirDaEquipe, fichaDaPessoa, marcarPagamento, moverDeSetor,
+  resolverContestacao, salvarValorAReceber, tirarDaEquipe, tornarSupervisor, trazerDeVolta,
 } from './ficha-da-pessoa.js'
 
 // ─── Leitura da ficha ───────────────────────────────────────────────────────
@@ -246,6 +246,48 @@ test('operador de portão não tira nem traz ninguém de volta', async () => {
   repo.perfis.push({ id: 'auth-portao', nome: 'Rui', papel: 'operador_portao', organizacaoId: 'org-1', ativo: true })
   assert.match((await tirarDaEquipe(repo, 'auth-portao', participacao.id)).erro ?? '', /permissão/)
   assert.match((await trazerDeVolta(repo, 'auth-portao', participacao.id)).erro ?? '', /permissão/)
+})
+
+// ─── Ativar/desativar (sem tirar da equipe) ────────────────────────────────
+//
+// Achado comparando com o site (21/09/2026, `alternarAtivacao`): diferente
+// de tirar da equipe, a pessoa continua no setor — só pára de contar no
+// fechamento e de receber lembrete de WhatsApp.
+
+test('admin desativa e reativa, sem tirar da equipe', async () => {
+  const { repo, admin, participacao } = cenarioHenriqueEJuliano()
+  assert.equal(participacao.ativo, true)
+
+  assert.deepEqual(await alternarAtivacao(repo, admin.id, participacao.id, false), {})
+  assert.equal((await repo.participacaoPorId(participacao.id))?.ativo, false)
+  assert.equal((await repo.participacaoPorId(participacao.id))?.descredenciadoEm, null, 'não é a mesma coisa que tirar da equipe')
+
+  assert.deepEqual(await alternarAtivacao(repo, admin.id, participacao.id, true), {})
+  assert.equal((await repo.participacaoPorId(participacao.id))?.ativo, true)
+})
+
+test('desativar grava auditoria com o de→para', async () => {
+  const { repo, admin, participacao } = cenarioHenriqueEJuliano()
+  await alternarAtivacao(repo, admin.id, participacao.id, false)
+
+  const trilha = await repo.auditoria({ organizacaoId: 'org-1' })
+  const linha = trilha.find(l => l.acao === 'DESATIVACAO_FUNCIONARIO')
+  assert.ok(linha)
+  assert.equal(linha!.valorAnterior, 'Ativo')
+  assert.equal(linha!.valorNovo, 'Inativo')
+})
+
+test('supervisor ativa/desativa a própria equipe; suporte e operador de portão não', async () => {
+  const { repo, participacao } = cenarioHenriqueEJuliano()
+  repo.perfis.push({ id: 'auth-sup', nome: 'Carlos', papel: 'supervisor', organizacaoId: 'org-1', ativo: true })
+  repo.equipes[0]!.supervisorPessoaId = 'auth-sup'
+  assert.deepEqual(await alternarAtivacao(repo, 'auth-sup', participacao.id, false), {})
+
+  repo.perfis.push({ id: 'auth-suporte', nome: 'Duda', papel: 'suporte', organizacaoId: 'org-1', ativo: true })
+  repo.perfis.push({ id: 'auth-portao', nome: 'Rui', papel: 'operador_portao', organizacaoId: 'org-1', ativo: true })
+  for (const id of ['auth-suporte', 'auth-portao']) {
+    assert.match((await alternarAtivacao(repo, id, participacao.id, true)).erro ?? '', /permissão/, id)
+  }
 })
 
 // ─── Excluir de vez ─────────────────────────────────────────────────────────

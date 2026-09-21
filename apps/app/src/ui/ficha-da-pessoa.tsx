@@ -384,6 +384,25 @@ function AbaDeDados({
       ) : null}
 
       {/*
+        Ativar/desativar SEM tirar da equipe — achado comparando com o
+        site (21/09/2026): a pessoa continua na lista e no setor, só pára
+        de receber lembrete de WhatsApp e sai da conta do fechamento.
+        Diferente de "Tirar da equipe" (abaixo), que é outra ação, com
+        outro efeito.
+      */}
+      {ficha.podeAtivarDesativar ? (
+        <>
+          <Respiro altura={espaco.s} />
+          <Botao
+            titulo={ficha.ativo ? 'Desativar (sem tirar da equipe)' : 'Ativar de novo'}
+            tipo="fantasma"
+            ocupado={ocupado}
+            onPress={() => agir(() => cliente.alternarAtivacao(ficha.participacaoId, !ficha.ativo))}
+          />
+        </>
+      ) : null}
+
+      {/*
         Mover para outro setor — só quem enxerga o evento inteiro. Existe para
         o admin resolver cadastro no setor errado sozinho, sem precisar mexer
         no banco.

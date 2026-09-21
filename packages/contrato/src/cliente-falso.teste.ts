@@ -1893,6 +1893,39 @@ test('a ficha do supervisor mostra o botão de corrigir telefone — mesma régu
   assert.equal((await c.fichaDaPessoa(p.participacaoId)).podeCorrigirTelefone, true)
 })
 
+// ─── Ativar/desativar (sem tirar da equipe) ────────────────────────────────
+
+test('desativa e reativa, sem sair da equipe do setor', async () => {
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+  assert.equal((await c.alternarAtivacao(p.participacaoId, false)).erro, undefined)
+
+  const equipe = await c.equipeDoSetor('s-1')
+  assert.equal(equipe.pessoas.find(x => x.participacaoId === p.participacaoId)?.ativo, false)
+  assert.ok(equipe.pessoas.some(x => x.participacaoId === p.participacaoId), 'continua na equipe do setor')
+
+  assert.equal((await c.alternarAtivacao(p.participacaoId, true)).erro, undefined)
+  assert.equal((await c.fichaDaPessoa(p.participacaoId)).ativo, true)
+})
+
+test('quem não pode mexer na equipe não ativa/desativa', async () => {
+  const c = new ClienteFalso({
+    sessaoInicial: {
+      token: 'tok-op', expiraEm: new Date(Date.now() + 999_999).toISOString(),
+      renovacao: 'ren-op', papel: 'operador_portao',
+    },
+  })
+  const p = await alguemDaEquipe(c)
+  await assert.rejects(c.alternarAtivacao(p.participacaoId, false), /permissão/)
+})
+
+test('a ficha do supervisor mostra o botão de ativar/desativar — mesma régua de mexer na equipe', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'supervisor')
+  const p = await alguemDaEquipe(c)
+  assert.equal((await c.fichaDaPessoa(p.participacaoId)).podeAtivarDesativar, true)
+})
+
 // ─── Contestar batida ───────────────────────────────────────────────────────
 
 test('o colaborador contesta a própria batida, com motivo', async () => {

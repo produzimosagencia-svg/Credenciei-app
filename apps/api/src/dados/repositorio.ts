@@ -429,6 +429,17 @@ export interface Repositorio {
    */
   corrigirTelefoneDaParticipacao(participacaoId: string, telefone: string): Promise<void>
   /**
+   * Ativa ou desativa, SEM tirar da equipe — cópia de `alternarAtivacao`
+   * no site, achada ao comparar a ficha da pessoa (21/09/2026). Diferente
+   * de `descredenciarParticipacao` ("tirar da equipe", que remove do
+   * fechamento e da equipe visível): aqui a pessoa continua na lista, só
+   * marcada como inativa — pára lembrete de WhatsApp e sai da conta do
+   * fechamento, mas sem perder o vínculo. É o estado que já existe desde
+   * o cadastro (`Participacao.ativo`, hoje só lido, nunca escrito por
+   * este app) — só faltava o jeito de mudar.
+   */
+  alternarAtivacaoDaParticipacao(participacaoId: string, ativo: boolean): Promise<void>
+  /**
    * Apaga de vez — cadastro e batidas, sem volta. Diferente de
    * `descredenciarParticipacao` ("tirar da equipe"), que é reversível.
    */

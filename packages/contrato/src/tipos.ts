@@ -1002,6 +1002,13 @@ export type FichaDaPessoa = {
    * `suporte_escopo` modelado, não dá pra checar o tamanho da porta).
    */
   podeCorrigirTelefone: boolean
+  /**
+   * Ativar/desativar sem tirar da equipe — cópia de `alternarAtivacao` no
+   * site, achada comparando a ficha da pessoa (21/09/2026). Mesma régua
+   * de `podeCorrigirTelefone`, pelo mesmo motivo (suporte fora, sem
+   * `suporte_escopo` modelado).
+   */
+  podeAtivarDesativar: boolean
 
   /**
    * O que a própria pessoa contestou (batida errada ou que faltou) e

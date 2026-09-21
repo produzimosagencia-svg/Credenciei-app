@@ -727,6 +727,15 @@ export class ClienteHttp implements ClienteApi {
     return r.corpo as unknown as { erro?: string }
   }
 
+  async alternarAtivacao(participacaoId: string, ativo: boolean): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/ativacao`, {
+      metodo: 'POST',
+      corpo: { ativo },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, `Não conseguimos ${ativo ? 'ativar' : 'desativar'} esta pessoa.`) }
+    return r.corpo as unknown as { erro?: string }
+  }
+
   async resolverContestacao(id: string): Promise<{ erro?: string }> {
     const r = await this.pedir(`/v1/contestacoes/${encodeURIComponent(id)}/resolver`, { metodo: 'POST' })
     if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos resolver esta contestação.') }

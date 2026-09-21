@@ -596,10 +596,18 @@ test('as mutações da ficha (mover, pagamento, valor, tirar/trazer, excluir) v�
   assert.equal(telefone.erro, undefined, telefone.erro)
   assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).telefone, '27988887766')
 
+  const desativou = await m.cliente.alternarAtivacao(participacaoId, false)
+  assert.equal(desativou.erro, undefined, desativou.erro)
+  assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).ativo, false)
+  const reativou = await m.cliente.alternarAtivacao(participacaoId, true)
+  assert.equal(reativou.erro, undefined, reativou.erro)
+  assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).ativo, true)
+
   const trilha = await m.cliente.auditoria()
   assert.ok(trilha.some(l => l.acao === 'ALTERACAO_SETOR'))
   assert.ok(trilha.some(l => l.acao === 'DESCREDENCIAMENTO'))
   assert.ok(trilha.some(l => l.acao === 'ALTERACAO_TELEFONE'))
+  assert.ok(trilha.some(l => l.acao === 'ATIVACAO_FUNCIONARIO'))
 
   const excluiu = await m.cliente.excluirDaEquipe(participacaoId, 'teste de ponta a ponta')
   assert.equal(excluiu.erro, undefined, excluiu.erro)

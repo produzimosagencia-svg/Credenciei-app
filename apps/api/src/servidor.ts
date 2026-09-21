@@ -51,8 +51,8 @@ import {
 } from './rotas/configurar-evento.js'
 import { baixarModelo, equipeDoSetor, exportarEquipe, importarPlanilha } from './rotas/setor.js'
 import {
-  corrigirTelefone, excluirDaEquipe, fichaDaPessoa, marcarPagamento, moverDeSetor, resolverContestacao, salvarValorAReceber,
-  tirarDaEquipe, tornarSupervisor, trazerDeVolta,
+  alternarAtivacao, corrigirTelefone, excluirDaEquipe, fichaDaPessoa, marcarPagamento, moverDeSetor,
+  resolverContestacao, salvarValorAReceber, tirarDaEquipe, tornarSupervisor, trazerDeVolta,
 } from './rotas/ficha-da-pessoa.js'
 import {
   conferenciaDoSetor, conferenciasDoEvento, confirmarConferencia, planilhaDaConferencia, removerDaConferencia,
@@ -501,6 +501,11 @@ export function criarServidor(amb: Ambiente) {
 
   app.post('/v1/pessoas/:id/trazer-de-volta', async c =>
     protegido(c, () => trazerDeVolta(amb.repo, c.get('pessoaId'), c.req.param('id'))))
+
+  app.post('/v1/pessoas/:id/ativacao', async c => {
+    const { ativo } = await c.req.json<{ ativo?: boolean }>()
+    return protegido(c, () => alternarAtivacao(amb.repo, c.get('pessoaId'), c.req.param('id'), ativo === true))
+  })
 
   app.post('/v1/pessoas/:id/excluir', async c => {
     const { motivo } = await c.req.json<{ motivo?: string }>().catch(() => ({ motivo: undefined }))

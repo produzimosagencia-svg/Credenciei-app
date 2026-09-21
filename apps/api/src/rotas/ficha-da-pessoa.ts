@@ -98,6 +98,7 @@ export async function fichaDaPessoa(
     podeTornarSupervisor: podeGerenciarUsuarios(perfil.papel),
     podeExcluirDaEquipe: podeExcluirDaEquipe(perfil.papel) && podeMexerNaEquipe(perfil, evento),
     podeCorrigirTelefone: podeMexerNaEquipe(perfil, evento),
+    podeAtivarDesativar: podeMexerNaEquipe(perfil, evento),
     contestacoesAbertas: contestacoesAbertas.map(c => ({
       id: c.id, tipo: c.tipo, dataRef: c.dataRef, motivo: c.motivo, criadoEm: c.criadoEm,
     })),
@@ -262,6 +263,32 @@ export async function trazerDeVolta(
     return { erro: 'Você não tem permissão para mexer nesta equipe.' }
   }
   await repo.recredenciarParticipacao(participacaoId)
+  return {}
+}
+
+/**
+ * Ativa ou desativa, SEM tirar da equipe — cópia de `alternarAtivacao` no
+ * site, achada comparando a ficha da pessoa (21/09/2026). Diferente de
+ * "tirar da equipe": a pessoa continua na lista e no setor, só marcada
+ * como inativa — pára lembrete de WhatsApp e sai da conta do fechamento,
+ * mas sem perder o vínculo nem o histórico. Mesma régua de mexer na
+ * equipe.
+ */
+export async function alternarAtivacao(
+  repo: Repositorio, pessoaId: string, participacaoId: string, ativo: boolean,
+): Promise<{ erro?: string }> {
+  const { perfil, evento } = await exigirAcessoAParticipacao(repo, pessoaId, participacaoId)
+  if (!podeMexerNaEquipe(perfil, evento)) {
+    return { erro: 'Você não tem permissão para mexer nesta equipe.' }
+  }
+  await repo.alternarAtivacaoDaParticipacao(participacaoId, ativo)
+  await repo.registrarAuditoria({
+    autorId: pessoaId, autorNome: perfil.nome,
+    acao: ativo ? 'ATIVACAO_FUNCIONARIO' : 'DESATIVACAO_FUNCIONARIO',
+    campoAlterado: 'Situação no evento',
+    valorAnterior: ativo ? 'Inativo' : 'Ativo', valorNovo: ativo ? 'Ativo' : 'Inativo',
+    participacaoId, eventoId: evento.id, organizacaoId: evento.organizacaoId ?? undefined,
+  })
   return {}
 }
 

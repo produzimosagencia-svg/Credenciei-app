@@ -435,6 +435,13 @@ export interface ClienteApi {
    */
   corrigirTelefone(participacaoId: string, telefone: string, motivo?: string): Promise<{ erro?: string }>
   /**
+   * Ativa ou desativa, SEM tirar da equipe — cópia de `alternarAtivacao`
+   * no site, achada comparando a ficha da pessoa (21/09/2026). Diferente
+   * de `tirarDaEquipe`: a pessoa continua na lista e no setor, só pára de
+   * receber lembrete de WhatsApp e sai da conta do fechamento.
+   */
+  alternarAtivacao(participacaoId: string, ativo: boolean): Promise<{ erro?: string }>
+  /**
    * Marca uma contestação como resolvida — não corrige a batida sozinha
    * (isso é lançar ponto manual, ou corrigir na planilha); só tira a
    * pendência da tela da equipe.

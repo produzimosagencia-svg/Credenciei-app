@@ -798,6 +798,13 @@ export class RepositorioSupabase implements Repositorio {
     if (error) throw new Error('Não foi possível recredenciar esta pessoa.')
   }
 
+  async alternarAtivacaoDaParticipacao(participacaoId: string, ativo: boolean): Promise<void> {
+    const { error } = await this.db.from('funcionarios')
+      .update({ ativo })
+      .eq('id', participacaoId)
+    if (error) throw new Error(`Não foi possível ${ativo ? 'ativar' : 'desativar'} esta pessoa.`)
+  }
+
   async corrigirTelefoneDaParticipacao(participacaoId: string, telefone: string): Promise<void> {
     const { error } = await this.db.from('funcionarios')
       .update({ telefone })
