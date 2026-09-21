@@ -757,6 +757,13 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > revisitar. Não muda o número do backlog: é um achado, não uma correção
 > ainda aplicada.
 >
+> **Corrigido em 21/09/2026 — ver a entrada mais abaixo.** O diagnóstico
+> acima (trocar para `valor_combinado`) estava errado: `valor_receber` É o
+> campo certo, só não devia ser multiplicado por dia. O comentário da
+> migração ("comissão dos colegas") ficou velho — o código de verdade do
+> site (Financeiro, planilha, edição de colaborador) trata esse campo como
+> o valor total e final da pessoa há tempos.
+>
 > **13/09/2026 — quatro lacunas fechadas em "Meus dias"/"Meu pagamento"
 > (Epic 9), achadas na mesma revisão.** Comparado campo a campo com
 > `lib/historico.ts` do site:
@@ -1218,6 +1225,30 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > Não é escopo novo — o autoatendimento do colaborador já estava contado
 > como pronto (Epic 8, 7/7); isto é uma correção de comportamento, não
 > uma task nova, e não muda nenhum Feito/Total.
+>
+> **21/09/2026 — "Meu pagamento" corrigido de vez (achado em 13/09,
+> reaberto e reinvestigado a fundo hoje).** O diagnóstico de 13/09 dizia
+> que o app usava o campo errado (`valor_receber` no lugar de
+> `valor_combinado`). Investigando mais fundo desta vez — não só o
+> comentário da migração, mas o código de verdade do site (Financeiro,
+> importação de planilha, edição de colaborador, ferramentas de IA) —
+> achei que `valor_receber` é sim o campo certo: em todo lugar do site ele
+> é somado direto, como o valor final da pessoa, nunca multiplicado por
+> dia. O comentário da migração ("comissão dos colegas") descreve uma
+> intenção antiga que o uso real do campo já não segue.
+>
+> **O bug de verdade era mais simples**: `meuFinanceiro` multiplicava
+> `valorReceber * diasTrabalhados`, inflando o valor de quem trabalhasse
+> mais de um dia. Corrigido para mostrar `valorReceber` direto, sem
+> multiplicar — API, `cliente-falso`, e tipo do contrato documentado. A
+> tela "Meu pagamento" também mudou de texto: "Dias com entrada
+> registrada" continua aparecendo, mas agora como conferência de
+> presença, não como explicação do cálculo (decisão do Juan, entre três
+> opções). 2 testes novos provando que trabalhar mais dias não muda o
+> valor. Verificado de verdade no navegador — R$ 450,00 fixo, mesmo com
+> zero dias de entrada registrados.
+>
+> Não muda nenhum Feito/Total — é correção de bug, não escopo novo.
 
 ## Bloqueado, esperando o Juan
 

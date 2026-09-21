@@ -302,6 +302,16 @@ test('o financeiro é só sobre os dias que a pessoa trabalhou', async () => {
   assert.equal(f.situacao, 'pendente')
 })
 
+test('valorPrevisto não muda com quantos dias a pessoa trabalhou — é o combinado, não uma diária', async () => {
+  const c = await comParticipacao()
+  const antes = (await c.meuFinanceiro('part-1')).valorPrevisto
+  await c.registrarBatida(bater('entrada', '2026-09-03T08:00:00-03:00'))
+  await c.registrarBatida(bater('entrada', '2026-09-04T08:00:00-03:00'))
+  const depois = await c.meuFinanceiro('part-1')
+  assert.equal(depois.diasTrabalhados, 2)
+  assert.equal(depois.valorPrevisto, antes)
+})
+
 // ─── Excluir minha conta ────────────────────────────────────────────────────
 
 test('colaborador exclui a própria conta, e a sessão morre', async () => {

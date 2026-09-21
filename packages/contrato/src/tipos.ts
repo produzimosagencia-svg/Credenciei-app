@@ -125,6 +125,12 @@ export type DiaDaParticipacao = {
  */
 export type FinanceiroDaParticipacao = {
   diasTrabalhados: number
+  /**
+   * O valor combinado para a participação inteira — um total, não uma
+   * diária. `diasTrabalhados` é informativo (confere presença), não faz
+   * parte da conta: o site nunca multiplica este valor por dia trabalhado
+   * em lugar nenhum (Financeiro, planilha, edição de colaborador).
+   */
   valorPrevisto: number | null
   situacao: 'pendente' | 'em_processamento' | 'pago'
   pagoEm: string | null

@@ -245,6 +245,23 @@ test('o financeiro conta só os dias trabalhados', async () => {
   assert.equal(f.situacao, 'em_processamento')
 })
 
+test('valorPrevisto é o total combinado, não multiplica por dia trabalhado', async () => {
+  // Achado 21/09/2026: `valorReceber` é o combinado da participação inteira
+  // — o site nunca multiplica por dia (Financeiro, planilha, edição de
+  // colaborador). Trabalhar 2 dias não pode dobrar o valor.
+  const { repo } = comDuasPessoas()
+  await registrarBatida(repo, 'pes-joao', {
+    id: 'e1', participacaoId: 'part-joao', tipo: 'entrada', registradoEm: '2026-09-03T08:00:00-03:00',
+  })
+  await registrarBatida(repo, 'pes-joao', {
+    id: 'e2', participacaoId: 'part-joao', tipo: 'entrada', registradoEm: '2026-09-04T08:00:00-03:00',
+  })
+
+  const f = await meuFinanceiro(repo, 'pes-joao', 'part-joao')
+  assert.equal(f.diasTrabalhados, 2)
+  assert.equal(f.valorPrevisto, 150)
+})
+
 test('sem valor definido, a tela não diz zero', async () => {
   // Zero é uma afirmação: "você não vai receber nada". A verdade é "ainda não
   // definido", e a tela precisa poder dizer isso.

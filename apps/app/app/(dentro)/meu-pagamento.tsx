@@ -9,10 +9,15 @@
 //
 // ─── O NÚMERO É PREVISÃO, E A TELA DIZ ISSO ─────────────────────────────────
 //
-// O valor sai dos dias com entrada registrada. Se ele aparecesse como "você vai
-// receber R$ 600", uma batida que ficou faltando viraria uma discussão no dia
-// do acerto — a pessoa lembraria do número, não da condição. Dizer "previsto"
-// e mostrar de onde ele vem é o que transforma a surpresa em conferência.
+// O valor é o combinado para a participação inteira — não uma diária, não
+// multiplicado pelos dias trabalhados (achado 21/09/2026: no site, o campo
+// que guarda isso é somado direto em toda parte — Financeiro, planilha,
+// edição de colaborador — nunca multiplicado por dia). "Previsto", e não
+// "confirmado", porque a produção ainda pode ajustar antes do acerto.
+//
+// Os dias com entrada registrada continuam na tela, mas como CONFERÊNCIA de
+// presença, não como o cálculo do valor: se um dia ficou faltando aqui, é
+// isso que vira discussão no acerto, não o número em si.
 
 import { useMemo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
@@ -124,10 +129,11 @@ export default function MeuPagamento() {
           </Cartao>
 
           <Cartao>
-            <TituloDeCartao>De onde vem esse número</TituloDeCartao>
+            <TituloDeCartao>Sua presença no evento</TituloDeCartao>
             <Respiro altura={espaco.s} />
             <Legenda>
-              O valor é calculado pelos dias em que você registrou entrada. Se
+              O valor acima é o combinado para o evento inteiro, e não muda
+              pelos dias trabalhados. Esta é a conferência de presença — se
               algum dia estiver faltando aqui, fale com a produção antes do
               acerto.
             </Legenda>

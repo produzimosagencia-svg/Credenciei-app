@@ -283,12 +283,18 @@ export async function meuFinanceiro(
   return {
     diasTrabalhados: trabalhados,
     /*
-     * `null` quando o organizador não definiu valor — e não zero.
+     * `valorReceber` é o total combinado para a participação inteira, não uma
+     * diária — conferido contra o site (achado 21/09/2026, corrigindo um
+     * diagnóstico anterior errado): Financeiro, importação de planilha,
+     * edição de colaborador e as ferramentas de IA somam este campo direto,
+     * NUNCA multiplicado por dia trabalhado. Multiplicar aqui inflava o
+     * valor de quem trabalhou mais de um dia.
      *
-     * Zero na tela é uma afirmação: "você não vai receber nada". A tela precisa
+     * `null` quando o organizador não definiu valor — e não zero. Zero na
+     * tela é uma afirmação: "você não vai receber nada". A tela precisa
      * poder dizer "ainda não definido", que é a verdade.
      */
-    valorPrevisto: p.valorReceber === null ? null : p.valorReceber * trabalhados,
+    valorPrevisto: p.valorReceber,
     situacao: p.pago ? 'pago' : trabalhados > 0 ? 'em_processamento' : 'pendente',
     pagoEm: p.pagoEm,
     chavePix: p.chavePix ?? null,

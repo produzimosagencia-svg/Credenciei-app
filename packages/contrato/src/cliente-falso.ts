@@ -1363,7 +1363,9 @@ export class ClienteFalso implements ClienteApi {
     const trabalhados = dias.filter(d => d.compareceu).length
     return {
       diasTrabalhados: trabalhados,
-      valorPrevisto: trabalhados * 150,
+      // Total combinado pra participação inteira, não uma diária — mesma
+      // correção da API real, 21/09/2026.
+      valorPrevisto: 450,
       situacao: 'pendente',
       pagoEm: null,
       chavePix: null,
