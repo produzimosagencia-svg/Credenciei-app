@@ -14,6 +14,7 @@
 import { useMemo, useState } from 'react'
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import QRCode from 'react-native-qrcode-svg'
 import { formatCpf, formatTelefone, formatarBR, NOME_DA_FASE } from '@credenciei/dominio'
 import type { Contestacao, FichaDaPessoa, RegistroDePresenca, TipoBatida } from '@credenciei/contrato'
 import { mensagemDoErro, usePedido } from '../dados/pedido'
@@ -180,6 +181,16 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
     celulaQuieta: { ...texto.corpoForte, color: cor.neutro300 },
     celulaFalta: { ...texto.xxs, fontFamily: tipo.semi, color: cor.erro600 },
     celulaAssistida: { ...texto.xxs, color: cor.aviso600 },
+
+    crachaFora: { alignItems: 'center', paddingVertical: espaco.g },
+    crachaMoldura: {
+      backgroundColor: '#ffffff',
+      padding: espaco.g,
+      borderRadius: raio.cartao,
+      borderWidth: 1,
+      borderColor: uso.borda,
+    },
+    crachaFase: { ...texto.corpo, color: uso.tintaMedia, marginTop: espaco.m, textAlign: 'center' },
   })
 }
 
@@ -199,7 +210,7 @@ export function FichaDaPessoaModal({
   const { cliente } = useSessao()
   const { uso } = useTema()
   const e = useEstilos()
-  const [aba, setAba] = useState<'dados' | 'historico'>('dados')
+  const [aba, setAba] = useState<'dados' | 'historico' | 'cracha'>('dados')
   const [versao, setVersao] = useState(0)
 
   const { pedido } = usePedido(
@@ -230,7 +241,7 @@ export function FichaDaPessoaModal({
         </View>
 
         <View style={e.abas}>
-          {(['dados', 'historico'] as const).map(a => (
+          {(['dados', 'historico', 'cracha'] as const).map(a => (
             <Pressable
               key={a}
               onPress={() => setAba(a)}
@@ -239,7 +250,7 @@ export function FichaDaPessoaModal({
               style={[e.aba, aba === a && e.abaAtiva]}
             >
               <Text style={[e.abaTexto, aba === a && e.abaTextoAtivo]}>
-                {a === 'dados' ? 'Dados' : 'Histórico de batidas'}
+                {a === 'dados' ? 'Dados' : a === 'historico' ? 'Histórico de batidas' : 'Crachá'}
               </Text>
             </Pressable>
           ))}
@@ -256,8 +267,10 @@ export function FichaDaPessoaModal({
                 aoMudar={() => { setVersao(v => v + 1); aoMudar() }}
                 aoExcluir={() => { aoMudar(); aoFechar() }}
               />
-            ) : (
+            ) : aba === 'historico' ? (
               <AbaDeHistorico ficha={ficha} />
+            ) : (
+              <AbaDeCracha participacaoId={participacaoId} />
             )
           ) : null}
         </ScrollView>
@@ -921,6 +934,38 @@ function AbaDeHistorico({ ficha }: { ficha: FichaDaPessoa }) {
         )
       })}
     </>
+  )
+}
+
+/**
+ * O MESMO QR que está na credencial da pessoa agora — pra ver/imprimir sem
+ * depender do celular dela. Cópia da aba "Crachá" do site
+ * (`FuncionarioDetalheModal.tsx`), achada comparando com a ficha (21/09/2026).
+ *
+ * Buscado sob demanda, só quando a aba abre — mesmo motivo do histórico do
+ * site: gerar o código assinado em toda visita à ficha seria trabalho que
+ * quase ninguém pede.
+ */
+function AbaDeCracha({ participacaoId }: { participacaoId: string }) {
+  const { cliente } = useSessao()
+  const { cor } = useTema()
+  const e = useEstilos()
+  const { pedido } = usePedido(() => cliente.crachaDaPessoa(participacaoId), [cliente, participacaoId])
+
+  if (pedido.estado === 'carregando') return <Carregando />
+  if (pedido.estado === 'falhou') return <Aviso tipo="erro">{pedido.mensagem}</Aviso>
+
+  const etapa = pedido.dados.etapa as keyof typeof NOME_DA_FASE
+  const artigo = etapa === 'evento' ? 'o' : 'a'
+  return (
+    <View style={e.crachaFora}>
+      <View style={e.crachaMoldura}>
+        <QRCode value={pedido.dados.codigo} size={196} backgroundColor="#ffffff" color={cor.neutro900} />
+      </View>
+      <Text style={e.crachaFase}>
+        Este crachá vale para {artigo} {NOME_DA_FASE[etapa] ?? etapa}.
+      </Text>
+    </View>
   )
 }
 

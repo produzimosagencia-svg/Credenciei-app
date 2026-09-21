@@ -6,12 +6,15 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { gerarCodigoQR } from '@credenciei/dominio'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import {
-  alternarAtivacao, corrigirCpf, corrigirFuncao, corrigirTelefone, excluirDaEquipe, fichaDaPessoa,
+  alternarAtivacao, corrigirCpf, corrigirFuncao, corrigirTelefone, crachaDaPessoa, excluirDaEquipe, fichaDaPessoa,
   marcarPagamento, moverDeSetor, resolverContestacao, salvarValorAReceber, tirarDaEquipe, tornarSupervisor,
   trazerDeVolta,
 } from './ficha-da-pessoa.js'
+
+const SEGREDO = 'segredo-de-teste'
 
 // ─── Leitura da ficha ───────────────────────────────────────────────────────
 
@@ -403,6 +406,29 @@ test('admin não corrige CPF — só master', async () => {
   const { repo, admin, participacao } = cenarioHenriqueEJuliano()
   const r = await corrigirCpf(repo, admin.id, participacao.id, '11144477735')
   assert.match(r.erro ?? '', /Só o master/)
+})
+
+// ─── Crachá (o mesmo QR da credencial) ──────────────────────────────────────
+
+test('admin pega o crachá — o MESMO QR e a MESMA etapa da credencial da pessoa', async () => {
+  const { repo, admin, participacao } = cenarioHenriqueEJuliano()
+  const agora = new Date('2026-09-05T20:00:00-03:00')
+  const r = await crachaDaPessoa(repo, SEGREDO, admin.id, participacao.id, agora)
+  assert.equal(r.etapa, 'evento')
+  assert.equal(r.codigo, gerarCodigoQR(SEGREDO, participacao.qrToken, 'evento').codigo)
+})
+
+test('a etapa do crachá muda com o dia, igual à credencial', async () => {
+  const { repo, admin, participacao } = cenarioHenriqueEJuliano()
+  const naMontagem = await crachaDaPessoa(repo, SEGREDO, admin.id, participacao.id, new Date('2026-09-03T10:00:00-03:00'))
+  const naDesmontagem = await crachaDaPessoa(repo, SEGREDO, admin.id, participacao.id, new Date('2026-09-06T10:00:00-03:00'))
+  assert.equal(naMontagem.etapa, 'montagem')
+  assert.equal(naDesmontagem.etapa, 'desmontagem')
+})
+
+test('participação inexistente é recusada, sem entregar detalhe', async () => {
+  const { repo, admin } = cenarioHenriqueEJuliano()
+  await assert.rejects(crachaDaPessoa(repo, SEGREDO, admin.id, 'part-fantasma'), /Não encontramos/)
 })
 
 // ─── Excluir de vez ─────────────────────────────────────────────────────────

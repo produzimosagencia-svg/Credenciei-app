@@ -646,6 +646,22 @@ test('master corrige o CPF pela API — admin é recusado', async () => {
   assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).cpf, '11144477735')
 })
 
+test('o crachá (o mesmo QR da credencial) vai e volta pela API', async () => {
+  const m = montar()
+  const login = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
+
+  const equipe = await m.cliente.equipeDoSetor('eq-1')
+  const participacaoId = equipe.pessoas[0]!.participacaoId
+
+  const cracha = await m.cliente.crachaDaPessoa(participacaoId)
+  assert.match(cracha.codigo, /^c3\./)
+  assert.ok(['montagem', 'evento', 'desmontagem'].includes(cracha.etapa))
+
+  await assert.rejects(m.cliente.crachaDaPessoa('participacao-fantasma'), /Não encontramos/)
+})
+
 test('contestar e resolver uma batida vão e voltam pela API', async () => {
   const m = montar()
   await entrar(m)

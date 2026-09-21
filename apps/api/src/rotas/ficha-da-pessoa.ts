@@ -10,8 +10,8 @@
 // propósito — diferenciar entregaria um jeito de varrer ids.
 
 import {
-  diaBRT, ehMaster, formatCpf, podeAcompanhar, podeExcluirDaEquipe, podeGerenciarEventos, podeGerenciarUsuarios,
-  validarCpf,
+  diaBRT, ehMaster, faseAtualDoQR, formatCpf, gerarCodigoQR, podeAcompanhar, podeExcluirDaEquipe,
+  podeGerenciarEventos, podeGerenciarUsuarios, validarCpf,
 } from '@credenciei/dominio'
 import type { FichaDaPessoa } from '@credenciei/contrato'
 import type { Participacao, Perfil, Evento, Repositorio } from '../dados/repositorio.js'
@@ -458,4 +458,25 @@ export async function corrigirCpf(
     participacaoId, eventoId: evento.id, organizacaoId: evento.organizacaoId ?? undefined,
   })
   return {}
+}
+
+/**
+ * O MESMO QR que está na credencial da pessoa agora — pra imprimir e não
+ * depender do celular dela. Cópia de `obterQRDoFuncionario` do site,
+ * achada comparando a ficha da pessoa (21/09/2026): mesma régua de quem
+ * pode ver a ficha, mesmo `gerarCodigoQR`, mesma etapa — é literalmente o
+ * mesmo crachá, não uma segunda via.
+ *
+ * Sem o embaçamento de `meuQr` (liberação perto da hora): aquilo protege a
+ * PRÓPRIA pessoa de vazar o crachá com antecedência; aqui é quem já tem
+ * acesso à ficha pedindo pra ver/imprimir — cenário diferente, o site
+ * também não embaça neste caso.
+ */
+export async function crachaDaPessoa(
+  repo: Repositorio, segredo: string, pessoaId: string, participacaoId: string, agora: Date = new Date(),
+): Promise<{ codigo: string; etapa: string }> {
+  const { participacao, evento } = await exigirAcessoAParticipacao(repo, pessoaId, participacaoId)
+  const etapa = faseAtualDoQR(agora, evento.dataInicio, evento.dataFim)
+  const { codigo } = gerarCodigoQR(segredo, participacao.qrToken, etapa)
+  return { codigo, etapa }
 }

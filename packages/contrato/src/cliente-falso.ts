@@ -2980,6 +2980,23 @@ export class ClienteFalso implements ClienteApi {
     return {}
   }
 
+  async crachaDaPessoa(participacaoId: string): Promise<{ codigo: string; etapa: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeAcompanhar, 'ver o crachá')
+
+    const achado = this.acharNoSetor(participacaoId)
+    if (!achado) throw new Error('Não encontramos esta pessoa.')
+    const evento = EVENTOS_DO_PAINEL.find(e => e.eventoId === achado.eventoId)!
+
+    // `faseAtualDoQR`, não `faseDoDia` — mesmo motivo do `meuQr` da API real.
+    const agora = new Date(this.agora())
+    const dataFim = (evento as { dataFim?: string }).dataFim ?? null
+    const etapa = faseAtualDoQR(agora, evento.dataInicio, dataFim)
+    const { codigo } = gerarCodigoQR(SEGREDO_DE_MENTIRA, participacaoId, etapa)
+    return { codigo, etapa }
+  }
+
   async resolverContestacao(id: string): Promise<{ erro?: string }> {
     await this.rede()
     this.exigirSessao()

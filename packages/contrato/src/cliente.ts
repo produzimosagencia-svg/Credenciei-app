@@ -456,6 +456,15 @@ export interface ClienteApi {
    */
   corrigirCpf(participacaoId: string, cpf: string): Promise<{ erro?: string }>
   /**
+   * O MESMO QR da credencial da pessoa agora, pra ver/imprimir sem depender
+   * do celular dela — cópia de `obterQRDoFuncionario` no site, achada
+   * comparando a ficha da pessoa (21/09/2026). Mesma régua de quem pode
+   * ver a ficha; sem o embaçamento de `meuQr`, que protege a PRÓPRIA
+   * pessoa de vazar o crachá com antecedência — aqui é quem já tem acesso
+   * pedindo pra ver, cenário diferente.
+   */
+  crachaDaPessoa(participacaoId: string): Promise<{ codigo: string; etapa: string }>
+  /**
    * Marca uma contestação como resolvida — não corrige a batida sozinha
    * (isso é lançar ponto manual, ou corrigir na planilha); só tira a
    * pendência da tela da equipe.

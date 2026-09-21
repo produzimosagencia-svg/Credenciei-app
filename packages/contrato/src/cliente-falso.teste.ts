@@ -2016,6 +2016,26 @@ test('a ficha mostra o botão de corrigir CPF só para o master', async () => {
   assert.equal((await admin.fichaDaPessoa(pAdmin.participacaoId)).podeCorrigirCpf, false)
 })
 
+// ─── Crachá (o mesmo QR da credencial) ──────────────────────────────────────
+
+test('admin pega o crachá — o mesmo QR assinado que a credencial mostraria', async () => {
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+  const r = await c.crachaDaPessoa(p.participacaoId)
+  assert.match(r.codigo, new RegExp(`^c3\\.${p.participacaoId}\\.`))
+  assert.ok(['montagem', 'evento', 'desmontagem'].includes(r.etapa))
+})
+
+test('participação inexistente é recusada', async () => {
+  const c = await noPortao()
+  await assert.rejects(c.crachaDaPessoa('participacao-fantasma'), /Não encontramos/)
+})
+
+test('quem não pode acompanhar não vê o crachá', async () => {
+  const c = await comParticipacao()
+  await assert.rejects(c.crachaDaPessoa('s-1-p0'), /permissão/)
+})
+
 // ─── Contestar batida ───────────────────────────────────────────────────────
 
 test('o colaborador contesta a própria batida, com motivo', async () => {

@@ -754,6 +754,12 @@ export class ClienteHttp implements ClienteApi {
     return r.corpo as unknown as { erro?: string }
   }
 
+  async crachaDaPessoa(participacaoId: string): Promise<{ codigo: string; etapa: string }> {
+    const r = await this.pedir(`/v1/pessoas/${encodeURIComponent(participacaoId)}/qr`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos gerar o crachá.'))
+    return r.corpo as unknown as { codigo: string; etapa: string }
+  }
+
   async resolverContestacao(id: string): Promise<{ erro?: string }> {
     const r = await this.pedir(`/v1/contestacoes/${encodeURIComponent(id)}/resolver`, { metodo: 'POST' })
     if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos resolver esta contestação.') }

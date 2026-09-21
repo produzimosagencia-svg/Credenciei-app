@@ -51,7 +51,7 @@ import {
 } from './rotas/configurar-evento.js'
 import { baixarModelo, equipeDoSetor, exportarEquipe, importarPlanilha } from './rotas/setor.js'
 import {
-  alternarAtivacao, corrigirCpf, corrigirFuncao, corrigirTelefone, excluirDaEquipe, fichaDaPessoa,
+  alternarAtivacao, corrigirCpf, corrigirFuncao, corrigirTelefone, crachaDaPessoa, excluirDaEquipe, fichaDaPessoa,
   marcarPagamento, moverDeSetor, resolverContestacao, salvarValorAReceber, tirarDaEquipe, tornarSupervisor,
   trazerDeVolta,
 } from './rotas/ficha-da-pessoa.js'
@@ -517,6 +517,9 @@ export function criarServidor(amb: Ambiente) {
     const { cpf } = await c.req.json<{ cpf?: string }>()
     return protegido(c, () => corrigirCpf(amb.repo, c.get('pessoaId'), c.req.param('id'), cpf ?? ''))
   })
+
+  app.get('/v1/pessoas/:id/qr', async c =>
+    protegido(c, () => crachaDaPessoa(amb.repo, amb.segredoQr, c.get('pessoaId'), c.req.param('id'))))
 
   app.post('/v1/pessoas/:id/excluir', async c => {
     const { motivo } = await c.req.json<{ motivo?: string }>().catch(() => ({ motivo: undefined }))

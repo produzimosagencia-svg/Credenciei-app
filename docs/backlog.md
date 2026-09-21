@@ -1,6 +1,6 @@
 # Backlog
 
-**327 tasks · 200 no MVP · 203 concluídas (62%)**
+**326 tasks · 200 no MVP · 204 concluídas (63%)**
 
 **Só o MVP: 163 de 200 (82%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -145,7 +145,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 7 | Offline | 13 | 13 | ✓ | **Completa** — remapeada em 21/09 do mesmo jeito que a Epic 8: sem `NetInfo` nenhum (deliberado — a fila não precisa SABER que está offline, só tentar e tratar a falha como transporte, não como recusa), aviso "sem internet" já presente nas telas que dependem de dado fresco (`meus-eventos.tsx`, `painel.tsx`), esgotar as 30 tentativas já vira recusada com mensagem clara. Nenhuma lacuna concreta achada — não confirmado com o Juan ainda, diferente da Epic 8 (lá ele validou antes de eu recontar). Fila ligada ao app; a foto do meio sobe de verdade pro Storage (`subirFotoDoMeio`, desde 12/09) |
 | 8 | Ponto no app | 7 | 7 | ✓ | **Completa** — recontada em 18/09 depois de remapear e não achar tarefa concreta pendente (o "falta o resto do ciclo" era folga de estimativa antiga, não trabalho esquecido; Juan confirmou fechar assim, e aponta o que faltar se aparecer usando de verdade). O meio com selfie; `registrarEntradaLivre` (auto-atendimento) real na API; a credencial esconde o QR quando a participação não está credenciada, e avisa quando o dia foi cancelado; troca de evento quando a pessoa está em dois ao mesmo tempo; aviso de batida pendente na aba; contestar uma batida errada ou que faltou |
 | 9 | Histórico | 4 | 11 | — | Meus dias e Meu pagamento prontos |
-| 10 | Supervisor | 18 | 20 | — | Equipe, ficha da pessoa e histórico; tirar da equipe/excluir de vez/corrigir telefone são tasks novas, achadas em 14/09. Ativar/desativar sem tirar da equipe, foto/localização na presença de hoje, corrigir função e corrigir CPF (todos 21/09) — achados comparando com o site; ainda por vir: aba de crachá |
+| 10 | Supervisor | 19 | 19 | — | Equipe, ficha da pessoa e histórico; tirar da equipe/excluir de vez/corrigir telefone são tasks novas, achadas em 14/09. Ativar/desativar sem tirar da equipe, foto/localização na presença de hoje, corrigir função, corrigir CPF e a aba de crachá (todos 21/09) — os 5 achados comparando com o site, todos fechados |
 | 11 | Push | 1 | 12 | — | Registro do token do aparelho pronto; enviar depende da conta Apple (APNs) e de um projeto Firebase (FCM) — nenhum dos dois existe ainda; o MODELO do que notificar também depende de decisão do Juan |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
@@ -1170,8 +1170,22 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 >   documentado em `podeExcluirDaEquipe`). Recusa CPF já usado por outra
 >   pessoa no mesmo evento, e recusa CPF inválido antes de checar no-op.
 >
-> 27 testes novos, entre API, `cliente-falso` e `cliente-real`. **Epic 10
-> sobe de 14/18 para 18/20** — ficou só "aba de crachá" por vir.
+> 27 testes novos, entre API, `cliente-falso` e `cliente-real`.
+>
+> **21/09/2026 — o quinto achado, "aba de crachá", fechado — Epic 10
+> completa.** Cópia de `obterQRDoFuncionario` do site: o MESMO QR que está
+> na credencial da pessoa agora (`gerarCodigoQR`, mesma etapa), pra
+> quem já pode ver a ficha olhar/imprimir sem depender do celular dela —
+> sem o embaçamento de `meuQr`, que protege é a PRÓPRIA pessoa. No app,
+> mais simples que no site: `react-native-qrcode-svg` desenha o código
+> direto do valor assinado, sem gerar imagem no servidor (`qrcode` +
+> canvas, só necessário no Next.js). 7 testes novos.
+>
+> Aproveitei para corrigir uma conta que tinha ficado errada: o total do
+> Epic 10 tinha subido pra 20 no commit de foto/localização, mas os 5
+> achados da comparação com o site sempre foram só 5 tasks novas (18 → 19,
+> não 18 → 20) — sobrou um ponto contado a mais por engano. **Epic 10 fecha
+> em 19/19**, sem nada por vir da comparação de 21/09.
 
 ## Bloqueado, esperando o Juan
 
