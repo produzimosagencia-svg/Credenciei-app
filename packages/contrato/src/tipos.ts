@@ -945,6 +945,15 @@ export type ResultadoDosDias = {
 // tem a receber e o histórico inteiro — porque quem abre está com uma pergunta
 // só na cabeça e não deveria ter que navegar para respondê-la.
 
+/** Uma etapa registrada, com o suficiente pra conferir sem sair da ficha. */
+export type RegistroDePresenca = {
+  registradoEm: string
+  /** Só existe pro "meio" — a única etapa com selfie hoje. `null` nas outras. */
+  fotoUrl: string | null
+  lat: number | null
+  lng: number | null
+}
+
 export type FichaDaPessoa = {
   participacaoId: string
   nome: string
@@ -965,8 +974,17 @@ export type FichaDaPessoa = {
   pagoEm: string | null
   chavePix: string | null
 
-  /** As três etapas de hoje. `null` é "ainda não". */
-  presencaHoje: { entrada: string | null; meio: string | null; fim: string | null }
+  /**
+   * As três etapas de hoje. `null` é "ainda não". `fotoUrl` (só existe pro
+   * "meio" — a única etapa com selfie hoje) e `lat`/`lng` deixam conferir a
+   * batida sem sair da ficha — achado comparando com a ficha da pessoa do
+   * site (21/09/2026), que já mostra os dois pra cada etapa registrada.
+   */
+  presencaHoje: {
+    entrada: RegistroDePresenca | null
+    meio: RegistroDePresenca | null
+    fim: RegistroDePresenca | null
+  }
 
   /** Todos os dias escalados, com o que foi registrado em cada um. */
   dias: DiaDaParticipacao[]

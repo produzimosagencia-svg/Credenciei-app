@@ -528,6 +528,10 @@ export class RepositorioEmMemoria implements Repositorio {
     return `${eventoId}/${participacaoId}/assistido-${tipo}-${dataRef}.jpg`
   }
 
+  async urlDaFoto(caminho: string): Promise<string | null> {
+    return `https://storage.falso.local/presencas/${encodeURIComponent(caminho)}`
+  }
+
   async gravarRegistro(r: NovoRegistro) {
     /*
      * Recusa id repetido, como uma chave primária faria.

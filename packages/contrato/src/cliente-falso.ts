@@ -540,6 +540,23 @@ const NOMES_DA_EQUIPE = [
 const EMPRESAS_DE_MENTIRA = ['Time Kiki', 'Credenciamento', 'Eletricista', null]
 
 /**
+ * Uma etapa registrada, com foto (só quando `comFoto`) e localização —
+ * achado comparando com a ficha da pessoa do site (21/09/2026). Coordenada
+ * fixa do Kleber Andrade, o estádio do evento de mentira.
+ */
+function presencaDeMentira(
+  registradoEm: string | null, comFoto = false,
+): { registradoEm: string; fotoUrl: string | null; lat: number; lng: number } | null {
+  if (!registradoEm) return null
+  return {
+    registradoEm,
+    fotoUrl: comFoto ? 'https://storage.falso.local/presencas/demo-meio.jpg' : null,
+    lat: -20.3222,
+    lng: -40.3381,
+  }
+}
+
+/**
  * A equipe de cada setor, montada a partir do poço.
  *
  * Determinística: o mesmo setor gera sempre as mesmas pessoas, com os mesmos
@@ -2837,7 +2854,12 @@ export class ClienteFalso implements ClienteApi {
       pago: this.pagamentos.has(participacaoId),
       pagoEm: this.pagamentos.get(participacaoId) ?? null,
       chavePix: pessoa.telefone,
-      presencaHoje: { entrada: pessoa.entrada, meio: pessoa.meio, fim: pessoa.fim },
+      presencaHoje: {
+        entrada: presencaDeMentira(pessoa.entrada),
+        // Só o "meio" tem foto, igual na API de verdade — é a única etapa com selfie.
+        meio: presencaDeMentira(pessoa.meio, true),
+        fim: presencaDeMentira(pessoa.fim),
+      },
       dias,
       outrosSetores: (SETORES_DE_MENTIRA[eventoId] ?? [])
         .filter(x => x.setorId !== setor.setorId)

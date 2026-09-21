@@ -948,6 +948,16 @@ export class RepositorioSupabase implements Repositorio {
     return this.subirFoto(caminho, fotoBase64)
   }
 
+  async urlDaFoto(caminho: string): Promise<string | null> {
+    // Sem `download: true`, ao contrário do link de relatório — aqui a
+    // ideia é abrir a foto na hora (o site também abre inline, não baixa).
+    const { data, error } = await this.db.storage
+      .from(RepositorioSupabase.BUCKET_DE_FOTOS)
+      .createSignedUrl(caminho, 15 * 60)
+    if (error || !data) return null
+    return data.signedUrl
+  }
+
   async gravarRegistro(r: NovoRegistro): Promise<Registro> {
     const part = await this.participacaoPorId(r.participacaoId)
     if (!part) throw new Error('Participação não encontrada.')

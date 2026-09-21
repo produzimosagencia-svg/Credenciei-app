@@ -1701,6 +1701,24 @@ test('a ficha junta quem é, onde está e o histórico', async () => {
   assert.ok(ficha.dias.length > 0, 'sem os dias não há aba de histórico')
 })
 
+test('presença hoje tem o mesmo formato da API real — registradoEm, foto e localização', async () => {
+  // O poço de mentira nasce sem nenhuma batida hoje — o que se confere aqui
+  // é a FORMA do contrato (null passa por null; quando existir, carrega
+  // fotoUrl/lat/lng), não um cenário com foto de verdade — esse já é
+  // coberto na API real (`ficha-da-pessoa.teste.ts`).
+  const c = await noPortao()
+  const p = await alguemDaEquipe(c)
+  const ficha = await c.fichaDaPessoa(p.participacaoId)
+
+  for (const etapa of ['entrada', 'meio', 'fim'] as const) {
+    const registro = ficha.presencaHoje[etapa]
+    if (registro === null) continue
+    assert.equal(typeof registro.registradoEm, 'string')
+    assert.ok(registro.fotoUrl === null || typeof registro.fotoUrl === 'string')
+    assert.ok(registro.lat === null || typeof registro.lat === 'number')
+  }
+})
+
 test('a lista de destinos não oferece o setor onde a pessoa já está', async () => {
   // Um destino que não muda nada convida ao clique que não faz nada.
   const c = await noPortao()

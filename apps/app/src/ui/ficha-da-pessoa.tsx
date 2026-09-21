@@ -12,10 +12,10 @@
 // confere o fechamento.
 
 import { useMemo, useState } from 'react'
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { formatCpf, formatTelefone, formatarBR, NOME_DA_FASE } from '@credenciei/dominio'
-import type { Contestacao, FichaDaPessoa, TipoBatida } from '@credenciei/contrato'
+import type { Contestacao, FichaDaPessoa, RegistroDePresenca, TipoBatida } from '@credenciei/contrato'
 import { mensagemDoErro, usePedido } from '../dados/pedido'
 import { useSessao } from '../sessao/contexto'
 import { celulaSilenciosa, NOME_DO_STATUS, resumoDoHistorico, statusDoDia } from '../historico'
@@ -133,6 +133,7 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
       marginBottom: espaco.s,
     },
     presencaNome: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
+    presencaDireita: { flexDirection: 'row', alignItems: 'center', gap: espaco.s },
     ponto: { width: 7, height: 7, borderRadius: 999 },
 
     contestacao: {
@@ -556,15 +557,7 @@ function AbaDeDados({
       <Text style={e.secao}>PRESENÇA HOJE</Text>
       <Respiro altura={espaco.s} />
       {(['entrada', 'meio', 'fim'] as const).map(etapa => (
-        <View key={etapa} style={e.presenca}>
-          <View style={e.presencaNome}>
-            <View style={[e.ponto, { backgroundColor: corDaEtapa[etapa] }]} />
-            <Corpo>{ROTULO[etapa]}</Corpo>
-          </View>
-          <Corpo forte>
-            {ficha.presencaHoje[etapa] ? formatarBR(ficha.presencaHoje[etapa]!, 'hora') : '—'}
-          </Corpo>
-        </View>
+        <LinhaDePresenca key={etapa} etapa={etapa} registro={ficha.presencaHoje[etapa]} />
       ))}
 
       <Separador />
@@ -942,6 +935,50 @@ function ContestacaoAberta({
           />
         </>
       ) : null}
+    </View>
+  )
+}
+
+/**
+ * Uma etapa da presença de hoje, com atalho pra foto e localização —
+ * achado comparando com a ficha da pessoa do site (21/09/2026): lá o
+ * ícone de câmera abre a foto da batida, e o de mapa abre onde foi
+ * registrada. Útil pra conferir sem precisar de outra ferramenta.
+ */
+function LinhaDePresenca({
+  etapa, registro,
+}: { etapa: TipoBatida; registro: RegistroDePresenca | null }) {
+  const { cor } = useTema()
+  const e = useEstilos()
+  return (
+    <View style={e.presenca}>
+      <View style={e.presencaNome}>
+        <View style={[e.ponto, { backgroundColor: corDaEtapa[etapa] }]} />
+        <Corpo>{ROTULO[etapa]}</Corpo>
+      </View>
+      <View style={e.presencaDireita}>
+        <Corpo forte>{registro ? formatarBR(registro.registradoEm, 'hora') : '—'}</Corpo>
+        {registro?.fotoUrl ? (
+          <Pressable
+            onPress={() => Linking.openURL(registro.fotoUrl!)}
+            hitSlop={8}
+            accessibilityRole="link"
+            accessibilityLabel="Ver foto da batida"
+          >
+            <Icone nome="Camera" tamanho={16} tom={cor.neutro500} />
+          </Pressable>
+        ) : null}
+        {registro?.lat != null && registro.lng != null ? (
+          <Pressable
+            onPress={() => Linking.openURL(`https://maps.google.com/?q=${registro.lat},${registro.lng}`)}
+            hitSlop={8}
+            accessibilityRole="link"
+            accessibilityLabel="Ver localização da batida"
+          >
+            <Icone nome="MapPin" tamanho={16} tom={cor.neutro500} />
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   )
 }

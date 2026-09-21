@@ -572,6 +572,13 @@ test('as mutações da ficha (mover, pagamento, valor, tirar/trazer, excluir) v�
   const equipe = await m.cliente.equipeDoSetor('eq-1')
   const participacaoId = equipe.pessoas[0]!.participacaoId
 
+  // Forma do contrato de `presencaHoje` — null quando não há batida hoje,
+  // e não uma string crua como antes de 21/09/2026.
+  const fichaInicial = await m.cliente.fichaDaPessoa(participacaoId)
+  for (const etapa of ['entrada', 'meio', 'fim'] as const) {
+    assert.equal(fichaInicial.presencaHoje[etapa], null)
+  }
+
   const mover = await m.cliente.moverDeSetor(participacaoId, setorDestino)
   assert.equal(mover.erro, undefined, mover.erro)
   assert.equal((await m.cliente.fichaDaPessoa(participacaoId)).setorId, setorDestino)

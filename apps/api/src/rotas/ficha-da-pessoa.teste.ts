@@ -31,6 +31,34 @@ test('admin abre a ficha, com o financeiro e os botões de gestão', async () =>
   assert.equal(f.podeExcluirDaEquipe, true)
 })
 
+test('presença hoje traz foto (só no meio) e localização — achado comparando com o site', async () => {
+  const { repo, admin, participacao } = cenarioHenriqueEJuliano()
+  const agora = new Date('2026-09-05T20:00:00-03:00')
+  repo.registros.push({
+    id: 'reg-presenca-meio', participacaoId: participacao.id, tipo: 'meio', dataRef: '2026-09-05',
+    registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
+    fotoPath: 'ev-hj/part-joao/meio-2026-09-05.jpg', lat: -20.3222, lng: -40.3381, manual: false,
+  })
+  repo.registros.push({
+    id: 'reg-presenca-entrada', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
+    registradoEm: '2026-09-05T18:00:00-03:00', recebidoEm: '2026-09-05T18:00:00-03:00',
+    fotoPath: null, lat: -20.30, lng: -40.30, manual: false,
+  })
+
+  const f = await fichaDaPessoa(repo, admin.id, participacao.id, agora)
+
+  assert.ok(f.presencaHoje.meio)
+  assert.ok(f.presencaHoje.meio!.fotoUrl, 'meio tem foto — é a única etapa com selfie')
+  assert.equal(f.presencaHoje.meio!.lat, -20.3222)
+  assert.equal(f.presencaHoje.meio!.lng, -40.3381)
+
+  assert.ok(f.presencaHoje.entrada)
+  assert.equal(f.presencaHoje.entrada!.fotoUrl, null, 'entrada não tem foto')
+  assert.equal(f.presencaHoje.entrada!.lat, -20.30)
+
+  assert.equal(f.presencaHoje.fim, null)
+})
+
 test('admin de outra organização não encontra a ficha', async () => {
   const { repo, participacao } = cenarioHenriqueEJuliano()
   repo.perfis.push({ id: 'auth-outro', nome: 'Bia', papel: 'admin', organizacaoId: 'org-2', ativo: true })

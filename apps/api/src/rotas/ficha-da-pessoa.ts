@@ -70,7 +70,26 @@ export async function fichaDaPessoa(
     repo.setoresDoEvento(evento.id),
     repo.contestacoesAbertas(participacao.id),
   ])
-  const pegaHoje = (t: 'entrada' | 'meio' | 'fim') => registrosHoje.find(r => r.tipo === t)?.registradoEm ?? null
+  /*
+   * Foto (só existe pro "meio") e localização junto do horário — achado
+   * comparando com a ficha da pessoa do site, 21/09/2026: lá o ícone de
+   * câmera abre a foto e o de mapa abre a localização, direto na linha da
+   * presença. `urlDaFoto` é assinada e vale 15 min, então é gerada aqui,
+   * na hora de montar a ficha — não faz sentido guardar de antemão.
+   */
+  async function presencaDaEtapa(t: 'entrada' | 'meio' | 'fim') {
+    const r = registrosHoje.find(x => x.tipo === t)
+    if (!r) return null
+    return {
+      registradoEm: r.registradoEm,
+      fotoUrl: r.fotoPath ? await repo.urlDaFoto(r.fotoPath) : null,
+      lat: r.lat,
+      lng: r.lng,
+    }
+  }
+  const [presencaEntrada, presencaMeio, presencaFim] = await Promise.all([
+    presencaDaEtapa('entrada'), presencaDaEtapa('meio'), presencaDaEtapa('fim'),
+  ])
 
   return {
     participacaoId: participacao.id,
@@ -89,7 +108,7 @@ export async function fichaDaPessoa(
     pago: participacao.pago,
     pagoEm: participacao.pagoEm,
     chavePix: participacao.chavePix ?? null,
-    presencaHoje: { entrada: pegaHoje('entrada'), meio: pegaHoje('meio'), fim: pegaHoje('fim') },
+    presencaHoje: { entrada: presencaEntrada, meio: presencaMeio, fim: presencaFim },
     dias,
     outrosSetores: setoresDoEvento
       .filter(s => s.setorId !== participacao.equipeId)

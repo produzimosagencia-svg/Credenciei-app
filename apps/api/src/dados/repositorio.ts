@@ -486,6 +486,14 @@ export interface Repositorio {
   subirFotoAssistida(
     eventoId: string, participacaoId: string, tipo: string, dataRef: string, fotoBase64: string,
   ): Promise<string>
+  /**
+   * URL assinada pra VER a foto de uma batida (não baixar) — achado
+   * comparando a ficha da pessoa com o site (21/09/2026): lá o ícone de
+   * câmera na presença do dia abre a foto direto. 15 minutos de validade,
+   * mesma janela do link de relatório. `null` se o caminho não existir
+   * mais no Storage.
+   */
+  urlDaFoto(caminho: string): Promise<string | null>
   gravarRegistro(r: NovoRegistro): Promise<Registro>
   /**
    * Apaga um registro — só usado para REABRIR um turno (a saída que a
