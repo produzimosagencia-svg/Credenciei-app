@@ -1513,9 +1513,14 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > **Os três achados do Juan de hoje (Lançar ponto, Editar colaborador,
 > Suporte de Sistema) estão fechados** — nenhuma tela do app fica mais
 > quebrada contra a API de verdade por causa de método nunca ligado.
-> `painelDoWhatsApp` (achado na varredura, não reportado pelo Juan) segue
-> como `AindaNaoNaApi` — não investigado ainda, pode ser a mesma categoria
-> de gap ou pode não ter tela correspondente; fica pra conferir depois.
+> `painelDoWhatsApp` (achado na varredura, não reportado pelo Juan) foi
+> investigado à parte: tem tela real (`apps/app/app/(dentro)/whatsapp.tsx`),
+> mas é um painel maior que os outros três — indicadores de envio, fila e
+> templates aprovados, que exigiriam rastreamento próprio (o app hoje só
+> manda o código de login pelo WhatsApp, sem log nem fila; o site tem essa
+> infraestrutura, o app não). **Decisão do Juan (22/09/2026): não vale o
+> investimento — fica de fora, propositalmente, não é mais um "AindaNaoNaApi
+> a resolver".**
 
 ## Bloqueado, esperando o Juan
 
