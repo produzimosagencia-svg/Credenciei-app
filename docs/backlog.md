@@ -1462,6 +1462,34 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > 6/6** — mas **nenhuma tela existe ainda**: é backend puro, seguindo a
 > ordem que o Juan escolheu (backend primeiro, UI depois — ver "Bloqueado"
 > abaixo).
+>
+> **22/09/2026 — achado corrigido: "Lançar ponto manual" e "Editar
+> colaborador" (Epic 17) estavam marcados ✅ Trazido, mas só existiam no
+> `cliente-falso.ts` — a API de verdade lançava `AindaNaoNaApi` nos 5
+> métodos.** Testando o app local contra a API publicada, o Juan achou as
+> duas telas quebradas. Investigando, achei um TERCEIRO método no mesmo
+> estado (Suporte de Sistema, 4 métodos) — ver nota abaixo, ficou de fora
+> desta rodada de propósito.
+>
+> Construído de ponta a ponta, cópia de `lancarPontoManual` em
+> `c:\Dev\credenciei\lib\actions.ts`: mesmas travas (motivo com 5+
+> caracteres, dia de trabalho válido, hora dentro de ~36h do dia, pessoa
+> ativa), mesmo padrão de prova que o registro assistido já usa
+> (`apagarRegistroDoTipo` + `gravarRegistro` com `manual: true`,
+> `registrarAuditoria` com o motivo em vez de exigir foto). "Editar
+> colaborador" reaproveita `equipesDoEvento`/`participacoesDaEquipe` que já
+> existiam — nenhuma consulta nova. `suporte` ficou de fora dos dois: o app
+> ainda não modela `suporte_escopo` (mesma simplificação documentada em
+> `podeExcluirDaEquipe`), então onde o site usa esse escopo fino, aqui cai
+> como organização inteira — e por ora nem isso, fica de fora até o Juan
+> decidir se essa simplificação serve.
+>
+> Rotas novas: `GET/POST /v1/lancar-ponto`, `GET /v1/lancar-ponto/eventos`,
+> `GET /v1/lancar-ponto/:eventoId`, `GET /v1/editar-colaborador/eventos`,
+> `GET /v1/editar-colaborador/:eventoId`. 12 testes novos na rota, mais 2
+> round-trips reais. **Não muda nenhum Feito/Total** — as duas linhas já
+> estavam contadas em Epic 17; isto só torna verdadeiro o que já estava
+> marcado.
 
 ## Bloqueado, esperando o Juan
 
@@ -1495,4 +1523,5 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 - **Decidir os três itens parados do push** (`confirmacao_escala`, `boas_vindas_funcionario`, `disparo_manual`) — ver o achado de 21/09 acima, cada um tem um motivo diferente pra não ter entrado ainda.
 - **Rodar a migração 010** (`app_notificacoes`/`app_preferencias_de_aviso`) — aditiva e segura, sem pressa, mesma régua das outras.
 - **Ainda falta a tela no app** pro mural "Avisos" (modal na credencial/painel), pra Central de Avisos (histórico + preferências) e pro módulo Gastos inteiro (captura manual/voz, lista, painel) — backend pronto e testado nos três, mas ninguém vê nada ainda sem a interface.
+- **Suporte de Sistema ainda quebrado contra a API de verdade** (`dadosDeSuporte`/`criarSuporte`/`editarSuporte`/`revogarSuporte` — 4 métodos, `AindaNaoNaApi`) — precisa decisão antes de construir: o site tem escopo fino (organização inteira e/ou eventos avulsos, por acesso), e o app ainda não modela `suporte_escopo` nenhum. Construir igual ao site exige uma tabela nova; construir mais simples (suporte = organização inteira, sem eventos avulsos) resolve mais rápido mas é um corte de escopo real — pedir pro Juan escolher antes de mexer.
 - **Configurar `GEMINI_API_KEY` no Render** (mesma variável que o site já usa pro Gastos por voz) — sem ela, `transcreverAudioDeGasto` responde com um erro amigável ("leitura de áudio ainda não foi configurada"), mas ninguém consegue lançar gasto falando até essa chave existir no ambiente da API do app.

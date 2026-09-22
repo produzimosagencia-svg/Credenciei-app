@@ -259,6 +259,43 @@ test('Gastos vai e volta pela API — criar, listar, painel e exportar, logado c
   assert.ok(!(await m.cliente.listarGastos({ eventoId: 'ev-hj' })).some(g => g.id === criado.id))
 })
 
+test('Lançar ponto manual vai e volta pela API — corrige a entrada e sobrescreve', async () => {
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('juan@produzimos.com.br', 'segredo123')
+  assert.ok(r.sessao, r.erro)
+  m.guardarToken(r.sessao.token)
+
+  const eventos = await m.cliente.eventosParaLancarPonto()
+  assert.ok(eventos.some(e => e.eventoId === 'ev-hj'))
+
+  const dados = await m.cliente.dadosParaLancarPonto('ev-hj')
+  const alguem = dados.pessoas.find(p => p.nome === 'João da Silva')!
+  assert.ok(alguem)
+
+  const lancado = await m.cliente.lancarPontoManual(
+    alguem.id, 'entrada', '2026-09-05', '2026-09-05T08:00:00-03:00', 'Esqueceu de bater o QR',
+  )
+  assert.equal(lancado.erro, undefined)
+  assert.equal(lancado.nome, 'João da Silva')
+
+  const depois = await m.cliente.dadosParaLancarPonto('ev-hj')
+  const atualizado = depois.pessoas.find(p => p.nome === 'João da Silva')!
+  assert.ok(atualizado.batidas['2026-09-05:entrada'])
+})
+
+test('Editar colaborador (atalho) vai e volta pela API', async () => {
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('juan@produzimos.com.br', 'segredo123')
+  assert.ok(r.sessao, r.erro)
+  m.guardarToken(r.sessao.token)
+
+  const eventos = await m.cliente.eventosParaEditarColaborador()
+  assert.ok(eventos.some(e => e.eventoId === 'ev-hj'))
+
+  const busca = await m.cliente.colaboradoresDoEvento('ev-hj')
+  assert.ok(busca.colaboradores.some(c => c.nome === 'João da Silva'))
+})
+
 test('excluir minha conta vai e volta pela API — anonimiza e derruba a sessão', async () => {
   const m = montar()
   await entrar(m)

@@ -1145,30 +1145,39 @@ export class ClienteHttp implements ClienteApi {
   // ─── Lançar ponto manual ──────────────────────────────────────────────────
 
   async eventosParaLancarPonto(): Promise<EventoEscaneavel[]> {
-    throw new AindaNaoNaApi('eventosParaLancarPonto')
+    const r = await this.pedir('/v1/lancar-ponto/eventos')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos carregar os eventos.'))
+    return r.corpo as unknown as EventoEscaneavel[]
   }
 
-  async dadosParaLancarPonto(_eventoId: string): Promise<DadosParaLancarPonto> {
-    void _eventoId
-    throw new AindaNaoNaApi('dadosParaLancarPonto')
+  async dadosParaLancarPonto(eventoId: string): Promise<DadosParaLancarPonto> {
+    const r = await this.pedir(`/v1/lancar-ponto/${encodeURIComponent(eventoId)}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos carregar a equipe.'))
+    return r.corpo as unknown as DadosParaLancarPonto
   }
 
   async lancarPontoManual(
-    _funcionarioId: string, _tipo: TipoBatida, _dataRef: string, _quandoISO: string, _motivo: string,
+    funcionarioId: string, tipo: TipoBatida, dataRef: string, quandoISO: string, motivo: string,
   ): Promise<{ nome?: string; etapa?: string; erro?: string }> {
-    void _funcionarioId; void _tipo; void _dataRef; void _quandoISO; void _motivo
-    throw new AindaNaoNaApi('lancarPontoManual')
+    const r = await this.pedir('/v1/lancar-ponto', {
+      metodo: 'POST', corpo: { funcionarioId, tipo, dataRef, quandoISO, motivo },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos lançar o ponto.') }
+    return r.corpo as unknown as { nome?: string; etapa?: string; erro?: string }
   }
 
   // ─── Editar colaborador (atalho) ──────────────────────────────────────────
 
   async eventosParaEditarColaborador(): Promise<EventoEscaneavel[]> {
-    throw new AindaNaoNaApi('eventosParaEditarColaborador')
+    const r = await this.pedir('/v1/editar-colaborador/eventos')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos carregar os eventos.'))
+    return r.corpo as unknown as EventoEscaneavel[]
   }
 
-  async colaboradoresDoEvento(_eventoId: string): Promise<BuscaDeColaboradores> {
-    void _eventoId
-    throw new AindaNaoNaApi('colaboradoresDoEvento')
+  async colaboradoresDoEvento(eventoId: string): Promise<BuscaDeColaboradores> {
+    const r = await this.pedir(`/v1/editar-colaborador/${encodeURIComponent(eventoId)}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos carregar os colaboradores.'))
+    return r.corpo as unknown as BuscaDeColaboradores
   }
 
   // ─── Suporte de Sistema ───────────────────────────────────────────────────

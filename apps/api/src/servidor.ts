@@ -86,6 +86,8 @@ import {
   criarGasto, editarGasto, eventosParaGastos, excluirGasto, exportarGastosXlsx, listarGastos,
   painelDeGastos, transcreverAudioDeGasto, urlComprovanteGasto, type InterpretarAudioDeGasto,
 } from './rotas/gastos.js'
+import { dadosParaLancarPonto, eventosParaLancarPonto, lancarPontoManual } from './rotas/lancar-ponto.js'
+import { colaboradoresDoEvento, eventosParaEditarColaborador } from './rotas/editar-colaborador.js'
 import { ArquivosEmMemoria, type Arquivos } from './arquivos.js'
 import type { Periodo, QuemNoRelatorio } from '@credenciei/contrato'
 import {
@@ -847,6 +849,30 @@ export function criarServidor(amb: Ambiente) {
 
   app.get('/v1/gastos/:id/comprovante', async c =>
     protegido(c, () => urlComprovanteGasto(amb.repo, c.get('pessoaId'), c.req.param('id'))))
+
+  // ── Lançar ponto manual ─────────────────────────────────────────────────
+  app.get('/v1/lancar-ponto/eventos', async c =>
+    protegido(c, () => eventosParaLancarPonto(amb.repo, c.get('pessoaId'))))
+
+  app.get('/v1/lancar-ponto/:eventoId', async c =>
+    protegido(c, () => dadosParaLancarPonto(amb.repo, c.get('pessoaId'), c.req.param('eventoId'))))
+
+  app.post('/v1/lancar-ponto', async c => {
+    const corpo = await c.req.json<{
+      funcionarioId?: string; tipo?: string; dataRef?: string; quandoISO?: string; motivo?: string
+    }>()
+    return protegido(c, () => lancarPontoManual(
+      amb.repo, c.get('pessoaId'), corpo.funcionarioId ?? '', (corpo.tipo as 'entrada' | 'meio' | 'fim') ?? 'entrada',
+      corpo.dataRef ?? '', corpo.quandoISO ?? '', corpo.motivo ?? '',
+    ))
+  })
+
+  // ── Editar colaborador (atalho) ─────────────────────────────────────────
+  app.get('/v1/editar-colaborador/eventos', async c =>
+    protegido(c, () => eventosParaEditarColaborador(amb.repo, c.get('pessoaId'))))
+
+  app.get('/v1/editar-colaborador/:eventoId', async c =>
+    protegido(c, () => colaboradoresDoEvento(amb.repo, c.get('pessoaId'), c.req.param('eventoId'))))
 
   // ── Veículos ──────────────────────────────────────────────────────────────
   app.get('/v1/veiculos/eventos', async c =>
