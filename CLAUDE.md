@@ -62,7 +62,7 @@ packages/offline     a fila de batidas sem internet — 22 testes
 packages/contrato    o que o app pode pedir + servidor falso — 252 testes
 apps/api             a API HTTP completa — 446 testes
 apps/app             o aplicativo, em React Native + Expo — 96 testes
-db/migracoes         sete migrações escritas; 002, 004, 005 e 007 já executadas
+db/migracoes         oito migrações escritas (001-008, 010); todas já executadas em produção
 ```
 
 **934 testes.** `npm run verificar` roda tipos e testes de
@@ -351,6 +351,6 @@ docs/credenciei-web-modulos.md      Gastos, Financeiro, Auditoria, Avisos,
 docs/credenciei-web-funcoes-integracoes.md
                                      inventário de Server Actions + WhatsApp/
                                      e-mail/Sheets/IA/cron
-db/migracoes/                       maioria escrita, não executada — leia o cabeçalho antes
-                                     de rodar qualquer uma (002, 004, 005 e 007 já rodaram)
+db/migracoes/                       oito migrações (001-008, 010), todas já executadas em
+                                     produção — leia o cabeçalho antes de escrever a próxima
 ```

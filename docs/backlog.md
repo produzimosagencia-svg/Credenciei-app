@@ -106,7 +106,9 @@ Atualizado em 12/09/2026.
 
 ## O caminho até finalizar, em fases
 
-As 18 epics agrupadas pela ordem em que fazem sentido — não por número.
+As 19 epics agrupadas pela ordem em que fazem sentido — não por número.
+A Epic 19 (Gastos) nasceu depois deste mapeamento e ainda não tem fase
+própria — backend completo, mas fora desta tabela por ora.
 Cada fase soma exatamente as tasks restantes (Total − Feito) das epics que
 carrega; a soma das sete bate com as 122 que faltam no total (recalculado
 em 21/09, depois da Epic 7 fechar e a retenção de foto entrar — antes
@@ -123,7 +125,7 @@ cada uma.
 | 3 — Fechar os ciclos pela metade | 2, 4, 6, 7, 8, 9, 10 | 33 | Sincronização com o site, QR (Ed25519, código giratório), histórico e polimento do supervisor. **Epic 8 fechou em 18/09** (7/7) e **Epic 7 fechou em 21/09** (13/13) — as duas remapeadas sem tarefa concreta sobrando |
 | 4 — Aguentar 20 mil pessoas | 13, 14 | 22 | Teste de carga, resto do LGPD. **Retenção de foto (90 dias) construída em 21/09** |
 | 5 — Publicar | 11, 16 | 30 | Push e as duas lojas — **bloqueado na conta Apple Developer** |
-| 6 — O banco de verdade | 1 | 13 | Rodar as três migrações — **bloqueado no banco de homologação** |
+| 6 — O banco de verdade | 1 | ~10 | **Não é mais bloqueio** — decisão de rodar direto em produção, com cuidado, tomada há semanas. Das 8 migrações escritas (001-008, 010), TODAS já rodaram; falta recontar a epic tarefa a tarefa (número antigo, não confiar) |
 | 7 — Depois do MVP | 12, 15 | 21 | Versão web e os últimos testes — por definição, o que "vem depois" |
 
 **Onde estamos de verdade hoje**: a Fase 2 fechou — a API de verdade cobre
@@ -136,7 +138,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 
 | # | Epic | Feito | Total | MVP | Situação |
 |---|---|---|---|---|---|
-| 1 | Modelo de dados | 3 | 16 | ✓ | SQL escrito, nada executado |
+| 1 | Modelo de dados | 3 | 16 | ✓ | Número desatualizado — só contava "SQL escrito" pras 3 migrações originais (pessoas, código de convite, dois relógios). Na real: 8 migrações escritas (001-008, 010) e TODAS já rodaram em produção (última confirmação: 010, 22/09) — falta remapear a epic tarefa a tarefa pra um Feito/Total confiável, mesma régua que fechou Epic 7/8 |
 | 2 | Fundação | 8 | 13 | ✓ | `operador_portao` e `suporte` no domínio; falta só `produtor` (módulo Gastos) |
 | 3 | API v1 | 32 | 32 | ✓ | Completo: login, painel, escanear, ponto assistido, atividades e acessos, todos reais e ligados pelo `ClienteHttp` |
 | 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
@@ -1601,7 +1603,7 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 - ~~Rodar a migração 008~~ → **feito pelo Juan em 21/09.**
 - **Configurar um agendador externo** (cron-job.org, mesma ferramenta já cotada pra retenção de foto) batendo nas seis rotas de tempos em tempos (sugestão: a cada 15-30 min) — sem isso, os lembretes existem no código mas nunca disparam sozinhos: `POST /manutencao/lembrete-entrada`, `/lembrete-saida`, `/lembrete-meio`, `/alerta-supervisor-entrada`, `/alerta-supervisor-saida`, `/aviso-do-dia`.
 - **Decidir os três itens parados do push** (`confirmacao_escala`, `boas_vindas_funcionario`, `disparo_manual`) — ver o achado de 21/09 acima, cada um tem um motivo diferente pra não ter entrado ainda.
-- **Rodar a migração 010** (`app_notificacoes`/`app_preferencias_de_aviso`) — aditiva e segura, sem pressa, mesma régua das outras.
+- ~~Rodar a migração 010~~ → **feito pelo Juan, confirmado em 22/09/2026** (tabelas existem em produção, ainda vazias — ninguém disparou um lembrete de verdade ainda).
 - **Ainda falta a tela no app** pro mural "Avisos" (modal na credencial/painel), pra Central de Avisos (histórico + preferências), pro módulo Gastos inteiro (captura manual/voz, lista, painel) e pra Meu histórico (eventos passados + total ganho) — backend pronto e testado nos quatro, mas ninguém vê nada ainda sem a interface.
 - ~~Suporte de Sistema quebrado contra a API de verdade~~ → **construído em 22/09/2026, escopo fino igual ao site** — ver achado acima.
 - **Configurar `GEMINI_API_KEY` no Render** (mesma variável que o site já usa pro Gastos por voz) — sem ela, `transcreverAudioDeGasto` responde com um erro amigável ("leitura de áudio ainda não foi configurada"), mas ninguém consegue lançar gasto falando até essa chave existir no ambiente da API do app.
