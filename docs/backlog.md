@@ -1,6 +1,6 @@
 # Backlog
 
-**326 tasks · 200 no MVP · 218 concluídas (67%)**
+**326 tasks · 200 no MVP · 219 concluídas (67%)**
 
 **Só o MVP: 163 de 200 (82%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -149,7 +149,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 11 | Push | 9 | 12 | — | Registro do token pronto. Firebase (Android/FCM) configurado de ponta a ponta em 21/09. `lembrete_entrada`, `lembrete_fim`, `lembrete_meio`, `alerta_supervisor_entrada`/`alerta_supervisor_fim` e `aviso_dia_evento`/`aviso_montagem`/`aviso_desmontagem` construídos no mesmo dia — motor próprio, cópia da regra que o site já manda por WhatsApp. Mural "Avisos" (leitura) e Central de Avisos (histórico + preferências) também construídos — ver as duas entradas no changelog. Faltam confirmação de escala (precisa de campo novo que o app não modela), boas-vindas (dispara na hora do cadastro, não por cron, valor questionável), disparo manual (parece redundante com o mural); o total desta epic (12) ainda não reflete esse tamanho. iOS (APNs) parado: precisa do Apple Developer Program pago, adiado por decisão do Juan |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
-| 14 | Segurança | 8 | 16 | — | Isolamento, limite e a trilha de auditoria feitos. Retenção de foto (ADR 003, 90 dias) e "excluir minha conta" (LGPD, direito ao esquecimento) construídos em 21/09 — escopo novo, decidido na hora com o Juan; falta o resto do LGPD |
+| 14 | Segurança | 9 | 16 | — | Isolamento, limite e a trilha de auditoria feitos. Retenção de foto (ADR 003, 90 dias), "excluir minha conta" (21/09) e consentimento de verdade pra busca regional (22/09) construídos — falta o resto do LGPD, ainda sem lista fechada de itens |
 | 15 | Testes | 9 | 14 | — | 605 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 48 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09". Toda a epic fala com a API real agora: organizações, veículos, bloqueio de CPF, base de funcionários, encontrar colaborador, relatórios, cartaz da portaria, criar setor, equipe do setor, trocar senha, excluir acesso e criar acesso de admin — número não recontado por falta de lista tarefa a tarefa desta epic |
@@ -1521,6 +1521,34 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > infraestrutura, o app não). **Decisão do Juan (22/09/2026): não vale o
 > investimento — fica de fora, propositalmente, não é mais um "AindaNaoNaApi
 > a resolver".**
+>
+> **22/09/2026 — LGPD: consentimento de verdade pra busca regional
+> (Epic 14).** Investigando "o resto do LGPD" (item vago no backlog, sem
+> lista fechada), achei um gap concreto já documentado como "LIMITE
+> CONHECIDO" em `base-de-funcionarios.ts`: `autorizouBaseRegional` sempre
+> voltava `true`, ignorando o consentimento de verdade que o site já
+> coleta (`funcionarios.consentimento_base`/`consentimento_em`, colunas
+> que já existem em produção) — o app expunha qualquer colaborador pra
+> recrutamento futuro, mesmo quem nunca autorizou isso.
+>
+> Construído: `entrarNoEvento` grava o consentimento quando vem em
+> `respostas.consentimento === 'true'` (chave reservada no mesmo
+> dicionário livre que já carrega `cidade`/`funcao` — nenhuma mudança de
+> assinatura em `cliente.ts`/`cliente-http.ts`); `todasAsPessoasDaBase`
+> agrega "autorizou em QUALQUER cadastro" por CPF (mesma regra do site);
+> a ficha da pessoa mostra o valor real, não mais fixo.
+>
+> **Achado que mudou o plano no meio do caminho**: ligar o filtro na busca
+> regional AGORA esvaziaria a lista pra quase todo mundo — ninguém nunca
+> autorizou de verdade, porque nenhuma tela do app pergunta isso ainda.
+> Alertei o Juan antes de mexer; ele escolheu construir tudo, mas deixar o
+> filtro DESLIGADO até a tela de auto-cadastro existir (`encontrarColaborador`
+> em `base-de-funcionarios.ts`, interruptor `SO_QUEM_AUTORIZOU_APARECE_NA_BUSCA
+> = false`, um comentário explica onde ligar). A lógica do filtro em si já
+> está pronta e testada (`pessoasQueAparecemNaBusca`), só não está ativa.
+>
+> 4 testes novos (`eventos.teste.ts`), 4 novos (`base-de-funcionarios.teste.ts`).
+> **Epic 14 sobe de 8/16 para 9/16.**
 
 ## Bloqueado, esperando o Juan
 
@@ -1556,3 +1584,4 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 - **Ainda falta a tela no app** pro mural "Avisos" (modal na credencial/painel), pra Central de Avisos (histórico + preferências) e pro módulo Gastos inteiro (captura manual/voz, lista, painel) — backend pronto e testado nos três, mas ninguém vê nada ainda sem a interface.
 - ~~Suporte de Sistema quebrado contra a API de verdade~~ → **construído em 22/09/2026, escopo fino igual ao site** — ver achado acima.
 - **Configurar `GEMINI_API_KEY` no Render** (mesma variável que o site já usa pro Gastos por voz) — sem ela, `transcreverAudioDeGasto` responde com um erro amigável ("leitura de áudio ainda não foi configurada"), mas ninguém consegue lançar gasto falando até essa chave existir no ambiente da API do app.
+- **Ligar o filtro de consentimento na busca regional** (`SO_QUEM_AUTORIZOU_APARECE_NA_BUSCA` em `apps/api/src/rotas/base-de-funcionarios.ts`) — está pronto e testado, só desligado. Requer que exista (ou já esteja em uso) uma tela de auto-cadastro perguntando o consentimento de verdade; senão a busca fica vazia pra quase todo mundo.

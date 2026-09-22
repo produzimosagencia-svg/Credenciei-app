@@ -7,7 +7,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import {
-  atribuirPessoaAoEvento, baseDeFuncionarios, encontrarColaborador, fichaDaPessoaNaBase,
+  atribuirPessoaAoEvento, baseDeFuncionarios, encontrarColaborador, fichaDaPessoaNaBase, pessoasQueAparecemNaBusca,
 } from './base-de-funcionarios.js'
 
 test('admin não vê a base de funcionários — atravessa organização', async () => {
@@ -116,6 +116,47 @@ test('a ficha traz o histórico, e não mostra valor pago', async () => {
   assert.equal(r.trabalhos[0]?.evento, 'Henrique e Juliano — Kleber Andrade')
   assert.equal(r.jaNosEventos.length, 1)
   assert.ok(!('valorReceber' in r.trabalhos[0]!), 'ficha da base não mostra valor pago')
+})
+
+// ─── Consentimento da busca regional (LGPD) ────────────────────────────────
+
+test('a ficha mostra o consentimento real — false até alguém autorizar de verdade', async () => {
+  const { repo, master, pessoa } = cenarioHenriqueEJuliano()
+  const r = await fichaDaPessoaNaBase(repo, master.id, pessoa.cpf)
+  assert.equal(r.autorizouBaseRegional, false)
+  assert.equal(r.autorizouEm, null)
+})
+
+test('depois de registrarConsentimentoDeBase, a ficha reflete a autorização', async () => {
+  const { repo, master, pessoa, participacao } = cenarioHenriqueEJuliano()
+  await repo.registrarConsentimentoDeBase(participacao.id, '2026-09-03T10:00:00.000Z')
+
+  const r = await fichaDaPessoaNaBase(repo, master.id, pessoa.cpf)
+  assert.equal(r.autorizouBaseRegional, true)
+  assert.equal(r.autorizouEm, '2026-09-03T10:00:00.000Z')
+})
+
+test('pessoasQueAparecemNaBusca, desligado, devolve todo mundo (comportamento atual)', async () => {
+  const { repo } = cenarioHenriqueEJuliano()
+  const todas = await repo.todasAsPessoasDaBase()
+  assert.deepEqual(pessoasQueAparecemNaBusca(todas, false), todas)
+})
+
+test('pessoasQueAparecemNaBusca, ligado, só devolve quem autorizou de verdade', async () => {
+  const { repo, participacao } = cenarioHenriqueEJuliano()
+  repo.pessoas.push({ id: 'pes-maria', nome: 'Maria Souza', cpf: '98765432100', telefone: null, fotoPath: null })
+  repo.participacoes.push({
+    id: 'part-maria', pessoaId: 'pes-maria', eventoId: participacao.eventoId, equipeId: 'eq-1', equipeNome: 'Produção',
+    funcao: 'Bar', supervisorNome: null, ativo: true, descredenciadoEm: null, valorReceber: null,
+    pago: false, pagoEm: null, qrToken: 'tk-maria', cidade: null, criadoEm: '2026-08-20T10:00:00-03:00',
+  })
+  // Só a Maria autorizou — o João (cenário base) nunca autorizou nada.
+  await repo.registrarConsentimentoDeBase('part-maria', '2026-09-03T10:00:00.000Z')
+
+  const todas = await repo.todasAsPessoasDaBase()
+  const filtradas = pessoasQueAparecemNaBusca(todas, true)
+  assert.ok(filtradas.some(p => p.cpf === '98765432100'))
+  assert.ok(!filtradas.some(p => p.nome === 'João da Silva'))
 })
 
 // ─── Atribuir pessoa a um evento ────────────────────────────────────────────

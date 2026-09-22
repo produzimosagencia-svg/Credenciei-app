@@ -414,6 +414,15 @@ export interface Repositorio {
   participacaoPorQrToken(token: string): Promise<Participacao | null>
   criarParticipacao(p: Omit<Participacao, 'id'>): Promise<Participacao>
 
+  /**
+   * Registra que a pessoa autorizou aparecer na busca regional (LGPD,
+   * consentimento pra recrutamento futuro — diferente de "trabalhar neste
+   * evento"). Cópia do site's `consentimento_base`/`consentimento_em`,
+   * colunas que já existem em produção. Chamado por `entrarNoEvento`
+   * quando o auto-cadastro inclui o consentimento.
+   */
+  registrarConsentimentoDeBase(participacaoId: string, quando: string): Promise<void>
+
   /** "Mover de setor" — muda a equipe (fornecedor) desta participação, dentro do mesmo evento. */
   moverParticipacao(participacaoId: string, novoEquipeId: string): Promise<void>
   /** Marca/desmarca o pagamento — `pago: true` carimba agora; `false` limpa a data. */
@@ -1276,6 +1285,14 @@ export type PessoaDaBase = {
   eventosTrabalhados: number
   organizacoes: number
   ultimoCadastro: string
+  /**
+   * Autorizou aparecer na busca regional pra recrutamento FUTURO — LGPD,
+   * finalidade diferente de "trabalhar neste evento". `true` se QUALQUER
+   * cadastro dela (`funcionarios.consentimento_base`) tiver autorizado.
+   */
+  autorizouBaseRegional: boolean
+  /** Quando autorizou — `null` se nunca autorizou. */
+  autorizouEm: string | null
 }
 
 export type TrabalhoNaBase = {

@@ -1582,7 +1582,7 @@ export class RepositorioSupabase implements Repositorio {
   async todasAsPessoasDaBase(): Promise<PessoaDaBase[]> {
     const data = await buscarTudo((de, ate) => this.db
       .from('funcionarios')
-      .select('id, cpf, nome, telefone, cargo, cidade, created_at, fornecedores!inner(evento_id, eventos!inner(organizacao_id))')
+      .select('id, cpf, nome, telefone, cargo, cidade, created_at, consentimento_base, consentimento_em, fornecedores!inner(evento_id, eventos!inner(organizacao_id))')
       .order('created_at', { ascending: false })
       .range(de, ate))
 
@@ -1596,6 +1596,7 @@ export class RepositorioSupabase implements Repositorio {
     type Acumulado = {
       cpf: string; nome: string; telefone: string | null; funcao: string | null; cidade: string | null
       eventoIds: Set<string>; eventosComPresenca: Set<string>; orgIds: Set<string>; ultimo: string
+      autorizou: boolean; autorizouEm: string | null
     }
     const porCpf = new Map<string, Acumulado>()
 
@@ -1608,13 +1609,19 @@ export class RepositorioSupabase implements Repositorio {
       const atual = porCpf.get(cpf) ?? {
         cpf, nome: linha.nome as string, telefone: linha.telefone as string | null, funcao: linha.cargo as string | null,
         cidade, eventoIds: new Set<string>(), eventosComPresenca: new Set<string>(), orgIds: new Set<string>(),
-        ultimo: criadoEm,
+        ultimo: criadoEm, autorizou: false, autorizouEm: null,
       }
       atual.eventoIds.add(fornecedor.evento_id)
       if (idsComEntrada.has(linha.id as string)) atual.eventosComPresenca.add(fornecedor.evento_id)
       if (fornecedor.eventos?.organizacao_id) atual.orgIds.add(fornecedor.eventos.organizacao_id)
       if (criadoEm > atual.ultimo) atual.ultimo = criadoEm
       if (cidade && !atual.cidade) atual.cidade = cidade
+      // Basta UM cadastro ter autorizado — a pessoa é a mesma em todos.
+      if (linha.consentimento_base === true) {
+        atual.autorizou = true
+        const em = linha.consentimento_em as string | null
+        if (em && (!atual.autorizouEm || em > atual.autorizouEm)) atual.autorizouEm = em
+      }
       porCpf.set(cpf, atual)
     }
 
@@ -1622,7 +1629,14 @@ export class RepositorioSupabase implements Repositorio {
       cpf: a.cpf, nome: a.nome, telefone: a.telefone, funcao: a.funcao, cidade: a.cidade,
       eventos: a.eventoIds.size, eventosTrabalhados: a.eventosComPresenca.size,
       organizacoes: a.orgIds.size, ultimoCadastro: a.ultimo,
+      autorizouBaseRegional: a.autorizou, autorizouEm: a.autorizouEm,
     }))
+  }
+
+  async registrarConsentimentoDeBase(participacaoId: string, quando: string): Promise<void> {
+    await this.db.from('funcionarios')
+      .update({ consentimento_base: true, consentimento_em: quando })
+      .eq('id', participacaoId)
   }
 
   async trabalhosDaPessoa(cpf: string): Promise<TrabalhoNaBase[]> {

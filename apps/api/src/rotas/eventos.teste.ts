@@ -112,6 +112,37 @@ test('evento que exige aprovação deixa a pessoa aguardando', async () => {
   assert.equal(b.situacao, 'recusado')
 })
 
+// ─── Consentimento (LGPD, busca regional) ──────────────────────────────────
+//
+// Ainda não é obrigatório (nenhuma tela pergunta isso ainda), mas já grava
+// quando vem — ver o comentário em `entrarNoEvento`.
+
+test('sem o consentimento na resposta, entra normalmente e sem autorizar a busca regional', async () => {
+  const { repo, limite } = comDuasPessoas()
+  const r = await entrarNoEvento(
+    repo, campos, limite, 'pes-maria', CODIGO, { funcao: 'Bar', uniforme: 'M' }, () => 'tk',
+  )
+  assert.equal(r.erro, undefined)
+
+  const pessoa = (await repo.todasAsPessoasDaBase()).find(p => p.cpf === '98765432100')!
+  assert.equal(pessoa.autorizouBaseRegional, false)
+  assert.equal(pessoa.autorizouEm, null)
+})
+
+test('com consentimento: true na resposta, grava a autorização de verdade', async () => {
+  const { repo, limite } = comDuasPessoas()
+  const agora = Date.parse('2026-09-03T10:00:00-03:00')
+  const r = await entrarNoEvento(
+    repo, campos, limite, 'pes-maria', CODIGO,
+    { funcao: 'Bar', uniforme: 'M', consentimento: 'true' }, () => 'tk', agora,
+  )
+  assert.equal(r.erro, undefined)
+
+  const pessoa = (await repo.todasAsPessoasDaBase()).find(p => p.cpf === '98765432100')!
+  assert.equal(pessoa.autorizouBaseRegional, true)
+  assert.equal(pessoa.autorizouEm, new Date(agora).toISOString())
+})
+
 // ─── Isolamento ─────────────────────────────────────────────────────────────
 
 test('não dá para ver a participação de outra pessoa', async () => {

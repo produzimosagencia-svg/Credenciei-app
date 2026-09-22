@@ -51,6 +51,23 @@ function combina(p: { nome: string; cpf: string }, busca: string): boolean {
  */
 const LIMITE_DE_RESULTADOS = 300
 
+/**
+ * Filtra a busca regional (`encontrarColaborador`) por quem realmente
+ * autorizou (`autorizouBaseRegional`) — LGPD, mesmo espírito do toggle
+ * "recrutar" do site (`app/admin/encontrar/page.tsx`).
+ *
+ * DESLIGADO de propósito: nenhuma tela do app ainda coleta o
+ * consentimento de verdade (ver `entrarNoEvento`), então ligar isto agora
+ * esvaziaria a busca pra quase todo mundo — decisão do Juan, 22/09/2026.
+ * Ligar (`true`) quando a tela de auto-cadastro passar a perguntar.
+ */
+const SO_QUEM_AUTORIZOU_APARECE_NA_BUSCA = false
+
+/** Separado em função pura só pra o teste poder provar o filtro em si, sem depender do interruptor ligado. */
+export function pessoasQueAparecemNaBusca(todas: PessoaDaBase[], ligado = SO_QUEM_AUTORIZOU_APARECE_NA_BUSCA): PessoaDaBase[] {
+  return ligado ? todas.filter(p => p.autorizouBaseRegional) : todas
+}
+
 export async function baseDeFuncionarios(
   repo: Repositorio, pessoaId: string, busca = '',
 ): Promise<BaseDeFuncionarios> {
@@ -88,8 +105,9 @@ export async function encontrarColaborador(
   await exigirMaster(repo, pessoaId)
 
   const todas = await repo.todasAsPessoasDaBase()
+  const base = pessoasQueAparecemNaBusca(todas)
   const cidadeAlvo = semAcento((filtro.cidade ?? '').trim())
-  const achadas = todas.filter(p =>
+  const achadas = base.filter(p =>
     combina(p, filtro.busca ?? '') && (!cidadeAlvo || semAcento(p.cidade ?? '').includes(cidadeAlvo)))
 
   // Indicadores contam ACHADAS (a busca inteira) — só a lista abaixo corta em
@@ -139,10 +157,15 @@ export async function encontrarColaborador(
  * organização. Responde "posso chamar essa pessoa?" — por isso não carrega
  * valor pago.
  *
- * LIMITE CONHECIDO: `chavePix` e o consentimento real de aparecer na busca
- * regional (`autorizouBaseRegional`) ainda não são colhidos em lugar
- * nenhum do cadastro — voltam `null`/`true` fixos. Mesma simplificação que
- * o servidor falso já assume (`cliente-falso.ts`).
+ * `autorizouBaseRegional`/`autorizouEm` já vêm de verdade
+ * (`funcionarios.consentimento_base`, ver `entrarNoEvento`) — mas como
+ * nenhuma tela do app ainda pergunta isso a ninguém, hoje aparece `false`
+ * pra praticamente todo mundo. Não é bug: é o valor real, só que a
+ * coleta ainda não começou.
+ *
+ * LIMITE CONHECIDO: `chavePix` ainda não é colhido em lugar nenhum do
+ * cadastro — volta `null` fixo. Mesma simplificação que o servidor falso
+ * já assume (`cliente-falso.ts`).
  */
 export async function fichaDaPessoaNaBase(
   repo: Repositorio, pessoaId: string, cpfDigitado: string,
@@ -177,8 +200,8 @@ export async function fichaDaPessoaNaBase(
     cidade: pessoa.cidade,
     chavePix: null,
     cargoMaisComum: pessoa.funcao ?? '',
-    autorizouBaseRegional: true,
-    autorizouEm: pessoa.ultimoCadastro,
+    autorizouBaseRegional: pessoa.autorizouBaseRegional,
+    autorizouEm: pessoa.autorizouEm,
     indicadores: [
       { chave: 'eventos', rotulo: 'Eventos trabalhados', valor: trabalhos.length, tom: 'acento' },
       { chave: 'organizacoes', rotulo: 'Organizações', valor: organizacoesDaPessoa.size, tom: 'info' },

@@ -122,6 +122,20 @@ export async function entrarNoEvento(
     criadoEm: new Date(agora).toISOString(),
   })
 
+  /*
+   * Consentimento pra aparecer na busca regional (LGPD) — cópia do
+   * `consentimento_base` do site, finalidade DIFERENTE de "trabalhar
+   * neste evento". Ainda não é exigido aqui (`respostas.consentimento` é
+   * opcional, não um campo obrigatório como no site): a tela do app ainda
+   * não pergunta isso a ninguém, e travar o cadastro por um campo que
+   * nenhuma tela oferece pararia todo mundo. Grava quando vier, pra já
+   * ficar certo assim que a tela existir — ver LIMITE CONHECIDO em
+   * `base-de-funcionarios.ts`.
+   */
+  if (respostas.consentimento === 'true') {
+    await repo.registrarConsentimentoDeBase(criada.id, new Date(agora).toISOString())
+  }
+
   const evento = await repo.eventoPorId(c.convite.eventoId)
   return { participacao: paraResumo(criada, c.convite, agora, evento?.checkin_autonomo === true) }
 }

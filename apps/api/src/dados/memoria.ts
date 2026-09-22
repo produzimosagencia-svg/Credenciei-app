@@ -98,6 +98,8 @@ export class RepositorioEmMemoria implements Repositorio {
   gastos: (GastoNoRepositorio & { organizacaoIdSeInterno: string | null; comprovantePath: string | null })[] = []
   /** Mesma tabela `suporte_escopo` do site — organização OU evento por linha, nunca os dois. */
   suporteEscopo: { perfilId: string; organizacaoId: string | null; eventoId: string | null }[] = []
+  /** participacaoId → quando autorizou aparecer na busca regional (mesma coluna `funcionarios.consentimento_em` do site). */
+  consentimentosDeBase = new Map<string, string>()
 
   // ── Identidade ────────────────────────────────────────────────────────────
 
@@ -829,6 +831,7 @@ export class RepositorioEmMemoria implements Repositorio {
     type Acumulado = {
       cpf: string; nome: string; telefone: string | null; funcao: string | null; cidade: string | null
       eventoIds: Set<string>; eventosComPresenca: Set<string>; orgIds: Set<string>; ultimo: string
+      autorizou: boolean; autorizouEm: string | null
     }
     const porCpf = new Map<string, Acumulado>()
 
@@ -841,13 +844,19 @@ export class RepositorioEmMemoria implements Repositorio {
       const atual = porCpf.get(pessoa.cpf) ?? {
         cpf: pessoa.cpf, nome: pessoa.nome, telefone: pessoa.telefone, funcao: part.funcao,
         cidade: part.cidade, eventoIds: new Set<string>(), eventosComPresenca: new Set<string>(),
-        orgIds: new Set<string>(), ultimo: part.criadoEm,
+        orgIds: new Set<string>(), ultimo: part.criadoEm, autorizou: false, autorizouEm: null,
       }
       atual.eventoIds.add(part.eventoId)
       if (compareceu) atual.eventosComPresenca.add(part.eventoId)
       if (evento?.organizacaoId) atual.orgIds.add(evento.organizacaoId)
       if (part.criadoEm > atual.ultimo) atual.ultimo = part.criadoEm
       if (part.cidade && !atual.cidade) atual.cidade = part.cidade
+      // Basta UMA participação ter autorizado — a pessoa é a mesma em todas.
+      const consentiuEm = this.consentimentosDeBase.get(part.id)
+      if (consentiuEm) {
+        atual.autorizou = true
+        if (!atual.autorizouEm || consentiuEm > atual.autorizouEm) atual.autorizouEm = consentiuEm
+      }
       porCpf.set(pessoa.cpf, atual)
     }
 
@@ -855,7 +864,12 @@ export class RepositorioEmMemoria implements Repositorio {
       cpf: a.cpf, nome: a.nome, telefone: a.telefone, funcao: a.funcao, cidade: a.cidade,
       eventos: a.eventoIds.size, eventosTrabalhados: a.eventosComPresenca.size,
       organizacoes: a.orgIds.size, ultimoCadastro: a.ultimo,
+      autorizouBaseRegional: a.autorizou, autorizouEm: a.autorizouEm,
     }))
+  }
+
+  async registrarConsentimentoDeBase(participacaoId: string, quando: string): Promise<void> {
+    this.consentimentosDeBase.set(participacaoId, quando)
   }
 
   async trabalhosDaPessoa(cpf: string): Promise<TrabalhoNaBase[]> {
