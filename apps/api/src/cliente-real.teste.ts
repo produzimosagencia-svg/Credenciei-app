@@ -189,6 +189,32 @@ test('o mural de avisos vai e volta pela API', async () => {
   assert.equal(depois.length, 0)
 })
 
+test('a Central de Avisos (histórico + preferências) vai e volta pela API', async () => {
+  const m = montar()
+  await entrar(m)
+
+  const vazia = await m.cliente.minhasNotificacoes()
+  assert.equal(vazia.notificacoes.length, 0)
+  assert.ok(vazia.preferencias.some(p => p.tipo === 'lembrete_entrada'))
+
+  await m.repo.registrarNotificacao({
+    pessoaId: m.repo.pessoas[0]!.id, tipo: 'lembrete_entrada', titulo: 'Falta bater a entrada',
+    corpo: 'Corpo.', destino: '/credencial',
+  })
+
+  const comUma = await m.cliente.minhasNotificacoes()
+  assert.equal(comUma.naoLidas, 1)
+
+  const lida = await m.cliente.marcarNotificacaoComoLida(comUma.notificacoes[0]!.id)
+  assert.deepEqual(lida, {})
+  assert.equal((await m.cliente.minhasNotificacoes()).naoLidas, 0)
+
+  const semLembreteEntrada = await m.cliente.salvarPreferenciasDeAvisos(['dia_evento', 'montagem', 'desmontagem', 'lembrete_meio', 'lembrete_fim'])
+  assert.deepEqual(semLembreteEntrada, {})
+  const depois = await m.cliente.minhasNotificacoes()
+  assert.equal(depois.preferencias.find(p => p.tipo === 'lembrete_entrada')!.ativo, false)
+})
+
 test('excluir minha conta vai e volta pela API — anonimiza e derruba a sessão', async () => {
   const m = montar()
   await entrar(m)

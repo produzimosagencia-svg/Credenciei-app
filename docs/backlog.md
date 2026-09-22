@@ -1,6 +1,6 @@
 # Backlog
 
-**326 tasks · 200 no MVP · 210 concluídas (64%)**
+**326 tasks · 200 no MVP · 212 concluídas (65%)**
 
 **Só o MVP: 163 de 200 (82%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -146,7 +146,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 8 | Ponto no app | 7 | 7 | ✓ | **Completa** — recontada em 18/09 depois de remapear e não achar tarefa concreta pendente (o "falta o resto do ciclo" era folga de estimativa antiga, não trabalho esquecido; Juan confirmou fechar assim, e aponta o que faltar se aparecer usando de verdade). O meio com selfie; `registrarEntradaLivre` (auto-atendimento) real na API; a credencial esconde o QR quando a participação não está credenciada, e avisa quando o dia foi cancelado; troca de evento quando a pessoa está em dois ao mesmo tempo; aviso de batida pendente na aba; contestar uma batida errada ou que faltou |
 | 9 | Histórico | 4 | 11 | — | Meus dias e Meu pagamento prontos |
 | 10 | Supervisor | 19 | 19 | — | Equipe, ficha da pessoa e histórico; tirar da equipe/excluir de vez/corrigir telefone são tasks novas, achadas em 14/09. Ativar/desativar sem tirar da equipe, foto/localização na presença de hoje, corrigir função, corrigir CPF e a aba de crachá (todos 21/09) — os 5 achados comparando com o site, todos fechados |
-| 11 | Push | 7 | 12 | — | Registro do token pronto. Firebase (Android/FCM) configurado de ponta a ponta em 21/09. `lembrete_entrada`, `lembrete_fim`, `lembrete_meio`, `alerta_supervisor_entrada`/`alerta_supervisor_fim` e `aviso_dia_evento`/`aviso_montagem`/`aviso_desmontagem` construídos no mesmo dia — motor próprio, cópia da regra que o site já manda por WhatsApp (`quandoAvisarDoDia` e `HORA_AVISO_DIA` portados pro domínio). Juan escolheu trazer os dois modelos (lembretes automáticos + mural "Avisos") — faltam confirmação de escala (precisa de um campo novo, `msg_pre_evento_envio`, que o app ainda não modela — decisão de escopo pendente), boas-vindas (arquitetura diferente — dispara na hora do cadastro, não por cron — e o valor é questionável: quem acabou de entrar raramente já tem token de push registrado), disparo manual (ferramenta ad-hoc do site, possivelmente redundante com o mural "Avisos"), e o mural inteiro (não existe no app ainda); o total desta epic (12) ainda não reflete esse tamanho, vai crescer conforme cada um for escopado. iOS (APNs) parado: precisa do Apple Developer Program pago, adiado por decisão do Juan |
+| 11 | Push | 9 | 12 | — | Registro do token pronto. Firebase (Android/FCM) configurado de ponta a ponta em 21/09. `lembrete_entrada`, `lembrete_fim`, `lembrete_meio`, `alerta_supervisor_entrada`/`alerta_supervisor_fim` e `aviso_dia_evento`/`aviso_montagem`/`aviso_desmontagem` construídos no mesmo dia — motor próprio, cópia da regra que o site já manda por WhatsApp. Mural "Avisos" (leitura) e Central de Avisos (histórico + preferências) também construídos — ver as duas entradas no changelog. Faltam confirmação de escala (precisa de campo novo que o app não modela), boas-vindas (dispara na hora do cadastro, não por cron, valor questionável), disparo manual (parece redundante com o mural); o total desta epic (12) ainda não reflete esse tamanho. iOS (APNs) parado: precisa do Apple Developer Program pago, adiado por decisão do Juan |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 8 | 16 | — | Isolamento, limite e a trilha de auditoria feitos. Retenção de foto (ADR 003, 90 dias) e "excluir minha conta" (LGPD, direito ao esquecimento) construídos em 21/09 — escopo novo, decidido na hora com o Juan; falta o resto do LGPD |
@@ -1369,6 +1369,49 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > **Epic 11 sobe de 6/12 para 7/12.** Próximo passo natural: o mural
 > "Avisos" (não existe no app ainda) — é a outra metade do que o Juan
 > escolheu, e maior que qualquer um destes lembretes.
+>
+> **21/09/2026 — mural "Avisos" construído (leitura e confirmação).**
+> Diferente dos lembretes: o site NUNCA manda "Avisos" como push, só
+> mostra como modal quando a pessoa abre a tela — confirmado com o Juan
+> antes de construir, pra não inventar push que o site não tem. Usa a
+> MESMA tabela que o site já usa (`avisos`/`aviso_setores`/
+> `aviso_visualizacoes`), não uma cópia isolada tipo `app_push_tokens` —
+> um aviso criado no painel do site aparece no app, e vice-versa; só a
+> tradução de identidade muda (o site guarda `cpf_pessoa`, o app resolve
+> pelo `pessoaId`). Fase 1: só leitura — criar/editar continua no site,
+> que já tem essa tela pronta. Rotas novas:
+> `GET /v1/eventos/:id/avisos-pendentes`, `POST /v1/avisos/:id/visto`. 11
+> testes na rota, mais o round-trip real. **Epic 11 sobe de 7/12 para
+> 8/12** — este commit não tinha atualizado o backlog na hora, corrigido
+> agora junto com a entrada de baixo.
+>
+> **21/09/2026 — achado no meio do caminho: a "Central de Avisos" já
+> estava desenhada, e esquecida.** Investigando o contrato pra montar o
+> mural, achei que `packages/contrato/src/cliente.ts` já tinha um
+> contrato INTEIRO pra um histórico de push com preferências por tipo
+> (`minhasNotificacoes`, `marcarNotificacaoComoLida`,
+> `salvarPreferenciasDeAvisos`) — com dado de demonstração pronto no
+> `cliente-falso.ts`, mas **nenhuma API de verdade por trás** (todo
+> método jogava `AindaNaoNaApi`) e nenhuma tela no app. Achado
+> apresentado ao Juan, que escolheu construir os dois — o mural E esta
+> central — na mesma sessão.
+>
+> Ligado numa API de verdade: duas tabelas novas
+> (`app_notificacoes`/`app_preferencias_de_aviso`, migração 010), e os
+> sete lugares que mandam push (`rotas/lembretes.ts`) passaram a checar a
+> preferência ANTES de mandar (não é decorativo — desligar "hora da
+> entrada" realmente impede o envio) e gravar no histórico DEPOIS de
+> mandar com sucesso. Os rótulos das categorias (`dia_evento`,
+> `alerta_pendencia` etc.) já vinham prontos do `cliente-falso.ts`, só
+> reaproveitados.
+>
+> Aproveitado pra limpar uma duplicata achada no caminho:
+> `registrarTokenDeAviso` era uma segunda declaração pro mesmo registro
+> de token que `registrarTokenDePush` já faz de verdade — nunca chamada
+> por tela nenhuma, nunca implementada na API. Removida do contrato
+> (interface, `cliente-http.ts`, `cliente-falso.ts`).
+>
+> **Epic 11 sobe de 8/12 para 9/12.**
 
 ## Bloqueado, esperando o Juan
 
@@ -1400,3 +1443,5 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 - ~~Rodar a migração 008~~ → **feito pelo Juan em 21/09.**
 - **Configurar um agendador externo** (cron-job.org, mesma ferramenta já cotada pra retenção de foto) batendo nas seis rotas de tempos em tempos (sugestão: a cada 15-30 min) — sem isso, os lembretes existem no código mas nunca disparam sozinhos: `POST /manutencao/lembrete-entrada`, `/lembrete-saida`, `/lembrete-meio`, `/alerta-supervisor-entrada`, `/alerta-supervisor-saida`, `/aviso-do-dia`.
 - **Decidir os três itens parados do push** (`confirmacao_escala`, `boas_vindas_funcionario`, `disparo_manual`) — ver o achado de 21/09 acima, cada um tem um motivo diferente pra não ter entrado ainda.
+- **Rodar a migração 010** (`app_notificacoes`/`app_preferencias_de_aviso`) — aditiva e segura, sem pressa, mesma régua das outras.
+- **Ainda falta a tela no app** pro mural "Avisos" (modal na credencial/painel) e pra Central de Avisos (histórico + preferências) — o backend dos dois está pronto e testado, mas ninguém vê nada ainda sem a interface.

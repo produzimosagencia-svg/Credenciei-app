@@ -83,6 +83,13 @@ export class RepositorioEmMemoria implements Repositorio {
   }[] = []
   /** Chave `avisoId|pessoaId` — mesma dedupe de `aviso_visualizacoes`. */
   avisosVistos = new Set<string>()
+  /** Mesma tabela `app_notificacoes` — o histórico de push da Central de Avisos. */
+  notificacoes: {
+    id: string; pessoaId: string; tipo: string; titulo: string; corpo: string
+    destino: string | null; criadoEm: string; lida: boolean
+  }[] = []
+  /** Chave `pessoaId|tipo` → ativo. Ausência = ligado (mesma tabela `app_preferencias_de_aviso`). */
+  preferenciasDeAviso = new Map<string, boolean>()
 
   // ── Identidade ────────────────────────────────────────────────────────────
 
@@ -1278,6 +1285,44 @@ export class RepositorioEmMemoria implements Repositorio {
 
   async marcarAvisoVisto(avisoId: string, pessoaId: string): Promise<void> {
     this.avisosVistos.add(`${avisoId}|${pessoaId}`)
+  }
+
+  async registrarNotificacao(dados: {
+    pessoaId: string; tipo: string; titulo: string; corpo: string; destino: string | null
+  }): Promise<void> {
+    this.notificacoes.push({
+      id: novoId('notif'), pessoaId: dados.pessoaId, tipo: dados.tipo, titulo: dados.titulo, corpo: dados.corpo,
+      destino: dados.destino, criadoEm: new Date().toISOString(), lida: false,
+    })
+  }
+
+  async notificacoesDaPessoa(pessoaId: string): Promise<{
+    id: string; tipo: string; titulo: string; corpo: string; criadoEm: string; lida: boolean; destino: string | null
+  }[]> {
+    return this.notificacoes
+      .filter(n => n.pessoaId === pessoaId)
+      .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
+      .map(({ id, tipo, titulo, corpo, criadoEm, lida, destino }) => ({ id, tipo, titulo, corpo, criadoEm, lida, destino }))
+  }
+
+  async marcarNotificacaoLida(id: string, pessoaId: string): Promise<void> {
+    const n = this.notificacoes.find(x => x.id === id && x.pessoaId === pessoaId)
+    if (n) n.lida = true
+  }
+
+  async marcarTodasNotificacoesLidas(pessoaId: string): Promise<void> {
+    for (const n of this.notificacoes) if (n.pessoaId === pessoaId) n.lida = true
+  }
+
+  async tiposDesligados(pessoaId: string): Promise<string[]> {
+    return [...this.preferenciasDeAviso.entries()]
+      .filter(([chave, ativo]) => chave.startsWith(`${pessoaId}|`) && !ativo)
+      .map(([chave]) => chave.slice(pessoaId.length + 1))
+  }
+
+  async salvarPreferencias(pessoaId: string, todosOsTipos: string[], tiposLigados: string[]): Promise<void> {
+    const ligados = new Set(tiposLigados)
+    for (const tipo of todosOsTipos) this.preferenciasDeAviso.set(`${pessoaId}|${tipo}`, ligados.has(tipo))
   }
 
   // ── Contestação de batida ────────────────────────────────────────────────

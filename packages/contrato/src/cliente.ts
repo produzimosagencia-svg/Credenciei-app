@@ -620,14 +620,10 @@ export interface ClienteApi {
   /** A lista dos tipos que ficam LIGADOS — o resto desliga. */
   salvarPreferenciasDeAvisos(tiposLigados: TipoDeAviso[]): Promise<{ erro?: string }>
 
-  /**
-   * Registra o token do aparelho para receber push.
-   *
-   * Chamado depois que a pessoa autoriza notificação no sistema — a
-   * permissão em si não passa por aqui, é uma pergunta do aparelho, não do
-   * servidor.
-   */
-  registrarTokenDeAviso(token: string, plataforma: 'ios' | 'android' | 'web'): Promise<{ erro?: string }>
+  // (o registro do token do aparelho é `registrarTokenDePush`, mais abaixo —
+  // existia uma segunda declaração igual aqui, nunca usada por tela nenhuma
+  // nem implementada na API; removida em 21/09/2026 ao ligar a Central de
+  // Avisos numa API de verdade.)
 
   // ── Supervisor ──────────────────────────────────────────────────────────
   painelDaEquipe(eventoId: string): Promise<PainelDaEquipe>

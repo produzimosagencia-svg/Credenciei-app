@@ -866,6 +866,34 @@ export interface Repositorio {
   /** Confirma que a pessoa viu — recorrentes continuam voltando, os outros não. */
   marcarAvisoVisto(avisoId: string, pessoaId: string): Promise<void>
 
+  // ── Central de Avisos (histórico de push + preferências) ────────────────
+  //
+  // Só do app — `app_notificacoes`/`app_preferencias_de_aviso`, migração
+  // `010-notificacoes.sql`. Cada push mandado com sucesso (ver
+  // `rotas/lembretes.ts`) grava uma linha aqui, pra sobreviver ao aviso que
+  // ninguém tocou; a preferência decide se aquele TIPO chega a ser mandado.
+
+  /** Chamar só depois do push de verdade sair — histórico não grava tentativa, grava envio. */
+  registrarNotificacao(dados: {
+    pessoaId: string; tipo: string; titulo: string; corpo: string; destino: string | null
+  }): Promise<void>
+  /** Mais recente primeiro. */
+  notificacoesDaPessoa(pessoaId: string): Promise<{
+    id: string; tipo: string; titulo: string; corpo: string; criadoEm: string; lida: boolean; destino: string | null
+  }[]>
+  /** Não faz nada se o id não existir ou não for desta pessoa — nunca erro por isso. */
+  marcarNotificacaoLida(id: string, pessoaId: string): Promise<void>
+  marcarTodasNotificacoesLidas(pessoaId: string): Promise<void>
+
+  /** Os tipos que esta pessoa desligou — ausência de linha é LIGADO. */
+  tiposDesligados(pessoaId: string): Promise<string[]>
+  /**
+   * Substitui as preferências: dentro do universo `todosOsTipos` (os que
+   * fazem sentido pro papel dela), o que estiver em `tiposLigados` fica
+   * ligado — o resto desliga.
+   */
+  salvarPreferencias(pessoaId: string, todosOsTipos: string[], tiposLigados: string[]): Promise<void>
+
   // ── Contestação de batida ────────────────────────────────────────────────
   //
   // O colaborador contesta a própria batida (errada ou que faltou) — recurso

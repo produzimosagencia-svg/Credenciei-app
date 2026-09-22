@@ -948,31 +948,30 @@ export class ClienteHttp implements ClienteApi {
     throw new AindaNaoNaApi('painelDoWhatsApp')
   }
 
-  // ─── Avisos ───────────────────────────────────────────────────────────────
+  // ─── Central de Avisos ──────────────────────────────────────────────────
 
   async minhasNotificacoes(): Promise<CentralDeAvisos> {
-    throw new AindaNaoNaApi('minhasNotificacoes')
+    const r = await this.pedir('/v1/notificacoes')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar suas notificações.'))
+    return r.corpo as unknown as CentralDeAvisos
   }
 
-  async marcarNotificacaoComoLida(_id: string): Promise<{ erro?: string }> {
-    void _id
-    throw new AindaNaoNaApi('marcarNotificacaoComoLida')
+  async marcarNotificacaoComoLida(id: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/notificacoes/${encodeURIComponent(id)}/lida`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos marcar como lida.') }
+    return {}
   }
 
   async marcarTodasComoLidas(): Promise<{ erro?: string }> {
-    throw new AindaNaoNaApi('marcarTodasComoLidas')
+    const r = await this.pedir('/v1/notificacoes/lidas', { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos marcar como lidas.') }
+    return {}
   }
 
-  async salvarPreferenciasDeAvisos(_tiposLigados: TipoDeAviso[]): Promise<{ erro?: string }> {
-    void _tiposLigados
-    throw new AindaNaoNaApi('salvarPreferenciasDeAvisos')
-  }
-
-  async registrarTokenDeAviso(
-    _token: string, _plataforma: 'ios' | 'android' | 'web',
-  ): Promise<{ erro?: string }> {
-    void _token; void _plataforma
-    throw new AindaNaoNaApi('registrarTokenDeAviso')
+  async salvarPreferenciasDeAvisos(tiposLigados: TipoDeAviso[]): Promise<{ erro?: string }> {
+    const r = await this.pedir('/v1/notificacoes/preferencias', { metodo: 'POST', corpo: { tiposLigados } })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar suas preferências.') }
+    return {}
   }
 
   // ─── Supervisor ───────────────────────────────────────────────────────────

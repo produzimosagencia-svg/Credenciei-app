@@ -34,6 +34,9 @@ import {
   enviarLembretesDeEntrada, enviarLembretesDeMeio, enviarLembretesDeSaida, type EnviarPush,
 } from './rotas/lembretes.js'
 import { avisosPendentes, marcarAvisoVisto } from './rotas/avisos.js'
+import {
+  marcarNotificacaoComoLida, marcarTodasComoLidas, minhasNotificacoes, salvarPreferenciasDeAvisos,
+} from './rotas/notificacoes.js'
 import { excluirMinhaConta } from './rotas/conta.js'
 import { painelDaEquipe } from './rotas/equipe.js'
 import { painel } from './rotas/painel.js'
@@ -44,7 +47,7 @@ import {
   acessos, criarAcesso, editarSupervisor, eventosComSetores, excluirAcesso, mudarSituacaoDoAcesso,
   operadoresDoEvento, trocarSenhaDoAcesso,
 } from './rotas/acessos.js'
-import type { FuncaoDeAcesso, VisaoDeAtividade } from '@credenciei/contrato'
+import type { FuncaoDeAcesso, TipoDeAviso, VisaoDeAtividade } from '@credenciei/contrato'
 import {
   consultarConvite, entrarNoEvento, meuFinanceiro, meuQr, meusDias,
   minhasParticipacoes, type FonteDeCampos,
@@ -331,6 +334,21 @@ export function criarServidor(amb: Ambiente) {
 
   app.post('/v1/avisos/:id/visto', async c =>
     protegido(c, () => marcarAvisoVisto(amb.repo, c.get('pessoaId'), c.req.param('id'))))
+
+  // ── Central de Avisos (histórico + preferências) ─────────────────────────
+  app.get('/v1/notificacoes', async c =>
+    protegido(c, () => minhasNotificacoes(amb.repo, c.get('pessoaId'), c.get('papel'))))
+
+  app.post('/v1/notificacoes/:id/lida', async c =>
+    protegido(c, () => marcarNotificacaoComoLida(amb.repo, c.get('pessoaId'), c.req.param('id'))))
+
+  app.post('/v1/notificacoes/lidas', async c =>
+    protegido(c, () => marcarTodasComoLidas(amb.repo, c.get('pessoaId'))))
+
+  app.post('/v1/notificacoes/preferencias', async c => {
+    const { tiposLigados } = await c.req.json<{ tiposLigados?: TipoDeAviso[] }>()
+    return protegido(c, () => salvarPreferenciasDeAvisos(amb.repo, c.get('pessoaId'), c.get('papel'), tiposLigados ?? []))
+  })
 
   // ── Bater ponto ─────────────────────────────────────────────────────────
   app.post('/v1/batidas', async c => {

@@ -3820,15 +3820,8 @@ export class ClienteFalso implements ClienteApi {
     return {}
   }
 
-  async registrarTokenDeAviso(token: string, plataforma: 'ios' | 'android' | 'web'): Promise<{ erro?: string }> {
-    await this.rede()
-    this.exigirSessao()
-    void token; void plataforma
-    // Não há o que fazer com o token no servidor de mentira — só confirma
-    // que a chamada existe e não quebra, para a tela poder ser construída
-    // contra ela antes de a API de verdade guardar o token.
-    return {}
-  }
+  // (registrarTokenDeAviso, duplicado de registrarTokenDePush, removido em
+  // 21/09/2026 — ver o comentário em cliente.ts.)
 
   // ── Supervisor ────────────────────────────────────────────────────────────
 

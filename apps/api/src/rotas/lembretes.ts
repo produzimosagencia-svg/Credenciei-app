@@ -25,6 +25,7 @@
 // pessoa levaria um push a cada chamada, até o prazo passar.
 
 import { janelaMeio } from '@credenciei/dominio'
+import type { TipoDeAviso } from '@credenciei/contrato'
 import type { Repositorio } from '../dados/repositorio.js'
 
 const ANTECEDENCIA_HORAS = 2
@@ -34,6 +35,46 @@ export type EnviarPush = (
   tokens: string[],
   mensagem: { titulo: string; corpo: string; dados?: Record<string, unknown> },
 ) => Promise<void>
+
+/**
+ * Os tipos técnicos aqui em cima (`lembrete_entrada`, `alerta_supervisor_fim`
+ * etc.) são precisos pra dedupe (`app_lembretes_enviados`), mas a Central de
+ * Avisos (histórico + preferências, `packages/contrato/src/tipos.ts`) usa
+ * uma categoria mais simples, pensada pra pessoa entender — os dois
+ * `alerta_supervisor_*` viram um `alerta_pendencia` só, por exemplo. Esta
+ * tabela é a tradução entre os dois, num lugar só.
+ */
+const CATEGORIA_E_DESTINO: Record<string, { categoria: TipoDeAviso; destino: string }> = {
+  lembrete_entrada: { categoria: 'lembrete_entrada', destino: '/credencial' },
+  lembrete_meio: { categoria: 'lembrete_meio', destino: '/credencial' },
+  lembrete_fim: { categoria: 'lembrete_fim', destino: '/credencial' },
+  aviso_dia_evento: { categoria: 'dia_evento', destino: '/credencial' },
+  aviso_montagem: { categoria: 'montagem', destino: '/credencial' },
+  aviso_desmontagem: { categoria: 'desmontagem', destino: '/credencial' },
+  alerta_supervisor_entrada: { categoria: 'alerta_pendencia', destino: '/atividades' },
+  alerta_supervisor_fim: { categoria: 'alerta_pendencia', destino: '/atividades' },
+}
+
+/**
+ * Manda de verdade só se a pessoa não tiver desligado esta categoria —
+ * e, quando manda, grava no histórico da Central de Avisos. Ponto único
+ * pra isso, pra nenhum dos sete lugares que mandam push esquecer um dos
+ * dois.
+ */
+async function enviarComPreferenciaEHistorico(
+  repo: Repositorio, enviarPush: EnviarPush, pessoaId: string, tokens: string[], tipoInterno: string,
+  mensagem: { titulo: string; corpo: string; dados?: Record<string, unknown> },
+): Promise<boolean> {
+  const { categoria, destino } = CATEGORIA_E_DESTINO[tipoInterno]!
+  const desligados = await repo.tiposDesligados(pessoaId)
+  if (desligados.includes(categoria)) return false
+
+  await enviarPush(tokens, mensagem)
+  await repo.registrarNotificacao({
+    pessoaId, tipo: categoria, titulo: mensagem.titulo, corpo: mensagem.corpo, destino,
+  })
+  return true
+}
 
 const TEXTO_POR_MOMENTO: Record<'entrada' | 'fim', { tipo: string; titulo: string; instrucao: string }> = {
   entrada: {
@@ -68,11 +109,12 @@ async function enviarLembretes(
     const tokens = await repo.tokensDePush(p.pessoaId)
     if (!tokens.length) continue
 
-    await enviarPush(tokens.map(t => t.token), {
+    const mandou = await enviarComPreferenciaEHistorico(repo, enviarPush, p.pessoaId, tokens.map(t => t.token), texto.tipo, {
       titulo: texto.titulo,
       corpo: `${p.nome.split(' ')[0]}, o prazo de hoje está chegando. ${texto.instrucao}`,
       dados: { tipo: texto.tipo, participacaoId: p.participacaoId },
     })
+    if (!mandou) continue
     await repo.registrarLembreteEnviado(p.participacaoId, texto.tipo, p.diaRef)
     enviados++
   }
@@ -119,12 +161,13 @@ export async function enviarLembretesDeMeio(
     const tokens = await repo.tokensDePush(p.pessoaId)
     if (!tokens.length) continue
 
-    await enviarPush(tokens.map(t => t.token), {
+    const mandou = await enviarComPreferenciaEHistorico(repo, enviarPush, p.pessoaId, tokens.map(t => t.token), TIPO, {
       titulo: 'Falta bater o meio',
       corpo: `${p.nome.split(' ')[0]}, o prazo da selfie do meio está chegando. `
         + 'Abra a credencial e registre com a câmera.',
       dados: { tipo: TIPO, participacaoId: p.participacaoId },
     })
+    if (!mandou) continue
     await repo.registrarLembreteEnviado(p.participacaoId, TIPO, p.diaRef)
     enviados++
   }
@@ -188,11 +231,15 @@ async function enviarAlertaSupervisor(
 
     const nomes = pendentes.slice(0, MAX_NOMES_NO_ALERTA).map(p => p.nome)
     const resto = pendentes.length > MAX_NOMES_NO_ALERTA ? `, e mais ${pendentes.length - MAX_NOMES_NO_ALERTA}` : ''
-    await enviarPush(tokens.map(t => t.token), {
-      titulo: `${pendentes[0]!.equipeNome}: ${pendentes.length} ${texto.rotulo}`,
-      corpo: `${nomes.join(', ')}${resto} — ${pendentes[0]!.eventoNome}.`,
-      dados: { tipo: texto.tipo, equipeId },
-    })
+    const mandou = await enviarComPreferenciaEHistorico(
+      repo, enviarPush, supervisorPessoaId, tokens.map(t => t.token), texto.tipo,
+      {
+        titulo: `${pendentes[0]!.equipeNome}: ${pendentes.length} ${texto.rotulo}`,
+        corpo: `${nomes.join(', ')}${resto} — ${pendentes[0]!.eventoNome}.`,
+        dados: { tipo: texto.tipo, equipeId },
+      },
+    )
+    if (!mandou) continue
     await repo.registrarLembreteEnviado(equipeId, texto.tipo, diaRef)
     enviados++
   }
@@ -241,11 +288,12 @@ export async function enviarAvisoDoDia(
     const tokens = await repo.tokensDePush(p.pessoaId)
     if (!tokens.length) continue
 
-    await enviarPush(tokens.map(t => t.token), {
+    const mandou = await enviarComPreferenciaEHistorico(repo, enviarPush, p.pessoaId, tokens.map(t => t.token), tipo, {
       titulo: TITULO_POR_FASE[p.fase],
       corpo: `${p.nome.split(' ')[0]}, ${p.eventoNome} conta com você hoje. Abra a credencial pra ver os detalhes.`,
       dados: { tipo, participacaoId: p.participacaoId },
     })
+    if (!mandou) continue
     await repo.registrarLembreteEnviado(p.participacaoId, tipo, p.data)
     enviados++
   }

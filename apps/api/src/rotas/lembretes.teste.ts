@@ -445,3 +445,57 @@ test('não avisa duas vezes o mesmo dia', async () => {
   assert.equal(r.enviados, 0)
   assert.equal(segunda.enviados.length, 0)
 })
+
+// ─── Preferência e histórico (Central de Avisos) ───────────────────────────
+
+test('quem desligou a categoria não recebe o push — e não fica marcado como enviado', async () => {
+  const { repo, pessoa, participacao } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+  await repo.salvarPreferencias(pessoa.id, ['lembrete_entrada'], [])
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeEntrada(repo, enviarPush, DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+  assert.equal(await repo.jaEnviouLembreteHoje(participacao.id, 'lembrete_entrada', '2026-09-05'), false)
+})
+
+test('religando a preferência, o próximo lembrete já volta a mandar', async () => {
+  const { repo, pessoa } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+  await repo.salvarPreferencias(pessoa.id, ['lembrete_entrada'], [])
+  await repo.salvarPreferencias(pessoa.id, ['lembrete_entrada'], ['lembrete_entrada'])
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeEntrada(repo, enviarPush, DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 1)
+  assert.equal(enviados.length, 1)
+})
+
+test('todo push mandado fica no histórico da Central de Avisos, com a categoria certa', async () => {
+  const { repo, pessoa } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  await enviarLembretesDeEntrada(repo, coletor().enviarPush, DENTRO_DA_JANELA)
+
+  const historico = await repo.notificacoesDaPessoa(pessoa.id)
+  assert.equal(historico.length, 1)
+  assert.equal(historico[0]!.tipo, 'lembrete_entrada')
+  assert.equal(historico[0]!.titulo, 'Falta bater a entrada')
+  assert.equal(historico[0]!.lida, false)
+  assert.equal(historico[0]!.destino, '/credencial')
+})
+
+test('alerta ao supervisor grava no histórico como "alerta_pendencia" — a categoria simples da Central', async () => {
+  const { repo } = comSupervisor()
+  await repo.registrarTokenDePush('auth-supervisor', 'tok-supervisor', 'android')
+
+  await enviarAlertaSupervisorDeEntrada(repo, coletor().enviarPush, DENTRO_DA_JANELA)
+
+  const historico = await repo.notificacoesDaPessoa('auth-supervisor')
+  assert.equal(historico.length, 1)
+  assert.equal(historico[0]!.tipo, 'alerta_pendencia')
+  assert.equal(historico[0]!.destino, '/atividades')
+})

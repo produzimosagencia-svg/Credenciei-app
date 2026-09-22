@@ -2141,6 +2141,50 @@ export class RepositorioSupabase implements Repositorio {
     )
   }
 
+  async registrarNotificacao(dados: {
+    pessoaId: string; tipo: string; titulo: string; corpo: string; destino: string | null
+  }): Promise<void> {
+    await this.db.from('app_notificacoes').insert({
+      pessoa_id: dados.pessoaId, tipo: dados.tipo, titulo: dados.titulo, corpo: dados.corpo, destino: dados.destino,
+    })
+  }
+
+  async notificacoesDaPessoa(pessoaId: string): Promise<{
+    id: string; tipo: string; titulo: string; corpo: string; criadoEm: string; lida: boolean; destino: string | null
+  }[]> {
+    const { data } = await this.db
+      .from('app_notificacoes')
+      .select('id, tipo, titulo, corpo, criado_em, lida, destino')
+      .eq('pessoa_id', pessoaId)
+      .order('criado_em', { ascending: false })
+      .limit(200)
+    return (data ?? []).map(n => ({
+      id: n.id as string, tipo: n.tipo as string, titulo: n.titulo as string, corpo: n.corpo as string,
+      criadoEm: n.criado_em as string, lida: n.lida === true, destino: (n.destino as string | null) ?? null,
+    }))
+  }
+
+  async marcarNotificacaoLida(id: string, pessoaId: string): Promise<void> {
+    await this.db.from('app_notificacoes').update({ lida: true }).eq('id', id).eq('pessoa_id', pessoaId)
+  }
+
+  async marcarTodasNotificacoesLidas(pessoaId: string): Promise<void> {
+    await this.db.from('app_notificacoes').update({ lida: true }).eq('pessoa_id', pessoaId).eq('lida', false)
+  }
+
+  async tiposDesligados(pessoaId: string): Promise<string[]> {
+    const { data } = await this.db
+      .from('app_preferencias_de_aviso').select('tipo').eq('pessoa_id', pessoaId).eq('ativo', false)
+    return (data ?? []).map(l => l.tipo as string)
+  }
+
+  async salvarPreferencias(pessoaId: string, todosOsTipos: string[], tiposLigados: string[]): Promise<void> {
+    const ligados = new Set(tiposLigados)
+    const linhas = todosOsTipos.map(tipo => ({ pessoa_id: pessoaId, tipo, ativo: ligados.has(tipo) }))
+    if (!linhas.length) return
+    await this.db.from('app_preferencias_de_aviso').upsert(linhas, { onConflict: 'pessoa_id,tipo' })
+  }
+
   // ── Contestação de batida ──────────────────────────────────────────────────
 
   async criarContestacao(dados: {
