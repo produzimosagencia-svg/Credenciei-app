@@ -1183,22 +1183,27 @@ export class ClienteHttp implements ClienteApi {
   // ─── Suporte de Sistema ───────────────────────────────────────────────────
 
   async dadosDeSuporte(): Promise<DadosDeSuporte> {
-    throw new AindaNaoNaApi('dadosDeSuporte')
+    const r = await this.pedir('/v1/suporte')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos carregar os acessos de suporte.'))
+    return r.corpo as unknown as DadosDeSuporte
   }
 
-  async criarSuporte(_dados: DadosDeNovoSuporte): Promise<{ id?: string; erro?: string }> {
-    void _dados
-    throw new AindaNaoNaApi('criarSuporte')
+  async criarSuporte(dados: DadosDeNovoSuporte): Promise<{ id?: string; erro?: string }> {
+    const r = await this.pedir('/v1/suporte', { metodo: 'POST', corpo: dados })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos criar este acesso.') }
+    return r.corpo as unknown as { id?: string }
   }
 
-  async editarSuporte(_id: string, _dados: EdicaoDeSuporte): Promise<{ erro?: string }> {
-    void _id; void _dados
-    throw new AindaNaoNaApi('editarSuporte')
+  async editarSuporte(id: string, dados: EdicaoDeSuporte): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/suporte/${encodeURIComponent(id)}/editar`, { metodo: 'POST', corpo: dados })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar este acesso.') }
+    return {}
   }
 
-  async revogarSuporte(_id: string): Promise<{ erro?: string }> {
-    void _id
-    throw new AindaNaoNaApi('revogarSuporte')
+  async revogarSuporte(id: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/suporte/${encodeURIComponent(id)}/revogar`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos revogar este acesso.') }
+    return {}
   }
 
   // ─── Gastos (produto do Produtor) ─────────────────────────────────────────

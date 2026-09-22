@@ -589,6 +589,24 @@ export interface Repositorio {
   /** Apaga o acesso — diferente de desativar, que só bloqueia o login sem perder histórico. */
   excluirAcesso(id: string): Promise<void>
 
+  // ── Suporte de Sistema ───────────────────────────────────────────────────
+  //
+  // Gente CONTRATADA pro dia do evento, escopo próprio: organização inteira
+  // e/ou eventos avulsos (`suporte_escopo`, no site — a MESMA tabela, já
+  // existe em produção, esta é a primeira vez que o app lê/escreve nela).
+  // Só o master gerencia — o escopo atravessa organizações. Cópia de
+  // `criarSuporte`/`editarSuporte`/`revogarSuporte`/a tela `admin/suporte`
+  // em `c:\Dev\credenciei\lib\actions.ts`/`app\admin\suporte\page.tsx`.
+
+  dadosDeSuporte(): Promise<DadosDeSuporteNoRepositorio>
+
+  criarSuporte(dados: NovoSuporteNoRepositorio): Promise<{ id?: string; erro?: string }>
+
+  editarSuporte(id: string, dados: EdicaoDeSuporteNoRepositorio): Promise<{ erro?: string }>
+
+  /** Não exclui — desativa e expira o acesso na hora, o histórico de auditoria continua. */
+  revogarSuporte(id: string): Promise<{ erro?: string }>
+
   // ── Batida do meio ───────────────────────────────────────────────────────
   //
   // Duas chaves independentes — SETOR e DIA —, que se combinam com E (ver
@@ -1099,6 +1117,46 @@ export type NovoAdminNoRepositorio = {
   senha: string
   organizacaoId: string
   ativo: boolean
+}
+
+export type OpcaoDeEscopoNoRepositorio = { id: string; nome: string }
+export type EventoParaEscopoNoRepositorio = { id: string; nome: string; organizacaoNome: string }
+
+export type SuporteAcessoNoRepositorio = {
+  id: string
+  nome: string
+  telefone: string | null
+  ativo: boolean
+  /** 'AAAA-MM-DD', ou null — sem expiração. A rota calcula "expirado" contra o relógio. */
+  acessoExpiraEm: string | null
+  escopoOrganizacoes: OpcaoDeEscopoNoRepositorio[]
+  escopoEventos: EventoParaEscopoNoRepositorio[]
+}
+
+export type DadosDeSuporteNoRepositorio = {
+  suportes: SuporteAcessoNoRepositorio[]
+  organizacoes: OpcaoDeEscopoNoRepositorio[]
+  /** Os 100 eventos mais recentes — mesmo teto da tela do site. */
+  eventos: EventoParaEscopoNoRepositorio[]
+}
+
+export type NovoSuporteNoRepositorio = {
+  nome: string
+  cpf: string
+  telefone: string
+  ativo: boolean
+  acessoExpiraEm: string | null
+  escopoOrganizacaoIds: string[]
+  escopoEventoIds: string[]
+}
+
+export type EdicaoDeSuporteNoRepositorio = {
+  nome: string
+  telefone: string
+  ativo: boolean
+  acessoExpiraEm: string | null
+  escopoOrganizacaoIds: string[]
+  escopoEventoIds: string[]
 }
 
 export type NovoEventoNoRepositorio = {

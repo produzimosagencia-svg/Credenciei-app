@@ -88,6 +88,7 @@ import {
 } from './rotas/gastos.js'
 import { dadosParaLancarPonto, eventosParaLancarPonto, lancarPontoManual } from './rotas/lancar-ponto.js'
 import { colaboradoresDoEvento, eventosParaEditarColaborador } from './rotas/editar-colaborador.js'
+import { criarSuporte, dadosDeSuporte, editarSuporte, revogarSuporte } from './rotas/suporte.js'
 import { ArquivosEmMemoria, type Arquivos } from './arquivos.js'
 import type { Periodo, QuemNoRelatorio } from '@credenciei/contrato'
 import {
@@ -873,6 +874,33 @@ export function criarServidor(amb: Ambiente) {
 
   app.get('/v1/editar-colaborador/:eventoId', async c =>
     protegido(c, () => colaboradoresDoEvento(amb.repo, c.get('pessoaId'), c.req.param('eventoId'))))
+
+  // ── Suporte de Sistema ───────────────────────────────────────────────────
+  app.get('/v1/suporte', async c =>
+    protegido(c, () => dadosDeSuporte(amb.repo, c.get('pessoaId'))))
+
+  app.post('/v1/suporte', async c => {
+    const corpo = await c.req.json<Record<string, unknown>>()
+    return protegido(c, () => criarSuporte(amb.repo, c.get('pessoaId'), {
+      nome: String(corpo.nome ?? ''), cpf: String(corpo.cpf ?? ''), telefone: String(corpo.telefone ?? ''),
+      ativo: corpo.ativo !== false, acessoExpiraEm: (corpo.acessoExpiraEm as string | null) ?? null,
+      escopoOrganizacaoIds: Array.isArray(corpo.escopoOrganizacaoIds) ? corpo.escopoOrganizacaoIds.map(String) : [],
+      escopoEventoIds: Array.isArray(corpo.escopoEventoIds) ? corpo.escopoEventoIds.map(String) : [],
+    }))
+  })
+
+  app.post('/v1/suporte/:id/editar', async c => {
+    const corpo = await c.req.json<Record<string, unknown>>()
+    return protegido(c, () => editarSuporte(amb.repo, c.get('pessoaId'), c.req.param('id'), {
+      nome: String(corpo.nome ?? ''), telefone: String(corpo.telefone ?? ''),
+      ativo: corpo.ativo !== false, acessoExpiraEm: (corpo.acessoExpiraEm as string | null) ?? null,
+      escopoOrganizacaoIds: Array.isArray(corpo.escopoOrganizacaoIds) ? corpo.escopoOrganizacaoIds.map(String) : [],
+      escopoEventoIds: Array.isArray(corpo.escopoEventoIds) ? corpo.escopoEventoIds.map(String) : [],
+    }))
+  })
+
+  app.post('/v1/suporte/:id/revogar', async c =>
+    protegido(c, () => revogarSuporte(amb.repo, c.get('pessoaId'), c.req.param('id'))))
 
   // ── Veículos ──────────────────────────────────────────────────────────────
   app.get('/v1/veiculos/eventos', async c =>

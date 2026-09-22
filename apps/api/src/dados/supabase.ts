@@ -35,12 +35,14 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { chaveDaPermissao, diaBRT, EVENTO_INTERNO, faseDoDia, quandoAvisarDoDia, HORA_AVISO_DIA, type Papel } from '@credenciei/dominio'
 import { cpfParaEmail } from '../identificador.js'
 import type {
-  AcessoCompleto, AtividadeBruta, BatidaResumida, BloqueioDeCpf, Contestacao, DiaDeTrabalho, EdicaoDeEventoNoRepositorio,
-  EstadoDaConferencia, EstadoDaPortaria, Evento, EventoComContagens, ExcecaoDePermissao,
+  AcessoCompleto, AtividadeBruta, BatidaResumida, BloqueioDeCpf, Contestacao, DadosDeSuporteNoRepositorio,
+  DiaDeTrabalho, EdicaoDeEventoNoRepositorio, EdicaoDeSuporteNoRepositorio,
+  EstadoDaConferencia, EstadoDaPortaria, Evento, EventoComContagens, EventoParaEscopoNoRepositorio, ExcecaoDePermissao,
   FiltroDeAuditoria, FiltroDeGastosNoRepositorio, GastoNoRepositorio, LinhaConferenciaNoRepositorio, LinhaDeAuditoria, LinhaDoDia,
   NovaEntradaDeAuditoria, NovaOrganizacaoNoRepositorio, NovoAcessoNoRepositorio,
   NovoAdminNoRepositorio,
-  NovoBloqueioNoRepositorio, NovoEventoNoRepositorio, NovoGastoNoRepositorio, NovoRegistro, NovoSetorNoRepositorio, NovoVeiculoNoRepositorio,
+  NovoBloqueioNoRepositorio, NovoEventoNoRepositorio, NovoGastoNoRepositorio, NovoRegistro, NovoSetorNoRepositorio,
+  NovoSuporteNoRepositorio, NovoVeiculoNoRepositorio, OpcaoDeEscopoNoRepositorio,
   Organizacao, OrganizacaoComContagens, Participacao, ParticipacaoParaLocalizar, Perfil, Pessoa, PessoaDaBase,
   Registro, Repositorio, SetorComPessoas, SetorCriado, TrabalhoNaBase, Veiculo,
 } from './repositorio.js'
@@ -1299,6 +1301,117 @@ export class RepositorioSupabase implements Repositorio {
     // que ninguém mais acha pela lista.
     await this.db.auth.admin.deleteUser(id).catch(() => {})
     await this.db.from('perfis').delete().eq('id', id)
+  }
+
+  // ── Suporte de Sistema ────────────────────────────────────────────────────
+
+  /** `'AAAA-MM-DD'` → fim do dia em BRT, ISO — mesma conversão do site. */
+  private static expiraEmParaISO(data: string | null): string | null {
+    return data ? new Date(`${data}T23:59:00-03:00`).toISOString() : null
+  }
+
+  async dadosDeSuporte(): Promise<DadosDeSuporteNoRepositorio> {
+    const [{ data: suportes }, { data: organizacoes }, { data: eventos }] = await Promise.all([
+      this.db.from('perfis').select('id, nome, telefone, ativo, acesso_expira_em')
+        .eq('role', 'suporte').order('created_at', { ascending: false }),
+      this.db.from('organizacoes').select('id, nome').order('nome'),
+      this.db.from('eventos').select('id, nome, organizacao_id').order('data_inicio', { ascending: false }).limit(100),
+    ])
+
+    const nomeDaOrganizacao = new Map((organizacoes ?? []).map(o => [o.id as string, o.nome as string]))
+    const eventosParaEscopo: EventoParaEscopoNoRepositorio[] = (eventos ?? []).map(e => ({
+      id: e.id as string, nome: e.nome as string,
+      organizacaoNome: nomeDaOrganizacao.get(e.organizacao_id as string) ?? '—',
+    }))
+    const nomeDoEvento = new Map(eventosParaEscopo.map(e => [e.id, e]))
+
+    const ids = (suportes ?? []).map(s => s.id as string)
+    const { data: escopos } = ids.length
+      ? await this.db.from('suporte_escopo').select('perfil_id, organizacao_id, evento_id').in('perfil_id', ids)
+      : { data: [] as { perfil_id: string; organizacao_id: string | null; evento_id: string | null }[] }
+
+    const escopoPorSuporte = new Map<string, { orgs: OpcaoDeEscopoNoRepositorio[]; eventos: EventoParaEscopoNoRepositorio[] }>()
+    for (const e of escopos ?? []) {
+      const atual = escopoPorSuporte.get(e.perfil_id as string) ?? { orgs: [], eventos: [] }
+      if (e.organizacao_id) atual.orgs.push({ id: e.organizacao_id as string, nome: nomeDaOrganizacao.get(e.organizacao_id as string) ?? '—' })
+      if (e.evento_id) { const ev = nomeDoEvento.get(e.evento_id as string); if (ev) atual.eventos.push(ev) }
+      escopoPorSuporte.set(e.perfil_id as string, atual)
+    }
+
+    return {
+      suportes: (suportes ?? []).map(s => {
+        const escopo = escopoPorSuporte.get(s.id as string) ?? { orgs: [], eventos: [] }
+        return {
+          id: s.id as string, nome: s.nome as string, telefone: (s.telefone as string | null) ?? null,
+          ativo: s.ativo !== false,
+          acessoExpiraEm: s.acesso_expira_em ? diaBRT(s.acesso_expira_em as string) : null,
+          escopoOrganizacoes: escopo.orgs, escopoEventos: escopo.eventos,
+        }
+      }),
+      organizacoes: (organizacoes ?? []).map(o => ({ id: o.id as string, nome: o.nome as string })),
+      eventos: eventosParaEscopo,
+    }
+  }
+
+  /** Substitui TODO o escopo de um suporte — mesma régua do site (`gravarEscopoSuporte`). */
+  private async gravarEscopoSuporte(perfilId: string, orgIds: string[], eventoIds: string[]): Promise<void> {
+    await this.db.from('suporte_escopo').delete().eq('perfil_id', perfilId)
+    const linhas = [
+      ...orgIds.map(organizacao_id => ({ perfil_id: perfilId, organizacao_id, evento_id: null })),
+      ...eventoIds.map(evento_id => ({ perfil_id: perfilId, organizacao_id: null, evento_id })),
+    ]
+    if (linhas.length) await this.db.from('suporte_escopo').insert(linhas)
+  }
+
+  async criarSuporte(dados: NovoSuporteNoRepositorio): Promise<{ id?: string; erro?: string }> {
+    const cpf = soDigitos(dados.cpf)
+    const email = cpfParaEmail(cpf)
+
+    const { data: existente } = await this.db.from('perfis').select('id').eq('cpf', cpf).maybeSingle()
+    if (existente) return { erro: `Já existe um acesso com o CPF ${cpf}. Edite esse acesso em vez de criar outro.` }
+
+    const { data: user, error } = await this.db.auth.admin.createUser({
+      email, password: randomBytes(32).toString('base64url'), email_confirm: true,
+    })
+    if (error || !user?.user) return { erro: error?.message ?? 'Não foi possível criar o acesso.' }
+
+    const { error: erroPerfil } = await this.db.from('perfis').insert([{
+      id: user.user.id, nome: dados.nome, email, cpf, telefone: dados.telefone, ativo: dados.ativo,
+      role: 'suporte', organizacao_id: null, fornecedor_id: null,
+      acesso_expira_em: RepositorioSupabase.expiraEmParaISO(dados.acessoExpiraEm),
+    }])
+    if (erroPerfil) {
+      await this.db.auth.admin.deleteUser(user.user.id).catch(() => {})
+      return { erro: 'Não foi possível criar o acesso.' }
+    }
+
+    await this.gravarEscopoSuporte(user.user.id, dados.escopoOrganizacaoIds, dados.escopoEventoIds)
+    return { id: user.user.id }
+  }
+
+  async editarSuporte(id: string, dados: EdicaoDeSuporteNoRepositorio): Promise<{ erro?: string }> {
+    const { data: alvo } = await this.db.from('perfis').select('id, role').eq('id', id).maybeSingle()
+    if (!alvo || alvo.role !== 'suporte') return { erro: 'Acesso de suporte não encontrado.' }
+
+    const { error } = await this.db.from('perfis').update({
+      nome: dados.nome, telefone: dados.telefone || null, ativo: dados.ativo,
+      acesso_expira_em: RepositorioSupabase.expiraEmParaISO(dados.acessoExpiraEm),
+    }).eq('id', id)
+    if (error) return { erro: `Não foi possível salvar: ${error.message}` }
+
+    await this.gravarEscopoSuporte(id, dados.escopoOrganizacaoIds, dados.escopoEventoIds)
+    return {}
+  }
+
+  async revogarSuporte(id: string): Promise<{ erro?: string }> {
+    // "Imediatamente", não "até o fim de hoje": ontem, não hoje — porque
+    // `acesso_expira_em` é lido como data (o dia inteiro é válido) e hoje
+    // ainda não terminou.
+    const ontem = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { error } = await this.db.from('perfis')
+      .update({ ativo: false, acesso_expira_em: ontem }).eq('id', id).eq('role', 'suporte')
+    if (error) return { erro: `Não foi possível revogar: ${error.message}` }
+    return {}
   }
 
   // ── Plataforma (organizações) ──────────────────────────────────────────────

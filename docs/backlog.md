@@ -1490,6 +1490,32 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > round-trips reais. **Não muda nenhum Feito/Total** — as duas linhas já
 > estavam contadas em Epic 17; isto só torna verdadeiro o que já estava
 > marcado.
+>
+> **22/09/2026 — Suporte de Sistema construído, com o escopo fino igual ao
+> site.** Perguntado se valia simplificar (organização inteira, sem
+> evento avulso) pra ir mais rápido, o Juan escolheu o caminho certo:
+> escopo completo, igual ao site. Achado que tornou isso mais simples do
+> que parecia: `suporte_escopo` e `perfis.acesso_expira_em` **já existem em
+> produção** (o site usa as duas desde `upgrade-suporte.sql`) — não foi
+> preciso nenhuma migração nova, só ligar o app na mesma tabela pela
+> primeira vez. Cópia de `criarSuporte`/`editarSuporte`/`revogarSuporte`/
+> `suporteTemEscopo` em `c:\Dev\credenciei\lib\actions.ts`/`lib/suporte.ts`:
+> escopo por organização inteira OU evento avulso (nunca os dois na mesma
+> linha), uma pessoa pode ter várias linhas, `acessoExpiraEm` é
+> `'AAAA-MM-DD'` mas o "expirado" só vira verdade às 23:59:59 daquele dia
+> — e revogar marca `acessoExpiraEm` como ONTEM (não hoje), porque hoje
+> ainda não terminou. Rotas novas: `GET/POST /v1/suporte`,
+> `POST /v1/suporte/:id/editar`, `POST /v1/suporte/:id/revogar`. 10 testes
+> novos na rota, mais um round-trip real (criar → listar → editar →
+> revogar). **Não muda Feito/Total** — a linha já estava contada (e
+> incorretamente marcada "✅ Trazido") em Epic 17.
+>
+> **Os três achados do Juan de hoje (Lançar ponto, Editar colaborador,
+> Suporte de Sistema) estão fechados** — nenhuma tela do app fica mais
+> quebrada contra a API de verdade por causa de método nunca ligado.
+> `painelDoWhatsApp` (achado na varredura, não reportado pelo Juan) segue
+> como `AindaNaoNaApi` — não investigado ainda, pode ser a mesma categoria
+> de gap ou pode não ter tela correspondente; fica pra conferir depois.
 
 ## Bloqueado, esperando o Juan
 
@@ -1523,5 +1549,5 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 - **Decidir os três itens parados do push** (`confirmacao_escala`, `boas_vindas_funcionario`, `disparo_manual`) — ver o achado de 21/09 acima, cada um tem um motivo diferente pra não ter entrado ainda.
 - **Rodar a migração 010** (`app_notificacoes`/`app_preferencias_de_aviso`) — aditiva e segura, sem pressa, mesma régua das outras.
 - **Ainda falta a tela no app** pro mural "Avisos" (modal na credencial/painel), pra Central de Avisos (histórico + preferências) e pro módulo Gastos inteiro (captura manual/voz, lista, painel) — backend pronto e testado nos três, mas ninguém vê nada ainda sem a interface.
-- **Suporte de Sistema ainda quebrado contra a API de verdade** (`dadosDeSuporte`/`criarSuporte`/`editarSuporte`/`revogarSuporte` — 4 métodos, `AindaNaoNaApi`) — precisa decisão antes de construir: o site tem escopo fino (organização inteira e/ou eventos avulsos, por acesso), e o app ainda não modela `suporte_escopo` nenhum. Construir igual ao site exige uma tabela nova; construir mais simples (suporte = organização inteira, sem eventos avulsos) resolve mais rápido mas é um corte de escopo real — pedir pro Juan escolher antes de mexer.
+- ~~Suporte de Sistema quebrado contra a API de verdade~~ → **construído em 22/09/2026, escopo fino igual ao site** — ver achado acima.
 - **Configurar `GEMINI_API_KEY` no Render** (mesma variável que o site já usa pro Gastos por voz) — sem ela, `transcreverAudioDeGasto` responde com um erro amigável ("leitura de áudio ainda não foi configurada"), mas ninguém consegue lançar gasto falando até essa chave existir no ambiente da API do app.

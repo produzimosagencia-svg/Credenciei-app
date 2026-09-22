@@ -10,12 +10,14 @@
 import { chaveDaPermissao, diaBRT, EVENTO_INTERNO, faseDoDia, quandoAvisarDoDia, HORA_AVISO_DIA } from '@credenciei/dominio'
 import type { Papel } from '@credenciei/dominio'
 import type {
-  AcessoCompleto, AtividadeBruta, BloqueioDeCpf, Contestacao, DiaDeTrabalho, EdicaoDeEventoNoRepositorio,
+  AcessoCompleto, AtividadeBruta, BloqueioDeCpf, Contestacao, DadosDeSuporteNoRepositorio, DiaDeTrabalho,
+  EdicaoDeEventoNoRepositorio, EdicaoDeSuporteNoRepositorio,
   EstadoDaConferencia, EstadoDaPortaria, Evento, EventoComContagens, ExcecaoDePermissao,
   FiltroDeAuditoria, FiltroDeGastosNoRepositorio, GastoNoRepositorio, LinhaConferenciaNoRepositorio, LinhaDeAuditoria, LinhaDoDia,
   NovaEntradaDeAuditoria, NovaOrganizacaoNoRepositorio, NovoAcessoNoRepositorio,
   NovoBloqueioNoRepositorio, NovoGastoNoRepositorio,
-  NovoAdminNoRepositorio, NovoEventoNoRepositorio, NovoRegistro, NovoSetorNoRepositorio, NovoVeiculoNoRepositorio,
+  NovoAdminNoRepositorio, NovoEventoNoRepositorio, NovoRegistro, NovoSetorNoRepositorio,
+  NovoSuporteNoRepositorio, NovoVeiculoNoRepositorio,
   Organizacao,
   OrganizacaoComContagens, Participacao, ParticipacaoParaLocalizar, Perfil, Pessoa, PessoaDaBase, Registro,
   Repositorio, SetorComPessoas, SetorCriado, TrabalhoNaBase, Veiculo,
@@ -94,6 +96,8 @@ export class RepositorioEmMemoria implements Repositorio {
   produtorEventos: { produtorId: string; eventoId: string }[] = []
   /** Mesma tabela `gastos_evento` do site — `comprovantePath` só existe aqui pra simular o Storage. */
   gastos: (GastoNoRepositorio & { organizacaoIdSeInterno: string | null; comprovantePath: string | null })[] = []
+  /** Mesma tabela `suporte_escopo` do site — organização OU evento por linha, nunca os dois. */
+  suporteEscopo: { perfilId: string; organizacaoId: string | null; eventoId: string | null }[] = []
 
   // ── Identidade ────────────────────────────────────────────────────────────
 
@@ -929,6 +933,79 @@ export class RepositorioEmMemoria implements Repositorio {
 
   async excluirAcesso(id: string): Promise<void> {
     this.perfis = this.perfis.filter(p => p.id !== id)
+  }
+
+  // ── Suporte de Sistema ───────────────────────────────────────────────────
+
+  async dadosDeSuporte(): Promise<DadosDeSuporteNoRepositorio> {
+    const organizacoes = this.organizacoes.map(o => ({ id: o.id, nome: o.nome }))
+    const nomeDaOrganizacao = new Map(organizacoes.map(o => [o.id, o.nome]))
+    const eventosParaEscopo = this.eventos
+      .map(e => ({ id: e.id, nome: e.nome, organizacaoNome: nomeDaOrganizacao.get(e.organizacaoId ?? '') ?? '—' }))
+    const nomeDoEvento = new Map(eventosParaEscopo.map(e => [e.id, e]))
+
+    const suportes = this.perfis.filter(p => p.papel === 'suporte')
+    return {
+      suportes: suportes.map(s => {
+        const escopos = this.suporteEscopo.filter(e => e.perfilId === s.id)
+        return {
+          id: s.id, nome: s.nome, telefone: s.telefone ?? null, ativo: s.ativo,
+          acessoExpiraEm: s.expiraEm ? diaBRT(s.expiraEm) : null,
+          escopoOrganizacoes: escopos
+            .filter(e => e.organizacaoId)
+            .map(e => ({ id: e.organizacaoId!, nome: nomeDaOrganizacao.get(e.organizacaoId!) ?? '—' })),
+          escopoEventos: escopos
+            .filter(e => e.eventoId)
+            .map(e => nomeDoEvento.get(e.eventoId!))
+            .filter((e): e is { id: string; nome: string; organizacaoNome: string } => !!e),
+        }
+      }),
+      organizacoes,
+      eventos: eventosParaEscopo,
+    }
+  }
+
+  private gravarEscopoSuporte(perfilId: string, orgIds: string[], eventoIds: string[]): void {
+    this.suporteEscopo = this.suporteEscopo.filter(e => e.perfilId !== perfilId)
+    for (const organizacaoId of orgIds) this.suporteEscopo.push({ perfilId, organizacaoId, eventoId: null })
+    for (const eventoId of eventoIds) this.suporteEscopo.push({ perfilId, organizacaoId: null, eventoId })
+  }
+
+  async criarSuporte(dados: NovoSuporteNoRepositorio): Promise<{ id?: string; erro?: string }> {
+    const cpf = dados.cpf.replace(/\D/g, '')
+    if (this.perfis.some(p => p.cpf === cpf)) {
+      return { erro: `Já existe um acesso com o CPF ${cpf}. Edite esse acesso em vez de criar outro.` }
+    }
+
+    const id = novoId('auth')
+    this.perfis.push({
+      id, nome: dados.nome, papel: 'suporte', organizacaoId: null, ativo: dados.ativo, cpf,
+      telefone: dados.telefone, setorId: null, criadoEm: new Date().toISOString(),
+      expiraEm: dados.acessoExpiraEm ? `${dados.acessoExpiraEm}T23:59:00-03:00` : null,
+      permissoesUsuario: {},
+    })
+    this.gravarEscopoSuporte(id, dados.escopoOrganizacaoIds, dados.escopoEventoIds)
+    return { id }
+  }
+
+  async editarSuporte(id: string, dados: EdicaoDeSuporteNoRepositorio): Promise<{ erro?: string }> {
+    const alvo = this.perfis.find(p => p.id === id && p.papel === 'suporte')
+    if (!alvo) return { erro: 'Acesso de suporte não encontrado.' }
+
+    alvo.nome = dados.nome
+    alvo.telefone = dados.telefone || null
+    alvo.ativo = dados.ativo
+    alvo.expiraEm = dados.acessoExpiraEm ? `${dados.acessoExpiraEm}T23:59:00-03:00` : null
+    this.gravarEscopoSuporte(id, dados.escopoOrganizacaoIds, dados.escopoEventoIds)
+    return {}
+  }
+
+  async revogarSuporte(id: string): Promise<{ erro?: string }> {
+    const alvo = this.perfis.find(p => p.id === id && p.papel === 'suporte')
+    if (!alvo) return { erro: 'Acesso de suporte não encontrado.' }
+    alvo.ativo = false
+    alvo.expiraEm = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    return {}
   }
 
   // ── Cartaz da portaria, criar setor e equipe do setor ────────────────────

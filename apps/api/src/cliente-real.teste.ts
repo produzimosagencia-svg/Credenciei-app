@@ -296,6 +296,41 @@ test('Editar colaborador (atalho) vai e volta pela API', async () => {
   assert.ok(busca.colaboradores.some(c => c.nome === 'João da Silva'))
 })
 
+test('Suporte de Sistema vai e volta pela API — criar, listar, editar e revogar', async () => {
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('juan@produzimos.com.br', 'segredo123')
+  assert.ok(r.sessao, r.erro)
+  m.guardarToken(r.sessao.token)
+
+  const antes = await m.cliente.dadosDeSuporte()
+  assert.ok(antes.organizacoes.some(o => o.nome === 'Produzimos'))
+
+  const criado = await m.cliente.criarSuporte({
+    nome: 'Bruno Tavares', cpf: '55566677788', telefone: '27998887766',
+    ativo: true, acessoExpiraEm: null, escopoOrganizacaoIds: ['org-1'], escopoEventoIds: [],
+  })
+  assert.ok(criado.id, criado.erro)
+
+  const depois = await m.cliente.dadosDeSuporte()
+  const novo = depois.suportes.find(s => s.id === criado.id)!
+  assert.equal(novo.nome, 'Bruno Tavares')
+  assert.equal(novo.escopoOrganizacoes[0]?.nome, 'Produzimos')
+
+  const editado = await m.cliente.editarSuporte(criado.id!, {
+    nome: 'Bruno T. Corrigido', telefone: '27998887766', ativo: true,
+    acessoExpiraEm: '2027-01-01', escopoOrganizacaoIds: ['org-1'], escopoEventoIds: [],
+  })
+  assert.deepEqual(editado, {})
+
+  const revogado = await m.cliente.revogarSuporte(criado.id!)
+  assert.deepEqual(revogado, {})
+
+  const final = (await m.cliente.dadosDeSuporte()).suportes.find(s => s.id === criado.id)!
+  assert.equal(final.nome, 'Bruno T. Corrigido')
+  assert.equal(final.ativo, false)
+  assert.equal(final.expirado, true)
+})
+
 test('excluir minha conta vai e volta pela API — anonimiza e derruba a sessão', async () => {
   const m = montar()
   await entrar(m)
