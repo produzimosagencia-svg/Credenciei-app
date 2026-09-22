@@ -169,6 +169,8 @@ export async function registrarPorQr(
     tipo: momento,
     dataRef,
     registradoEm: agora.toISOString(),
+    recebidoEm: agora.toISOString(),
+    origem: 'app',
     fotoPath: null,
     lat: null,
     lng: null,

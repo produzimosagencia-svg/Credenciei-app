@@ -72,12 +72,29 @@ export async function equipeDoSetor(
     ? { inicio: evento.janela_fim_inicio, fim: evento.janela_fim_fim }
     : null
 
+  /*
+   * Duas consultas pra equipe INTEIRA, não duas por pessoa — um setor
+   * grande faria dezenas ou centenas de idas ao banco sequenciais só pra
+   * abrir esta tela. Achado revisando escala (Epic 13) em 22/09/2026,
+   * mesmo padrão do `painelDaEquipe` do supervisor.
+   */
+  const idsDaEquipe = membros.map(m => m.id)
+  const [todosOsRegistros, todasAsContestacoes] = await Promise.all([
+    repo.registrosDeParticipacoes(idsDaEquipe),
+    repo.contestacoesAbertasDeParticipacoes(idsDaEquipe),
+  ])
+  const registrosPorPessoaHoje = new Map<string, typeof todosOsRegistros>()
+  for (const r of todosOsRegistros) {
+    if (r.dataRef !== hoje) continue
+    const lista = registrosPorPessoaHoje.get(r.participacaoId) ?? []
+    lista.push(r)
+    registrosPorPessoaHoje.set(r.participacaoId, lista)
+  }
+  const temContestacaoAberta = new Set(todasAsContestacoes.map(c => c.participacaoId))
+
   const pessoas: PessoaDoSetor[] = []
   for (const m of membros) {
-    const [doDia, contestacoes] = await Promise.all([
-      repo.registrosDoDia(m.id, hoje),
-      repo.contestacoesAbertas(m.id),
-    ])
+    const doDia = registrosPorPessoaHoje.get(m.id) ?? []
     const pega = (t: 'entrada' | 'meio' | 'fim') => doDia.find(r => r.tipo === t)?.registradoEm ?? null
     const entrada = pega('entrada')
     const meio = pega('meio')
@@ -106,7 +123,7 @@ export async function equipeDoSetor(
       statusFim: statusDaEtapa(fim, janelaSaida?.inicio, janelaSaida?.fim, agora),
       // Batida que a própria pessoa contestou como errada ou faltando — vira
       // pendência aqui até alguém marcar como resolvida na ficha dela.
-      temContestacaoAberta: contestacoes.length > 0,
+      temContestacaoAberta: temContestacaoAberta.has(m.id),
     })
   }
 

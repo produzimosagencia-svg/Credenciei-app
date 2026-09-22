@@ -560,6 +560,11 @@ export class RepositorioEmMemoria implements Repositorio {
     return this.registros.filter(r => r.participacaoId === participacaoId)
   }
 
+  async registrosDeParticipacoes(participacaoIds: string[]) {
+    const ids = new Set(participacaoIds)
+    return this.registros.filter(r => ids.has(r.participacaoId))
+  }
+
   /** Teste não sobe nada de verdade — só confirma que o caminho foi pedido. */
   async subirFotoDoMeio(eventoId: string, participacaoId: string, dataRef: string) {
     return `${eventoId}/${participacaoId}/meio-${dataRef}.jpg`
@@ -1441,6 +1446,13 @@ export class RepositorioEmMemoria implements Repositorio {
   async contestacoesAbertas(participacaoId: string): Promise<Contestacao[]> {
     return this.contestacoes
       .filter(c => c.participacaoId === participacaoId && !c.resolvidaEm)
+      .map(({ resolvidaEm: _resolvidaEm, ...c }) => c)
+  }
+
+  async contestacoesAbertasDeParticipacoes(participacaoIds: string[]): Promise<Contestacao[]> {
+    const ids = new Set(participacaoIds)
+    return this.contestacoes
+      .filter(c => ids.has(c.participacaoId) && !c.resolvidaEm)
       .map(({ resolvidaEm: _resolvidaEm, ...c }) => c)
   }
 

@@ -91,7 +91,7 @@ test('eventosTrabalhados só conta quem bateu entrada — cadastro sozinho não 
   await repo.gravarRegistro({
     id: 'reg-1', participacaoId: participacao.id, tipo: 'entrada',
     dataRef: '2026-09-05', registradoEm: '2026-09-05T10:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false,
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
   })
 
   const comBatida = await encontrarColaborador(repo, master.id)

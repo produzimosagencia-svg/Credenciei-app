@@ -33,6 +33,21 @@ export async function painelDaEquipe(
   const membros = await repo.participacoesDaEquipe(equipe.id)
   const pessoas: PessoaNaEquipe[] = []
 
+  /*
+   * Uma consulta só pra equipe inteira, não uma por pessoa — um setor
+   * grande faria dezenas ou centenas de idas ao banco sequenciais só pra
+   * abrir esta tela, que é a mais aberta pelo supervisor durante o evento.
+   * Achado revisando escala (Epic 13) em 22/09/2026.
+   */
+  const registros = await repo.registrosDeParticipacoes(membros.map(m => m.id))
+  const registrosPorPessoaHoje = new Map<string, typeof registros>()
+  for (const r of registros) {
+    if (r.dataRef !== hoje) continue
+    const lista = registrosPorPessoaHoje.get(r.participacaoId) ?? []
+    lista.push(r)
+    registrosPorPessoaHoje.set(r.participacaoId, lista)
+  }
+
   for (const m of membros) {
     /*
      * Quem foi descredenciado sai da lista do dia.
@@ -45,7 +60,7 @@ export async function painelDaEquipe(
      */
     if (m.descredenciadoEm) continue
 
-    const doDia = await repo.registrosDoDia(m.id, hoje)
+    const doDia = registrosPorPessoaHoje.get(m.id) ?? []
     const pega = (t: string) => doDia.find(r => r.tipo === t)?.registradoEm ?? null
     const entrada = pega('entrada')
     const meio = pega('meio')

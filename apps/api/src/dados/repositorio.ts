@@ -255,6 +255,14 @@ export type Registro = {
    * site.
    */
   manual: boolean
+  /**
+   * De onde veio — `app` (QR/selfie/entrada livre pelo próprio aparelho, ou
+   * o operador escaneando no portão), `assistido` (alguém digitou/escolheu
+   * por outra pessoa, sem ler nenhum código: ponto assistido, lançamento
+   * manual) ou `web` (só em linha antiga, de antes da migração 003 — o site
+   * nunca escreve nesta coluna). Ver `db/migracoes/003-dois-relogios.sql`.
+   */
+  origem: 'app' | 'assistido' | 'web'
 }
 
 export type NovoRegistro = Omit<Registro, 'recebidoEm'> & { recebidoEm?: string }
@@ -496,6 +504,14 @@ export interface Repositorio {
   registroPorId(id: string): Promise<Registro | null>
   registrosDoDia(participacaoId: string, dataRef: string): Promise<Registro[]>
   registrosDaParticipacao(participacaoId: string): Promise<Registro[]>
+  /**
+   * Todos os registros de VÁRIAS participações, numa passada só — existe
+   * pra quem monta uma tela com a equipe inteira (`lancar-ponto.ts`) não
+   * fazer uma consulta por pessoa: um evento com milhares de pessoas viraria
+   * milhares de idas ao banco, sequenciais, só pra abrir a tela. Escala
+   * (Epic 13), achado em 22/09/2026 revisando as rotas construídas no dia.
+   */
+  registrosDeParticipacoes(participacaoIds: string[]): Promise<Registro[]>
   /**
    * Sobe a selfie do "meio" para o Storage e devolve o CAMINHO gravado — não
    * a imagem, nem uma URL. A foto não deve viver em memória nem trafegar de
@@ -960,6 +976,9 @@ export interface Repositorio {
 
   /** As ainda abertas de UMA participação — a ficha da pessoa mostra estas. */
   contestacoesAbertas(participacaoId: string): Promise<Contestacao[]>
+
+  /** As ainda abertas de VÁRIAS participações, numa passada só — mesmo motivo de `registrosDeParticipacoes`. */
+  contestacoesAbertasDeParticipacoes(participacaoIds: string[]): Promise<Contestacao[]>
 
   /**
    * Busca uma contestação pelo próprio id, sem saber de quem é — a rota que

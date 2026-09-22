@@ -1,6 +1,6 @@
 # Backlog
 
-**311 tasks · 184 no MVP · 218 concluídas (70%)**
+**311 tasks · 184 no MVP · 219 concluídas (70%)**
 
 **Só o MVP: 161 de 184 (88%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -150,7 +150,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 10 | Supervisor | 19 | 19 | — | Equipe, ficha da pessoa e histórico; tirar da equipe/excluir de vez/corrigir telefone são tasks novas, achadas em 14/09. Ativar/desativar sem tirar da equipe, foto/localização na presença de hoje, corrigir função, corrigir CPF e a aba de crachá (todos 21/09) — os 5 achados comparando com o site, todos fechados |
 | 11 | Push | 9 | 12 | — | Registro do token pronto. Firebase (Android/FCM) configurado de ponta a ponta em 21/09. `lembrete_entrada`, `lembrete_fim`, `lembrete_meio`, `alerta_supervisor_entrada`/`alerta_supervisor_fim` e `aviso_dia_evento`/`aviso_montagem`/`aviso_desmontagem` construídos no mesmo dia — motor próprio, cópia da regra que o site já manda por WhatsApp. Mural "Avisos" (leitura) e Central de Avisos (histórico + preferências) também construídos — ver as duas entradas no changelog. Faltam confirmação de escala (precisa de campo novo que o app não modela), boas-vindas (dispara na hora do cadastro, não por cron, valor questionável), disparo manual (parece redundante com o mural); o total desta epic (12) ainda não reflete esse tamanho. iOS (APNs) parado: precisa do Apple Developer Program pago, adiado por decisão do Juan |
 | 12 | Web | 0 | 16 | — | |
-| 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
+| 13 | Escala | 1 | 14 | — | Auditoria de código (22/09) achou e corrigiu consulta-por-pessoa em 2 telas de acesso frequente (equipe do setor, painel da equipe). Falta o teste de carga de verdade — não feito ainda, precisa alinhar approach (script vs. execução) antes de rodar contra qualquer ambiente real |
 | 14 | Segurança | 9 | 16 | — | Isolamento, limite e a trilha de auditoria feitos. Retenção de foto (ADR 003, 90 dias), "excluir minha conta" (21/09) e consentimento de verdade pra busca regional (22/09) construídos — falta o resto do LGPD, ainda sem lista fechada de itens |
 | 15 | Testes | 9 | 14 | — | 605 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
@@ -1597,6 +1597,50 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > rodando — tudo já feito há semanas). **315 tasks vira 311** (184 no
 > MVP). Com isto, a Fase 3 do backlog fica só com Epic 6 (QR) e Epic 9
 > (Histórico) — as duas com pendência real, não número vago.
+>
+> **22/09/2026 — Fase 4, Epic 13 (Escala): auditoria de código achou dois
+> N+1 reais, mais um achado à parte sobre a migração 003.** Como "teste
+> de carga" de verdade contra qualquer ambiente real é arriscado demais
+> pra decidir sozinho, alinhei com o Juan uma auditoria de código primeiro
+> — sem tráfego nenhum, só leitura e correção.
+>
+> **Achado 1 — duas telas de acesso frequente faziam uma consulta ao banco
+> POR PESSOA, dentro de um loop**: `painelDaEquipe` (o "Minha equipe" do
+> supervisor, provavelmente a tela mais aberta do app durante um evento) e
+> `equipeDoSetor` (a mesma visão pro admin). Num setor de centenas de
+> pessoas, isso vira centenas de idas sequenciais ao banco só pra abrir a
+> tela. Corrigido com dois métodos novos no repositório
+> (`registrosDeParticipacoes`, `contestacoesAbertasDeParticipacoes`) que
+> trazem a EQUIPE INTEIRA numa passada só (em lotes de 300 ids, cada lote
+> ainda paginado), agrupada em memória depois — mesma correção já feita
+> hoje mais cedo em `dadosParaLancarPonto` (Lançar ponto), que tinha o
+> mesmo problema desde que foi construída, também hoje.
+>
+> **Achado 2, à parte — a migração 003 (dois relógios) rodou, mas o
+> CÓDIGO nunca foi ligado nela.** Revisando `registros` de perto por causa
+> do achado 1, notei que `paraRegistro` ainda duplicava `created_at` nos
+> dois campos, com um comentário dizendo "a coluna separada... ainda não
+> existe" — desatualizado desde que a migração rodou. Pior: `gravarRegistro`
+> nem tentava escrever `recebido_em`/`origem` no INSERT — a divergência de
+> relógio que a migração existe pra tornar visível (`registros_divergencia`,
+> o índice parcial que ela criou) nunca teria dado nem para consultar,
+> porque a coluna ficaria sempre nula em toda batida nova. Corrigido: leitura
+> e escrita das duas colunas, e os 5 lugares que gravam um registro
+> (batida normal, entrada livre, scanner do portão, ponto assistido,
+> lançamento manual) passam a dizer explicitamente de onde vieram (`app`
+> em quem lê um crachá/bate a própria entrada, `assistido` em quem
+> corrige por outra pessoa). Achado um bônus no caminho: 4 desses 5
+> lugares confiavam num valor-padrão de `recebidoEm` que usava o relógio
+> de PAREDE, ignorando o `agora` injetado em teste — funcionava por
+> coincidência em produção (onde `agora` já É o relógio de parede), mas
+> era frágil; agora cada um passa o valor certo explicitamente.
+>
+> Verificado contra produção com um script descartável e sem imprimir
+> nada sensível: as colunas existem e estão populadas como a migração
+> previu. 5 testes novos (2 de escala provando que dado de uma pessoa não
+> vaza pra outra, 3 confirmando a origem certa em cada rota). **Epic 13
+> sobe de 0/14 para 1/14** — o teste de carga de verdade continua por
+> fazer, sem prazo definido.
 
 ## Bloqueado, esperando o Juan
 

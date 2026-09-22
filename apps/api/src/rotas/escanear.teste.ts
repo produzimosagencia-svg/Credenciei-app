@@ -130,6 +130,15 @@ test('o crachá certo registra a entrada, e a saída não exige mais o meio', as
   assert.equal(saida.momento, 'fim')
 })
 
+test('o registro gravado pelo scanner tem origem "app" — os dois relógios ficam rastreáveis', async () => {
+  const { repo, admin } = cenarioHenriqueEJuliano()
+  await registrarPorQr(repo, SEGREDO, null, admin.id, 'ev-hj', cracha('evento'), new Date('2026-09-05T19:00:00-03:00'))
+
+  const gravado = repo.registros.find(r => r.participacaoId === 'part-joao')!
+  assert.equal(gravado.origem, 'app')
+  assert.equal(gravado.recebidoEm, gravado.registradoEm)
+})
+
 test('leitura em sequência, dentro da carência, é recusada — não vira saída por engano', async () => {
   const { repo, admin } = cenarioHenriqueEJuliano()
   await registrarPorQr(repo, SEGREDO, null, admin.id, 'ev-hj', cracha('evento'), new Date('2026-09-05T19:00:00-03:00'))

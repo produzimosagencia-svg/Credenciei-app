@@ -79,7 +79,7 @@ test('o relatório de credenciados é uma planilha de verdade, com a batida', as
   await repo.gravarRegistro({
     id: 'reg-entrada', participacaoId: participacao.id, tipo: 'entrada',
     dataRef: '2026-09-05', registradoEm: '2026-09-05T10:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false,
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
   })
 
   const arquivo = await relatorioDoEvento(repo, admin.id, evento.id, PERIODO, 'credenciados', arquivos)

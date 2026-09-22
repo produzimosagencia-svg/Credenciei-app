@@ -162,7 +162,7 @@ test('preserva dia desmarcado que já tem batida', async () => {
   await repo.gravarRegistro({
     id: 'reg-1', participacaoId: participacao.id, tipo: 'entrada',
     dataRef: '2026-09-03', registradoEm: '2026-09-03T08:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false,
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
   })
 
   // Pede só 04/09 — tentando tirar 03/09, que já tem a batida de cima.
@@ -319,7 +319,7 @@ test('os indicadores são as cinco chaves do site, escopadas a UM dia', async ()
   })
   await repo.gravarRegistro({
     id: 'reg-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
-    registradoEm: '2026-09-05T08:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false,
+    registradoEm: '2026-09-05T08:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
   })
 
   const d = await eventoDetalhado(repo, admin.id, evento.id, SITE, '2026-09-05')
@@ -339,11 +339,11 @@ test('"presentes no momento" deduplica por pessoa, não por batida', async () =>
   const { repo, evento, admin, participacao } = cenarioHenriqueEJuliano()
   await repo.gravarRegistro({
     id: 'reg-a', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
-    registradoEm: '2026-09-05T08:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false,
+    registradoEm: '2026-09-05T08:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
   })
   await repo.gravarRegistro({
     id: 'reg-b', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
-    registradoEm: '2026-09-05T09:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false,
+    registradoEm: '2026-09-05T09:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
   })
 
   const d = await eventoDetalhado(repo, admin.id, evento.id, SITE, '2026-09-05')
@@ -354,11 +354,11 @@ test('quem já saiu não conta mais como presente', async () => {
   const { repo, evento, admin, participacao } = cenarioHenriqueEJuliano()
   await repo.gravarRegistro({
     id: 'reg-entrada', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
-    registradoEm: '2026-09-05T08:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false,
+    registradoEm: '2026-09-05T08:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
   })
   await repo.gravarRegistro({
     id: 'reg-saida', participacaoId: participacao.id, tipo: 'fim', dataRef: '2026-09-05',
-    registradoEm: '2026-09-05T20:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false,
+    registradoEm: '2026-09-05T20:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
   })
 
   const d = await eventoDetalhado(repo, admin.id, evento.id, SITE, '2026-09-05')

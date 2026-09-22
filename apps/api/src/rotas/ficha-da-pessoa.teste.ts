@@ -41,12 +41,12 @@ test('presença hoje traz foto (só no meio) e localização — achado comparan
   repo.registros.push({
     id: 'reg-presenca-meio', participacaoId: participacao.id, tipo: 'meio', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
-    fotoPath: 'ev-hj/part-joao/meio-2026-09-05.jpg', lat: -20.3222, lng: -40.3381, manual: false,
+    fotoPath: 'ev-hj/part-joao/meio-2026-09-05.jpg', lat: -20.3222, lng: -40.3381, manual: false, origem: 'app',
   })
   repo.registros.push({
     id: 'reg-presenca-entrada', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T18:00:00-03:00', recebidoEm: '2026-09-05T18:00:00-03:00',
-    fotoPath: null, lat: -20.30, lng: -40.30, manual: false,
+    fotoPath: null, lat: -20.30, lng: -40.30, manual: false, origem: 'app',
   })
 
   const f = await fichaDaPessoa(repo, admin.id, participacao.id, agora)

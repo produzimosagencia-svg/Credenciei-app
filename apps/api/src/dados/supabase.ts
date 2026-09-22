@@ -944,6 +944,29 @@ export class RepositorioSupabase implements Repositorio {
     return (data ?? []).map(paraRegistro)
   }
 
+  /**
+   * Em lotes de 300 ids — `.in()` grande demais degrada, e o teto real do
+   * PostgREST é bem menor que o de pessoas num evento grande. Cada lote
+   * ainda pagina com `buscarTudo`, pro caso raro de um lote só passar de
+   * 1000 registros.
+   */
+  async registrosDeParticipacoes(participacaoIds: string[]): Promise<Registro[]> {
+    if (!participacaoIds.length) return []
+    const TAMANHO_DO_LOTE = 300
+    const todos: Record<string, unknown>[] = []
+    for (let i = 0; i < participacaoIds.length; i += TAMANHO_DO_LOTE) {
+      const lote = participacaoIds.slice(i, i + TAMANHO_DO_LOTE)
+      const linhas = await buscarTudo<Record<string, unknown>>((de, ate) => this.db
+        .from('registros')
+        .select(CAMPOS_REGISTRO)
+        .in('funcionario_id', lote)
+        .order('created_at')
+        .range(de, ate))
+      todos.push(...linhas)
+    }
+    return todos.map(paraRegistro)
+  }
+
   /*
    * O mesmo bucket que o credenciei-web já usa (`presencas`, privado, criado
    * pela migração dele — não por nós, ver `docs/backlog.md`). Reaproveitar em
@@ -1025,6 +1048,8 @@ export class RepositorioSupabase implements Repositorio {
         tipo: r.tipo,
         data_ref: r.dataRef,
         created_at: r.registradoEm,
+        recebido_em: r.recebidoEm ?? new Date().toISOString(),
+        origem: r.origem,
         foto_url: r.fotoPath,
         latitude: r.lat,
         longitude: r.lng,
@@ -2372,20 +2397,34 @@ export class RepositorioSupabase implements Repositorio {
     }
   }
 
-  async contestacoesAbertas(participacaoId: string): Promise<Contestacao[]> {
-    const { data } = await this.db.from('app_contestacoes')
-      .select('id, participacao_id, tipo, data_ref, motivo, criado_em')
-      .eq('participacao_id', participacaoId)
-      .is('resolvida_em', null)
-      .order('criado_em', { ascending: false })
-    return (data ?? []).map(c => ({
+  private static paraContestacao(c: Record<string, unknown>): Contestacao {
+    return {
       id: c.id as string,
       participacaoId: c.participacao_id as string,
       tipo: c.tipo as 'entrada' | 'meio' | 'fim',
       dataRef: c.data_ref as string,
       motivo: c.motivo as string,
       criadoEm: c.criado_em as string,
-    }))
+    }
+  }
+
+  async contestacoesAbertas(participacaoId: string): Promise<Contestacao[]> {
+    const { data } = await this.db.from('app_contestacoes')
+      .select('id, participacao_id, tipo, data_ref, motivo, criado_em')
+      .eq('participacao_id', participacaoId)
+      .is('resolvida_em', null)
+      .order('criado_em', { ascending: false })
+    return (data ?? []).map(c => RepositorioSupabase.paraContestacao(c))
+  }
+
+  async contestacoesAbertasDeParticipacoes(participacaoIds: string[]): Promise<Contestacao[]> {
+    if (!participacaoIds.length) return []
+    const { data } = await this.db.from('app_contestacoes')
+      .select('id, participacao_id, tipo, data_ref, motivo, criado_em')
+      .in('participacao_id', participacaoIds)
+      .is('resolvida_em', null)
+      .order('criado_em', { ascending: false })
+    return (data ?? []).map(c => RepositorioSupabase.paraContestacao(c))
   }
 
   async contestacaoPorId(id: string): Promise<Contestacao | null> {
@@ -2638,7 +2677,7 @@ const CAMPOS_FUNCIONARIO =
   'valor_receber, pago, pago_em, foto_perfil_path, qr_token, fornecedor_id, cidade, created_at, chave_pix'
 
 const CAMPOS_REGISTRO =
-  'id, funcionario_id, tipo, data_ref, created_at, foto_url, latitude, longitude, registro_manual'
+  'id, funcionario_id, tipo, data_ref, created_at, recebido_em, origem, foto_url, latitude, longitude, registro_manual'
 
 function paraEvento(l: Record<string, unknown>): Evento {
   const org = l.organizacoes as { nome?: string } | null
@@ -2703,16 +2742,13 @@ function paraRegistro(l: Record<string, unknown>): Registro {
     participacaoId: l.funcionario_id as string,
     tipo: l.tipo as 'entrada' | 'meio' | 'fim',
     dataRef: l.data_ref as string,
-    /*
-     * `created_at` guarda o horário da BATIDA, não o da linha.
-     *
-     * O sistema atual grava ali o instante em que a pessoa bateu. A coluna
-     * separada para o horário de recebimento ainda não existe, então os dois
-     * saem iguais — e a divergência do relógio só passa a ser detectável
-     * depois da migração. Está anotado como pendência.
-     */
+    // `created_at` guarda o horário da BATIDA (o relógio do aparelho) — é
+    // este que vale na folha de chamada. `recebido_em` é o do servidor,
+    // separado desde a migração 003; linha anterior a ela tem os dois iguais
+    // (backfill da própria migração), por isso o fallback aqui é seguro.
     registradoEm: l.created_at as string,
-    recebidoEm: l.created_at as string,
+    recebidoEm: (l.recebido_em as string | null) ?? (l.created_at as string),
+    origem: (l.origem as Registro['origem'] | null) ?? 'web',
     fotoPath: (l.foto_url as string | null) ?? null,
     lat: (l.latitude as number | null) ?? null,
     lng: (l.longitude as number | null) ?? null,

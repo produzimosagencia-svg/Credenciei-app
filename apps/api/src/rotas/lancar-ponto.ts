@@ -74,19 +74,36 @@ export async function dadosParaLancarPonto(
   const setores = (await repo.equipesDoEvento(eventoId))
     .filter(s => !permitidos || permitidos.includes(s.setorId))
 
+  /*
+   * As equipes ainda vêm uma consulta por setor (setores de um evento são
+   * dezenas, não milhares — tolerável). Os REGISTROS, não: um evento de
+   * milhares de pessoas faria uma consulta por pessoa se buscasse aqui
+   * dentro do loop. `registrosDeParticipacoes` traz todo mundo numa
+   * passada só, e o mapa abaixo agrupa por participação em memória —
+   * achado revisando escala (Epic 13) em 22/09/2026.
+   */
+  const equipesPorSetor = await Promise.all(setores.map(s => repo.participacoesDaEquipe(s.setorId)))
+  const todasAsParticipacoes = equipesPorSetor.flat()
+  const registros = await repo.registrosDeParticipacoes(todasAsParticipacoes.map(p => p.id))
+
+  const registrosPorParticipacao = new Map<string, typeof registros>()
+  for (const r of registros) {
+    const lista = registrosPorParticipacao.get(r.participacaoId) ?? []
+    lista.push(r)
+    registrosPorParticipacao.set(r.participacaoId, lista)
+  }
+
   const pessoas: PessoaParaLancamento[] = []
-  for (const setor of setores) {
-    const equipe = await repo.participacoesDaEquipe(setor.setorId)
-    for (const p of equipe) {
-      const registros = await repo.registrosDaParticipacao(p.id)
+  setores.forEach((setor, i) => {
+    for (const p of equipesPorSetor[i]!) {
       const batidas: Record<string, string> = {}
-      for (const r of registros) batidas[`${r.dataRef}:${r.tipo}`] = r.registradoEm
+      for (const r of registrosPorParticipacao.get(p.id) ?? []) batidas[`${r.dataRef}:${r.tipo}`] = r.registradoEm
       pessoas.push({
         id: p.id, nome: p.pessoa.nome, cpf: p.pessoa.cpf, setorNome: setor.nome,
         cargo: p.funcao ?? '', ativo: p.ativo, batidas,
       })
     }
-  }
+  })
 
   const diasBrutos = await repo.diasDoEvento(eventoId)
   const dias: DiaDaOperacao[] = diasBrutos
@@ -151,7 +168,11 @@ export async function lancarPontoManual(
   await repo.apagarRegistroDoTipo(participacaoId, tipo, dataRef)
   await repo.gravarRegistro({
     id: crypto.randomUUID(), participacaoId, tipo, dataRef,
-    registradoEm: quando.toISOString(), fotoPath: null, lat: null, lng: null, manual: true,
+    // `registradoEm` é o horário ESCOLHIDO (o que realmente aconteceu);
+    // `recebidoEm` é agora — quando a correção foi digitada. Os dois quase
+    // sempre divergem aqui, de propósito: é um lançamento retroativo.
+    registradoEm: quando.toISOString(), recebidoEm: agora.toISOString(), origem: 'assistido',
+    fotoPath: null, lat: null, lng: null, manual: true,
   })
 
   const pessoa = await repo.pessoaPorId(participacao.pessoaId)

@@ -243,6 +243,8 @@ export async function registrarPresencaAssistida(
     tipo: dados.tipo,
     dataRef,
     registradoEm: agora.toISOString(),
+    recebidoEm: agora.toISOString(),
+    origem: 'assistido',
     fotoPath,
     lat: dados.lat ?? null,
     lng: dados.lng ?? null,

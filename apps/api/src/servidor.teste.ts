@@ -102,7 +102,7 @@ test('com o segredo certo, apaga a foto de evento fechado há mais de 90 dias', 
   repo.registros.push({
     id: 'reg-foto-velha', participacaoId: 'part-joao', tipo: 'meio', dataRef: '2025-12-01',
     registradoEm: '2025-12-01T12:00:00-03:00', recebidoEm: '2025-12-01T12:00:00-03:00',
-    fotoPath: 'ev-hj/part-joao/meio-2025-12-01.jpg', lat: null, lng: null, manual: false,
+    fotoPath: 'ev-hj/part-joao/meio-2025-12-01.jpg', lat: null, lng: null, manual: false, origem: 'app',
   })
 
   const r = await app.request('/manutencao/apagar-fotos-vencidas', {
@@ -124,7 +124,7 @@ test('evento fechado há menos de 90 dias mantém a foto', async () => {
   repo.registros.push({
     id: 'reg-foto-recente', participacaoId: 'part-joao', tipo: 'meio', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T12:00:00-03:00', recebidoEm: '2026-09-05T12:00:00-03:00',
-    fotoPath: 'ev-hj/part-joao/meio-2026-09-05.jpg', lat: null, lng: null, manual: false,
+    fotoPath: 'ev-hj/part-joao/meio-2026-09-05.jpg', lat: null, lng: null, manual: false, origem: 'app',
   })
 
   const r = await app.request('/manutencao/apagar-fotos-vencidas', {
@@ -142,7 +142,7 @@ test('sem dataFim configurado, usa dataInicio como o fechamento', async () => {
   repo.registros.push({
     id: 'reg-sem-datafim', participacaoId: 'part-joao', tipo: 'meio', dataRef: '2026-01-01',
     registradoEm: '2026-01-01T20:00:00-03:00', recebidoEm: '2026-01-01T20:00:00-03:00',
-    fotoPath: 'ev-hj/part-joao/meio-2026-01-01.jpg', lat: null, lng: null, manual: false,
+    fotoPath: 'ev-hj/part-joao/meio-2026-01-01.jpg', lat: null, lng: null, manual: false, origem: 'app',
   })
 
   const r = await app.request('/manutencao/apagar-fotos-vencidas', {

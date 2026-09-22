@@ -155,6 +155,33 @@ test('contestação aberta também vira pendência, mesmo com todas as etapas em
   assert.equal(depois.indicadores.find(i => i.chave === 'pendencias')?.valor, 1)
 })
 
+test('registro e contestação de uma pessoa não vazam pra outra — consulta em lote, não por pessoa', async () => {
+  // Achado revisando escala (Epic 13, 22/09/2026): a versão antiga buscava
+  // registros e contestações pessoa por pessoa, dentro do loop — um setor
+  // grande viraria centenas de consultas sequenciais só pra abrir a tela.
+  const { repo, admin, participacao } = cenarioHenriqueEJuliano()
+  repo.pessoas.push({ id: 'pes-maria', nome: 'Maria Souza', cpf: '98765432100', telefone: null, fotoPath: null })
+  repo.participacoes.push({
+    id: 'part-maria', pessoaId: 'pes-maria', eventoId: 'ev-hj', equipeId: 'eq-1', equipeNome: 'Produção',
+    funcao: 'Bar', supervisorNome: null, ativo: true, descredenciadoEm: null, valorReceber: 100,
+    pago: false, pagoEm: null, qrToken: 'tk-maria', cidade: null, criadoEm: '2026-08-20T10:00:00-03:00',
+  })
+
+  await registrarBatida(repo, 'pes-joao', bate(participacao.id, 'entrada', '2026-09-05T08:00:00-03:00'))
+  await repo.criarContestacao({
+    participacaoId: participacao.id, tipo: 'meio', dataRef: '2026-09-05', motivo: 'não gravou o meio',
+  })
+
+  const e = await equipeDoSetor(repo, admin.id, 'eq-1', new Date('2026-09-05T09:00:00-03:00'))
+  const joao = e.pessoas.find(p => p.nome === 'João da Silva')!
+  const maria = e.pessoas.find(p => p.nome === 'Maria Souza')!
+
+  assert.equal(joao.entrada, '2026-09-05T08:00:00-03:00')
+  assert.equal(joao.temContestacaoAberta, true)
+  assert.equal(maria.entrada, null, 'a batida do João não pode aparecer pra Maria')
+  assert.equal(maria.temContestacaoAberta, false, 'a contestação do João não pode aparecer pra Maria')
+})
+
 // ─── Planilhas ──────────────────────────────────────────────────────────────
 
 test('o modelo é uma planilha de verdade, só com o cabeçalho', async () => {

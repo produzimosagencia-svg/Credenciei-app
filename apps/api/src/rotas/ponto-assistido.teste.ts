@@ -180,6 +180,9 @@ test('o operador escolhe a etapa — não valida janela nem ordem, ao contrário
   )
   assert.equal(r.etapa, 'Meio do evento')
   assert.equal(r.nome, 'João da Silva')
+
+  const gravado = repo.registros.find(x => x.participacaoId === participacao.id)!
+  assert.equal(gravado.origem, 'assistido')
 })
 
 test('escolher uma etapa já registrada sobrescreve o horário — é correção, não duplicata', async () => {

@@ -54,6 +54,29 @@ test('o supervisor só vê a própria equipe em dadosParaLancarPonto', async () 
   assert.ok(!dados.pessoas.some(p => p.nome === 'Maria Souza'))
 })
 
+test('as batidas de gente em setores DIFERENTES não se misturam — uma consulta em lote, não por pessoa', async () => {
+  // Achado revisando escala (Epic 13, 22/09/2026): a versão antiga buscava
+  // registros pessoa por pessoa, dentro do loop — um evento de milhares de
+  // pessoas viraria milhares de consultas sequenciais só pra abrir a tela.
+  const cenario = comSupervisorESegundoSetor(cenarioHenriqueEJuliano())
+  cenario.repo.registros.push({
+    id: 'r-joao', participacaoId: 'part-joao', tipo: 'entrada', dataRef: '2026-09-05',
+    registradoEm: '2026-09-05T08:00:00-03:00', recebidoEm: '2026-09-05T08:00:00-03:00',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+  })
+  cenario.repo.registros.push({
+    id: 'r-maria', participacaoId: 'part-maria', tipo: 'entrada', dataRef: '2026-09-05',
+    registradoEm: '2026-09-05T09:00:00-03:00', recebidoEm: '2026-09-05T09:00:00-03:00',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+  })
+
+  const dados = await dadosParaLancarPonto(cenario.repo, cenario.admin.id, cenario.evento.id, AGORA)
+  const joao = dados.pessoas.find(p => p.nome === 'João da Silva')!
+  const maria = dados.pessoas.find(p => p.nome === 'Maria Souza')!
+  assert.equal(joao.batidas['2026-09-05:entrada'], '2026-09-05T08:00:00-03:00')
+  assert.equal(maria.batidas['2026-09-05:entrada'], '2026-09-05T09:00:00-03:00')
+})
+
 test('lançar exige etapa válida, motivo com 5+ caracteres e data/hora informadas', async () => {
   const cenario = cenarioHenriqueEJuliano()
   const base = { participacaoId: 'part-joao', dataRef: '2026-09-05', quandoISO: '2026-09-05T20:00:00-03:00', motivo: 'Esqueceu de bater' }
@@ -129,6 +152,7 @@ test('lançar grava a batida no dia certo, sobrescrevendo uma já existente, e r
   assert.equal(entradas.length, 1, 'a segunda correção sobrescreve, não duplica')
   assert.ok(entradas[0]!.registradoEm.startsWith('2026-09-05T12:15'), 'hora ISO em UTC (09:15 BRT)')
   assert.equal(entradas[0]!.manual, true)
+  assert.equal(entradas[0]!.origem, 'assistido')
 
   const auditoria = await cenario.repo.auditoria({})
   assert.ok(auditoria.some(a => a.acao === 'CORRECAO_PONTO' && a.motivo === 'Hora errada da primeira vez'))
