@@ -312,6 +312,19 @@ test('valorPrevisto não muda com quantos dias a pessoa trabalhou — é o combi
   assert.equal(depois.valorPrevisto, antes)
 })
 
+// ─── Avisos (mural do admin) ────────────────────────────────────────────────
+
+test('mostra o aviso de demonstração, e some depois de marcado como visto', async () => {
+  const c = await comParticipacao()
+
+  const antes = await c.avisosPendentes('ev-1')
+  assert.equal(antes.length, 1)
+
+  await c.marcarAvisoVisto(antes[0]!.id)
+  const depois = await c.avisosPendentes('ev-1')
+  assert.equal(depois.length, 0)
+})
+
 // ─── Excluir minha conta ────────────────────────────────────────────────────
 
 test('colaborador exclui a própria conta, e a sessão morre', async () => {

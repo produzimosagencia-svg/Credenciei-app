@@ -117,6 +117,18 @@ export type DiaDaParticipacao = {
 }
 
 /**
+ * Um comunicado do admin, pendente de leitura — o mural "Avisos". Mesma
+ * tabela que o site já usa (`lib/avisos.ts`); o app só lê e confirma
+ * visto, por enquanto — criar/editar continua sendo feito pelo painel do
+ * site.
+ */
+export type AvisoPendente = {
+  id: string
+  titulo: string
+  mensagem: string
+}
+
+/**
  * O que a pessoa vê sobre o próprio dinheiro.
  *
  * Só dela, sempre. Não existe endpoint que devolva o financeiro de outra

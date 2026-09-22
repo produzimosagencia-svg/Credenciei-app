@@ -851,6 +851,21 @@ export interface Repositorio {
   /** Marca o lembrete como enviado — chamar só depois do envio de verdade dar certo. */
   registrarLembreteEnviado(participacaoId: string, tipo: string, data: string): Promise<void>
 
+  // ── Avisos (mural do admin) ─────────────────────────────────────────────
+  //
+  // A MESMA tabela que o site já usa (`avisos`/`aviso_setores`/
+  // `aviso_visualizacoes`, `supabase/upgrade-avisos.sql` no credenciei-web)
+  // — não uma cópia isolada tipo `app_push_tokens`. Um aviso criado pelo
+  // painel do site precisa aparecer no app, e vice-versa; os dois sistemas
+  // leem e escrevem a mesma verdade. Só a TRADUÇÃO de identidade muda:
+  // o site guarda `cpf_pessoa`, o app resolve pelo `pessoaId` (que já
+  // carrega essa informação, colaborador ou painel).
+
+  /** O que esta pessoa ainda não viu, pro evento em que está agora. */
+  avisosPendentes(pessoaId: string, eventoId: string): Promise<{ id: string; titulo: string; mensagem: string }[]>
+  /** Confirma que a pessoa viu — recorrentes continuam voltando, os outros não. */
+  marcarAvisoVisto(avisoId: string, pessoaId: string): Promise<void>
+
   // ── Contestação de batida ────────────────────────────────────────────────
   //
   // O colaborador contesta a própria batida (errada ou que faltou) — recurso

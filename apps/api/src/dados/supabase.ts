@@ -2047,6 +2047,100 @@ export class RepositorioSupabase implements Repositorio {
       .upsert({ participacao_id: participacaoId, tipo, data_ref: data }, { onConflict: 'participacao_id,tipo,data_ref' })
   }
 
+  /**
+   * Resolve quem é esta pessoa DENTRO de um evento: colaborador
+   * (`funcionarios`, achado pelo CPF) ou conta de painel (`perfis`, achado
+   * pelo próprio id — que já É o pessoaId de quem tem login). Mesma
+   * tradução que `avisosPendentes`/`marcarAvisoVisto` reaproveitam, porque
+   * as duas telas do site (`avisosPendentesFuncionario`/
+   * `avisosPendentesSupervisor`) fazem exatamente esta pergunta.
+   */
+  private async identidadeNoEvento(pessoaId: string, eventoId: string): Promise<{
+    cpf: string | null; funcionarioId: string | null; perfilId: string | null
+    fornecedorId: string | null; ehSupervisor: boolean
+  }> {
+    const cpf = cpfDoId(pessoaId)
+    if (cpf) {
+      const { data: func } = await this.db
+        .from('funcionarios').select('id, fornecedor_id, fornecedores!inner(evento_id)')
+        .eq('cpf', cpf).eq('fornecedores.evento_id', eventoId).maybeSingle()
+      const { data: sup } = await this.db
+        .from('perfis').select('id').eq('cpf', cpf).eq('role', 'supervisor').eq('ativo', true).maybeSingle()
+      return {
+        cpf,
+        funcionarioId: (func?.id as string | undefined) ?? null,
+        perfilId: null,
+        fornecedorId: (func?.fornecedor_id as string | undefined) ?? null,
+        ehSupervisor: !!sup,
+      }
+    }
+
+    const { data: perfil } = await this.db.from('perfis').select('role, fornecedor_id').eq('id', pessoaId).maybeSingle()
+    return {
+      cpf: null,
+      funcionarioId: null,
+      perfilId: pessoaId,
+      fornecedorId: perfil?.role === 'supervisor' ? ((perfil.fornecedor_id as string | null) ?? null) : null,
+      ehSupervisor: perfil?.role === 'supervisor',
+    }
+  }
+
+  async avisosPendentes(pessoaId: string, eventoId: string): Promise<{ id: string; titulo: string; mensagem: string }[]> {
+    const hoje = diaBRT()
+
+    const { data: avisos } = await this.db
+      .from('avisos')
+      .select('id, titulo, mensagem, publico, cpf_pessoa, recorrente, data_inicio, data_fim')
+      .eq('evento_id', eventoId).eq('ativo', true).lte('data_inicio', hoje)
+    const ativos = (avisos ?? []).filter(a => !a.data_fim || (a.data_fim as string) >= hoje)
+    if (!ativos.length) return []
+
+    const { cpf, funcionarioId, perfilId, fornecedorId, ehSupervisor } = await this.identidadeNoEvento(pessoaId, eventoId)
+
+    const idsSetores = ativos.filter(a => a.publico === 'setores').map(a => a.id as string)
+    const avisosDoSetor = fornecedorId && idsSetores.length
+      ? new Set(
+          (await this.db.from('aviso_setores').select('aviso_id').in('aviso_id', idsSetores).eq('fornecedor_id', fornecedorId))
+            .data?.map(r => r.aviso_id as string) ?? [],
+        )
+      : new Set<string>()
+
+    const elegiveis = ativos.filter(a => {
+      if (a.publico === 'todos') return true
+      if (a.publico === 'setores') return avisosDoSetor.has(a.id as string)
+      if (a.publico === 'pessoa') return !!cpf && a.cpf_pessoa === cpf
+      if (a.publico === 'supervisores') return ehSupervisor
+      return false
+    })
+    if (!elegiveis.length) return []
+
+    const naoRecorrentes = elegiveis.filter(a => !a.recorrente).map(a => a.id as string)
+    let vistos = new Set<string>()
+    if (naoRecorrentes.length && (funcionarioId || perfilId)) {
+      let query = this.db.from('aviso_visualizacoes').select('aviso_id').in('aviso_id', naoRecorrentes)
+      query = funcionarioId ? query.eq('funcionario_id', funcionarioId) : query.eq('perfil_id', perfilId!)
+      const { data } = await query
+      vistos = new Set((data ?? []).map(v => v.aviso_id as string))
+    }
+
+    return elegiveis
+      .filter(a => a.recorrente || !vistos.has(a.id as string))
+      .map(a => ({ id: a.id as string, titulo: a.titulo as string, mensagem: a.mensagem as string }))
+  }
+
+  async marcarAvisoVisto(avisoId: string, pessoaId: string): Promise<void> {
+    const { data: aviso } = await this.db.from('avisos').select('evento_id').eq('id', avisoId).maybeSingle()
+    if (!aviso) return
+
+    const { funcionarioId, perfilId } = await this.identidadeNoEvento(pessoaId, aviso.evento_id as string)
+    if (!funcionarioId && !perfilId) return
+
+    await this.db.from('aviso_visualizacoes').upsert(
+      funcionarioId ? { aviso_id: avisoId, funcionario_id: funcionarioId } : { aviso_id: avisoId, perfil_id: perfilId },
+      { onConflict: funcionarioId ? 'aviso_id,funcionario_id' : 'aviso_id,perfil_id' },
+    )
+  }
+
   // ── Contestação de batida ──────────────────────────────────────────────────
 
   async criarContestacao(dados: {

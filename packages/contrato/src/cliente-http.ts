@@ -27,7 +27,7 @@
 
 import type { ClienteApi } from './cliente.js'
 import type {
-  Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
+  Acesso, AtividadesDoEvento, AvisoPendente, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
   ArquivoDePlanilha, ConfiguracaoDoEvento, ConfiguracaoDoMeio, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
@@ -329,6 +329,18 @@ export class ClienteHttp implements ClienteApi {
     const r = await this.pedir(`/v1/participacoes/${encodeURIComponent(participacaoId)}/qr`)
     if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos gerar seu QR.'))
     return r.corpo as unknown as { codigo: string; etapa: string; liberado: boolean; liberaEm: string | null }
+  }
+
+  async avisosPendentes(eventoId: string): Promise<AvisoPendente[]> {
+    const r = await this.pedir(`/v1/eventos/${encodeURIComponent(eventoId)}/avisos-pendentes`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar os avisos.'))
+    return r.corpo as unknown as AvisoPendente[]
+  }
+
+  async marcarAvisoVisto(avisoId: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/avisos/${encodeURIComponent(avisoId)}/visto`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos confirmar.') }
+    return {}
   }
 
   // ─── Bater ponto ──────────────────────────────────────────────────────────

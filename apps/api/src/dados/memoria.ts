@@ -74,6 +74,15 @@ export class RepositorioEmMemoria implements Repositorio {
   contestacoes: (Contestacao & { resolvidaEm: string | null })[] = []
   /** Chave `participacaoId|tipo|data` — mesma dedupe da tabela `app_lembretes_enviados`. */
   lembretesEnviados = new Set<string>()
+  /** Mesma tabela `avisos` que o site já usa — ver o comentário em `repositorio.ts`. */
+  avisos: {
+    id: string; eventoId: string; titulo: string; mensagem: string; ativo: boolean
+    dataInicio: string; dataFim: string | null
+    publico: 'todos' | 'setores' | 'pessoa' | 'supervisores'
+    pessoaId: string | null; equipeIds: string[]; recorrente: boolean
+  }[] = []
+  /** Chave `avisoId|pessoaId` — mesma dedupe de `aviso_visualizacoes`. */
+  avisosVistos = new Set<string>()
 
   // ── Identidade ────────────────────────────────────────────────────────────
 
@@ -1240,6 +1249,35 @@ export class RepositorioEmMemoria implements Repositorio {
 
   async registrarLembreteEnviado(participacaoId: string, tipo: string, data: string): Promise<void> {
     this.lembretesEnviados.add(`${participacaoId}|${tipo}|${data}`)
+  }
+
+  async avisosPendentes(pessoaId: string, eventoId: string): Promise<{ id: string; titulo: string; mensagem: string }[]> {
+    const hoje = diaBRT()
+    const ativos = this.avisos.filter(a =>
+      a.eventoId === eventoId && a.ativo && a.dataInicio <= hoje && (!a.dataFim || a.dataFim >= hoje),
+    )
+    if (!ativos.length) return []
+
+    const participacao = this.participacoes.find(p => p.pessoaId === pessoaId && p.eventoId === eventoId)
+    const equipeComoSupervisor = this.equipes.find(e => e.eventoId === eventoId && e.supervisorPessoaId === pessoaId)
+    const equipeId = participacao?.equipeId ?? equipeComoSupervisor?.id ?? null
+    const ehSupervisor = !!equipeComoSupervisor
+
+    const elegiveis = ativos.filter(a => {
+      if (a.publico === 'todos') return true
+      if (a.publico === 'setores') return !!equipeId && a.equipeIds.includes(equipeId)
+      if (a.publico === 'pessoa') return a.pessoaId === pessoaId
+      if (a.publico === 'supervisores') return ehSupervisor
+      return false
+    })
+
+    return elegiveis
+      .filter(a => a.recorrente || !this.avisosVistos.has(`${a.id}|${pessoaId}`))
+      .map(a => ({ id: a.id, titulo: a.titulo, mensagem: a.mensagem }))
+  }
+
+  async marcarAvisoVisto(avisoId: string, pessoaId: string): Promise<void> {
+    this.avisosVistos.add(`${avisoId}|${pessoaId}`)
   }
 
   // ── Contestação de batida ────────────────────────────────────────────────

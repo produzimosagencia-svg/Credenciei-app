@@ -33,6 +33,7 @@ import {
   enviarAlertaSupervisorDeEntrada, enviarAlertaSupervisorDeSaida, enviarAvisoDoDia,
   enviarLembretesDeEntrada, enviarLembretesDeMeio, enviarLembretesDeSaida, type EnviarPush,
 } from './rotas/lembretes.js'
+import { avisosPendentes, marcarAvisoVisto } from './rotas/avisos.js'
 import { excluirMinhaConta } from './rotas/conta.js'
 import { painelDaEquipe } from './rotas/equipe.js'
 import { painel } from './rotas/painel.js'
@@ -323,6 +324,13 @@ export function criarServidor(amb: Ambiente) {
 
   app.get('/v1/participacoes/:id/qr', async c =>
     protegido(c, () => meuQr(amb.repo, amb.segredoQr, c.get('pessoaId'), c.req.param('id'))))
+
+  // ── Avisos (mural do admin) ──────────────────────────────────────────────
+  app.get('/v1/eventos/:id/avisos-pendentes', async c =>
+    protegido(c, () => avisosPendentes(amb.repo, c.get('pessoaId'), c.req.param('id'))))
+
+  app.post('/v1/avisos/:id/visto', async c =>
+    protegido(c, () => marcarAvisoVisto(amb.repo, c.get('pessoaId'), c.req.param('id'))))
 
   // ── Bater ponto ─────────────────────────────────────────────────────────
   app.post('/v1/batidas', async c => {

@@ -167,6 +167,28 @@ test('o financeiro é o da própria pessoa', async () => {
   assert.equal(typeof f.diasTrabalhados, 'number')
 })
 
+test('o mural de avisos vai e volta pela API', async () => {
+  const m = montar()
+  await entrar(m)
+  const p = (await m.cliente.minhasParticipacoes())[0]!
+
+  m.repo.avisos.push({
+    id: 'aviso-teste', eventoId: p.eventoId, titulo: 'Aviso de teste', mensagem: 'Mensagem.',
+    ativo: true, dataInicio: '2026-01-01', dataFim: null, publico: 'todos', pessoaId: null,
+    equipeIds: [], recorrente: false,
+  })
+
+  const antes = await m.cliente.avisosPendentes(p.eventoId)
+  assert.equal(antes.length, 1)
+  assert.equal(antes[0]!.titulo, 'Aviso de teste')
+
+  const r = await m.cliente.marcarAvisoVisto(antes[0]!.id)
+  assert.deepEqual(r, {})
+
+  const depois = await m.cliente.avisosPendentes(p.eventoId)
+  assert.equal(depois.length, 0)
+})
+
 test('excluir minha conta vai e volta pela API — anonimiza e derruba a sessão', async () => {
   const m = montar()
   await entrar(m)

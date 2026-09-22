@@ -33,7 +33,7 @@ import {
 } from '@credenciei/dominio'
 import type { ClienteApi } from './cliente.js'
 import type {
-  Acesso, ArquivoDePlanilha, AtividadeRecente, AtividadesDoEvento,
+  Acesso, ArquivoDePlanilha, AtividadeRecente, AtividadesDoEvento, AvisoPendente,
   BatidaAssistida, CandidatoLocalizado, CentralDeAvisos, ConferenciaPorCpf, ConfiguracaoDoEvento,
   ConviteDoEvento, DadosDeNovoEvento, DiaDaParticipacao, EdicaoDoEvento, EnvioDeBatida,
   EquipeDoSetor, Eu, EventoComSetores, EventoDetalhado, EventoEscaneavel,
@@ -1398,6 +1398,24 @@ export class ClienteFalso implements ClienteApi {
       : liberacaoDoQR(EVENTO, { tipo: dia.tipo, cancelado: false }, agora)
 
     return { codigo, etapa, liberado, liberaEm }
+  }
+
+  /** Um aviso de demonstração, sempre o mesmo — só pra tela não ficar vazia. */
+  private avisoDeMentira = { id: 'aviso-demo', titulo: 'Bem-vindo à demonstração', mensagem: 'Este é um aviso de exemplo do mural do admin.' }
+  private avisosVistosDeMentira = new Set<string>()
+
+  async avisosPendentes(_eventoId: string): Promise<AvisoPendente[]> {
+    await this.rede()
+    this.exigirSessao()
+    void _eventoId
+    return this.avisosVistosDeMentira.has(this.avisoDeMentira.id) ? [] : [this.avisoDeMentira]
+  }
+
+  async marcarAvisoVisto(avisoId: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.avisosVistosDeMentira.add(avisoId)
+    return {}
   }
 
   // ── Bater ponto ───────────────────────────────────────────────────────────

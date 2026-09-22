@@ -10,7 +10,7 @@
 // tem como devolver as de outra pessoa; `participacoesDe(id)` teria.
 
 import type {
-  Acesso, AtividadesDoEvento, BatidaAssistida, CandidatoLocalizado,
+  Acesso, AtividadesDoEvento, AvisoPendente, BatidaAssistida, CandidatoLocalizado,
   ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
   ArquivoDePlanilha, ConfiguracaoDoEvento, ConfiguracaoDoMeio, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
@@ -96,6 +96,16 @@ export interface ClienteApi {
     liberado: boolean
     liberaEm: string | null
   }>
+
+  /**
+   * O mural "Avisos" — comunicado que o admin escreveu pelo painel do
+   * site (`/admin/eventos/[id]/avisos`), aparece como modal ao abrir a
+   * tela. Mesma tabela dos dois lados — criar/editar continua sendo só
+   * no site por enquanto.
+   */
+  avisosPendentes(eventoId: string): Promise<AvisoPendente[]>
+  /** Confirma que a pessoa viu — recorrentes voltam de novo depois; os outros, não. */
+  marcarAvisoVisto(avisoId: string): Promise<{ erro?: string }>
 
   // ── Bater ponto ─────────────────────────────────────────────────────────
   /** Lança exceção em falha de transporte; devolve `recusado` em decisão. */
