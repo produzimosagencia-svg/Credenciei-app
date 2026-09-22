@@ -1412,6 +1412,38 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > (interface, `cliente-http.ts`, `cliente-falso.ts`).
 >
 > **Epic 11 sobe de 8/12 para 9/12.**
+>
+> **22/09/2026 — migrações 001 (pessoas permanentes) e 003 (dois
+> relógios) rodadas em produção, e `pessoas` passou a ser fonte
+> canônica onde já é seguro.** Prioridade escolhida pelo Juan pra
+> continuar a rodada de "backend primeiro" (ver decisão de 21-22/09 nas
+> memórias): das migrações escritas e nunca rodadas, essas duas eram as
+> únicas que abriam trabalho real — Epic 1 (`pessoas`/`participacoes`
+> separadas) e a divergência de relógio que sustenta o "achado que
+> define o projeto" do `CLAUDE.md`. Rodadas com backup revisado antes,
+> fora de horário de evento ao vivo. Confirmado depois, com script
+> descartável e sem imprimir dado sensível: `pessoas` com 2.029 linhas,
+> `funcionarios.pessoa_id` 100% preenchido (zero órfão), e
+> `registros.recebido_em`/`origem` existindo e populados.
+>
+> Antes de mexer em código, um risco real foi levantado pro Juan: o
+> `pessoaId` que a API expõe hoje é sintético (`cpf:XXXXX`), não o uuid
+> real de `pessoas.id` — trocar o formato quebraria sessão, token de
+> push, histórico de notificação e preferência de quem já usa o app.
+> Ele escolheu **só aproveitar `pessoas` como dado melhor, sem trocar o
+> formato externo** — opção mais segura, não a "mais correta"
+> arquiteturalmente. `apps/api/src/dados/supabase.ts` atualizado:
+> `pessoaPorId`/`pessoaPorCpf`/`pessoaPorTelefone` agora leem de
+> `pessoas`; `criarPessoa` (antes lançava erro) e `excluirMinhaConta`
+> agora escrevem lá também; `corrigirTelefoneDaParticipacao` ganhou
+> dual-write (`funcionarios` + `pessoas`) pra não ficar dessincronizado
+> depois de uma correção. `corrigirCpfDaParticipacao` ficou de fora de
+> propósito — corrigir CPF muda QUAL pessoa a participação pertence, e
+> religar `pessoa_id` nesse caso é problema de identidade, não leitura
+> segura; documentado como pendência conhecida no `CLAUDE.md`.
+>
+> Não é escopo novo, não muda nenhum Feito/Total — é correção de
+> arquitetura interna sob funcionalidade que já existia.
 
 ## Bloqueado, esperando o Juan
 
@@ -1430,12 +1462,12 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 >   fluxo decidido: suporte troca o telefone vinculado ao CPF manualmente,
 >   sem autoatendimento. Fechado em 21/09, sem task nova — já estava contado
 >   dentro da Epic 10.
-> - **Banco de homologação** → decidido rodar as 3 migrações da Epic 1
->   direto em produção, com cuidado — backup e plano de rollback de cada
->   uma revisado com o Juan antes de rodar, fora de horário de evento ao
->   vivo. Não é mais bloqueio de decisão — é trabalho a fazer com cautela.
->   Migração 006 (tokens de push) apresentada pro Juan rodar em 21/09 —
->   001 e 003 ainda precisam ser revisadas com ele.
+> - ~~Banco de homologação~~ → decidido rodar as migrações direto em
+>   produção, com cuidado — backup e plano de rollback de cada uma
+>   revisado com o Juan antes de rodar, fora de horário de evento ao
+>   vivo. **001 (pessoas permanentes) e 003 (dois relógios) rodadas pelo
+>   Juan em 22/09/2026** — ver achado de 22/09 abaixo. 006 (tokens de
+>   push) já tinha rodado em 21/09.
 
 - ~~Projeto Firebase (Android)~~ → **feito em 21/09/2026, guiado passo a passo com o Juan.** Projeto "Credenciei" criado no Firebase, app Android cadastrado (`com.produzimos.credenciei`), `google-services.json` no lugar (`apps/app/google-services.json`, referenciado em `app.json`), conta Expo criada, projeto ligado ao EAS (`eas init`), e a chave de conta de serviço do Firebase enviada pro EAS via `eas credentials` (FCM V1) — o Android já está pronto pra RECEBER notificação por push assim que o app tiver o código de ENVIAR uma (ver "Modelo de notificação" abaixo). A chave de serviço (`firebase-adminsdk.json`) fica só na máquina do Juan, nunca commitada — `.gitignore` atualizado pra isso.
 - **Chave APNs e App Id (iOS)** → segue bloqueado, agora por decisão explícita: sem o Apple Developer Program pago (US$ 99/ano) não dá pra gerar nem uma coisa nem outra. Juan decidiu deixar pra depois (21/09) — Android segue sem depender disso.
