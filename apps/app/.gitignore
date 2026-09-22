@@ -18,6 +18,11 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Conta de serviço do Firebase — dá acesso de mandar notificação,
+# diferente do google-services.json (esse é seguro de commitar, é
+# só o identificador do app pra RECEBER mensagem).
+firebase-adminsdk*.json
+
 # Metro
 .metro-health-check*
 

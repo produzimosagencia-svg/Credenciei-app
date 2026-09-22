@@ -146,7 +146,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 8 | Ponto no app | 7 | 7 | ✓ | **Completa** — recontada em 18/09 depois de remapear e não achar tarefa concreta pendente (o "falta o resto do ciclo" era folga de estimativa antiga, não trabalho esquecido; Juan confirmou fechar assim, e aponta o que faltar se aparecer usando de verdade). O meio com selfie; `registrarEntradaLivre` (auto-atendimento) real na API; a credencial esconde o QR quando a participação não está credenciada, e avisa quando o dia foi cancelado; troca de evento quando a pessoa está em dois ao mesmo tempo; aviso de batida pendente na aba; contestar uma batida errada ou que faltou |
 | 9 | Histórico | 4 | 11 | — | Meus dias e Meu pagamento prontos |
 | 10 | Supervisor | 19 | 19 | — | Equipe, ficha da pessoa e histórico; tirar da equipe/excluir de vez/corrigir telefone são tasks novas, achadas em 14/09. Ativar/desativar sem tirar da equipe, foto/localização na presença de hoje, corrigir função, corrigir CPF e a aba de crachá (todos 21/09) — os 5 achados comparando com o site, todos fechados |
-| 11 | Push | 1 | 12 | — | Registro do token do aparelho pronto; enviar depende da conta Apple (APNs) e de um projeto Firebase (FCM) — nenhum dos dois existe ainda; o MODELO do que notificar também depende de decisão do Juan |
+| 11 | Push | 1 | 12 | — | Registro do token do aparelho pronto. Firebase (Android/FCM) configurado de ponta a ponta em 21/09 — pronto pra receber. iOS (APNs) segue parado: precisa do Apple Developer Program pago, adiado por decisão do Juan. Falta ainda o código de ENVIAR e o MODELO do que notificar (decisão do Juan) |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 8 | 16 | — | Isolamento, limite e a trilha de auditoria feitos. Retenção de foto (ADR 003, 90 dias) e "excluir minha conta" (LGPD, direito ao esquecimento) construídos em 21/09 — escopo novo, decidido na hora com o Juan; falta o resto do LGPD |
@@ -1255,11 +1255,12 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > **14/09/2026 — os três decididos.** Prazo de 12/10 agora é pro backlog
 > inteiro (não só o MVP), então valia a pena resolver os três de vez:
 >
-> - ~~Conta Apple Developer~~ → **criada, confirmado em 21/09.** Ainda falta
->   a chave APNs (arquivo `.p8`) e o App ID com Push habilitado — o Juan não
->   sabe fazer sozinho, orientação passada por fora do backlog (via
->   `npx eas credentials`, que gera a chave direto pelo terminal). Continua
->   como pendência dele, mas a conta em si não é mais o bloqueio.
+> - **Conta Apple Developer** → **correção em 21/09/2026 à noite: o que
+>   existe é só um Apple ID comum, não o Developer Program pago (US$
+>   99/ano)**. A entrada de baixo dizia "criada, confirmado em 21/09" — o
+>   Juan tinha um Apple ID, não a assinatura paga, que é o que realmente
+>   libera push e App Store. Perguntado direto, ele decidiu **deixar pra
+>   depois** — segue sem iOS por enquanto, só Android.
 > - ~~Recuperação de conta~~ → **já estava resolvida quando isto foi
 >   escrito, e ninguém tinha voltado aqui pra fechar o item.** `corrigirTelefone`
 >   (ficha da pessoa, Epic 10, construído no mesmo dia 14/09) é exatamente o
@@ -1273,5 +1274,6 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 >   Migração 006 (tokens de push) apresentada pro Juan rodar em 21/09 —
 >   001 e 003 ainda precisam ser revisadas com ele.
 
-- **Chave APNs e App Id (iOS)** e **projeto Firebase (Android)** → toda a Epic 11 e a 16. Nenhum dos dois existe ainda (confirmado 21/09) — Juan pediu orientação passo a passo
-- **Modelo de notificação** (lembrete automático × aviso escrito por um admin, ou os dois) → decisão de produto antes de continuar a Epic 11 além do registro do token — ver seção 7 de `docs/credenciei-web-estado-atual.md`
+- ~~Projeto Firebase (Android)~~ → **feito em 21/09/2026, guiado passo a passo com o Juan.** Projeto "Credenciei" criado no Firebase, app Android cadastrado (`com.produzimos.credenciei`), `google-services.json` no lugar (`apps/app/google-services.json`, referenciado em `app.json`), conta Expo criada, projeto ligado ao EAS (`eas init`), e a chave de conta de serviço do Firebase enviada pro EAS via `eas credentials` (FCM V1) — o Android já está pronto pra RECEBER notificação por push assim que o app tiver o código de ENVIAR uma (ver "Modelo de notificação" abaixo). A chave de serviço (`firebase-adminsdk.json`) fica só na máquina do Juan, nunca commitada — `.gitignore` atualizado pra isso.
+- **Chave APNs e App Id (iOS)** → segue bloqueado, agora por decisão explícita: sem o Apple Developer Program pago (US$ 99/ano) não dá pra gerar nem uma coisa nem outra. Juan decidiu deixar pra depois (21/09) — Android segue sem depender disso.
+- **Modelo de notificação** (lembrete automático × aviso escrito por um admin, ou os dois) → decisão de produto antes de continuar a Epic 11 além do registro do token e das credenciais — ver seção 7 de `docs/credenciei-web-estado-atual.md`

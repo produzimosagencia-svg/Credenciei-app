@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "848880430462",
+    "project_id": "credenciei-16bb9",
+    "storage_bucket": "credenciei-16bb9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:848880430462:android:f412d11ec0564dc031172f",
+        "android_client_info": {
+          "package_name": "com.produzimos.credenciei"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDG-RGNWLY_kNHDMCjWXScdp3H4Zj5xXI4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
