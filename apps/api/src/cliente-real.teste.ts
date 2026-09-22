@@ -93,6 +93,7 @@ function montar(op: { aoPerderSessao?: () => void } = {}) {
     segredoQr: 'segredo-de-teste',
     chavePublicaQrEd25519: null,
     segredoManutencao: null,
+    enviarPush: async () => {},
     novoToken: () => `qr-${++n}`,
     arquivos: new ArquivosEmMemoria(BASE),
     siteUrl: 'http://site.local',

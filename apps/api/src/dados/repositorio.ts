@@ -781,6 +781,27 @@ export interface Repositorio {
    * token passa a apontar pra ela. Ver migração `006-tokens-de-push.sql`.
    */
   registrarTokenDePush(pessoaId: string, token: string, plataforma: 'ios' | 'android'): Promise<void>
+  /** Os tokens de push já registrados para esta pessoa — pode ter mais de um aparelho. */
+  tokensDePush(pessoaId: string): Promise<{ token: string; plataforma: 'ios' | 'android' }[]>
+
+  /**
+   * Quem ainda não bateu a entrada hoje, num dia principal sem batida livre
+   * — mesma trava do site (`diaComTrava`, em `lib/mensagens.ts`): só entra
+   * aqui quem tem um prazo de verdade pra perder. Fora disso (montagem,
+   * desmontagem, evento com auto-atendimento) ninguém precisa de lembrete,
+   * porque não existe hora fixa pra cobrar.
+   */
+  participacoesSemEntradaHoje(agora: Date): Promise<{
+    participacaoId: string
+    pessoaId: string
+    nome: string
+    janelaEntradaFim: string | null
+  }[]>
+
+  /** Já mandamos este lembrete pra esta participação, neste dia? Evita duplicar. */
+  jaEnviouLembreteHoje(participacaoId: string, tipo: string, data: string): Promise<boolean>
+  /** Marca o lembrete como enviado — chamar só depois do envio de verdade dar certo. */
+  registrarLembreteEnviado(participacaoId: string, tipo: string, data: string): Promise<void>
 
   // ── Contestação de batida ────────────────────────────────────────────────
   //

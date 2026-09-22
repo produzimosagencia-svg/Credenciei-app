@@ -13,7 +13,7 @@ test('registra o token, associado a quem pediu', async () => {
   const { repo, admin } = cenarioHenriqueEJuliano()
   const r = await registrarTokenDePush(repo, admin.id, 'ExponentPushToken[abc123]', 'android')
   assert.deepEqual(r, {})
-  assert.deepEqual(repo.tokensDePush.get('ExponentPushToken[abc123]'), { pessoaId: admin.id, plataforma: 'android' })
+  assert.deepEqual(repo.tokensDeAparelhos.get('ExponentPushToken[abc123]'), { pessoaId: admin.id, plataforma: 'android' })
 })
 
 test('token vazio é recusado', async () => {
@@ -32,7 +32,7 @@ test('registrar de novo o mesmo token troca o dono — é o aparelho, não a pes
   const { repo, admin, pessoa } = cenarioHenriqueEJuliano()
   await registrarTokenDePush(repo, admin.id, 'tok-compartilhado', 'ios')
   await registrarTokenDePush(repo, pessoa.id, 'tok-compartilhado', 'ios')
-  assert.equal(repo.tokensDePush.get('tok-compartilhado')?.pessoaId, pessoa.id)
+  assert.equal(repo.tokensDeAparelhos.get('tok-compartilhado')?.pessoaId, pessoa.id)
 })
 
 test('qualquer papel logado registra o próprio aparelho, até o colaborador', async () => {

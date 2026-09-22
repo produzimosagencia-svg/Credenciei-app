@@ -70,8 +70,10 @@ export class RepositorioEmMemoria implements Repositorio {
     autorId: string; participacaoId: string | null; organizacaoId: string | null
   })[] = []
   /** token → dono atual. Chave é o token (do aparelho), não a pessoa. */
-  tokensDePush = new Map<string, { pessoaId: string; plataforma: 'ios' | 'android' }>()
+  tokensDeAparelhos = new Map<string, { pessoaId: string; plataforma: 'ios' | 'android' }>()
   contestacoes: (Contestacao & { resolvidaEm: string | null })[] = []
+  /** Chave `participacaoId|tipo|data` — mesma dedupe da tabela `app_lembretes_enviados`. */
+  lembretesEnviados = new Set<string>()
 
   // ── Identidade ────────────────────────────────────────────────────────────
 
@@ -1076,7 +1078,51 @@ export class RepositorioEmMemoria implements Repositorio {
   // ── Push ──────────────────────────────────────────────────────────────────
 
   async registrarTokenDePush(pessoaId: string, token: string, plataforma: 'ios' | 'android'): Promise<void> {
-    this.tokensDePush.set(token, { pessoaId, plataforma })
+    this.tokensDeAparelhos.set(token, { pessoaId, plataforma })
+  }
+
+  async tokensDePush(pessoaId: string): Promise<{ token: string; plataforma: 'ios' | 'android' }[]> {
+    return [...this.tokensDeAparelhos.entries()]
+      .filter(([, dono]) => dono.pessoaId === pessoaId)
+      .map(([token, dono]) => ({ token, plataforma: dono.plataforma }))
+  }
+
+  async participacoesSemEntradaHoje(agora: Date): Promise<{
+    participacaoId: string; pessoaId: string; nome: string; janelaEntradaFim: string | null
+  }[]> {
+    const hoje = diaBRT(agora)
+
+    const eventosComTrava = new Set(
+      this.eventos
+        .filter(e => e.ativo && e.batida_livre !== true)
+        .filter(e => (this.dias.get(e.id) ?? []).some(d => d.data === hoje && d.tipo === 'principal' && !d.cancelado))
+        .map(e => e.id),
+    )
+    if (!eventosComTrava.size) return []
+
+    const jaEntraram = new Set(
+      this.registros
+        .filter(r => r.tipo === 'entrada' && r.dataRef === hoje)
+        .map(r => r.participacaoId),
+    )
+
+    return this.participacoes
+      .filter(p => p.ativo && !p.descredenciadoEm && eventosComTrava.has(p.eventoId))
+      .filter(p => !jaEntraram.has(p.id))
+      .map(p => ({
+        participacaoId: p.id,
+        pessoaId: p.pessoaId,
+        nome: this.pessoas.find(pe => pe.id === p.pessoaId)?.nome ?? '',
+        janelaEntradaFim: this.eventos.find(e => e.id === p.eventoId)?.janela_entrada_fim ?? null,
+      }))
+  }
+
+  async jaEnviouLembreteHoje(participacaoId: string, tipo: string, data: string): Promise<boolean> {
+    return this.lembretesEnviados.has(`${participacaoId}|${tipo}|${data}`)
+  }
+
+  async registrarLembreteEnviado(participacaoId: string, tipo: string, data: string): Promise<void> {
+    this.lembretesEnviados.add(`${participacaoId}|${tipo}|${data}`)
   }
 
   // ── Contestação de batida ────────────────────────────────────────────────

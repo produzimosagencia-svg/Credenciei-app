@@ -41,6 +41,7 @@ function montar(sobrepor: Partial<Ambiente> = {}) {
     segredoQr: 'segredo-de-teste',
     chavePublicaQrEd25519: null,
     segredoManutencao: 'segredo-de-manutencao-teste',
+    enviarPush: async () => {},
     novoToken: () => `qr-${++n}`,
     arquivos: new ArquivosEmMemoria('http://api.local'),
     siteUrl: 'http://site.local',
@@ -154,6 +155,28 @@ test('sem segredo configurado, a rota nem existe', async () => {
     headers: { 'X-Segredo-Manutencao': 'qualquer-coisa' },
   })
   assert.equal(r.status, 404)
+})
+
+test('lembrete de entrada também exige o segredo — mesma proteção, mesma régua', async () => {
+  const { app } = montar()
+  const semNada = await app.request('/manutencao/lembrete-entrada', { method: 'POST' })
+  assert.equal(semNada.status, 401)
+
+  const errado = await app.request('/manutencao/lembrete-entrada', {
+    method: 'POST',
+    headers: { 'X-Segredo-Manutencao': 'chute' },
+  })
+  assert.equal(errado.status, 401)
+})
+
+test('com o segredo certo, a rota de lembrete responde — a regra de quando mandar já é testada em `rotas/lembretes.teste.ts`', async () => {
+  const { app } = montar()
+  const r = await app.request('/manutencao/lembrete-entrada', {
+    method: 'POST',
+    headers: { 'X-Segredo-Manutencao': 'segredo-de-manutencao-teste' },
+  })
+  assert.equal(r.status, 200)
+  assert.equal(typeof (await r.json()).enviados, 'number')
 })
 
 // ─── Autenticação ───────────────────────────────────────────────────────────

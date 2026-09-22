@@ -1,6 +1,6 @@
 # Backlog
 
-**326 tasks · 200 no MVP · 204 concluídas (63%)**
+**326 tasks · 200 no MVP · 205 concluídas (63%)**
 
 **Só o MVP: 163 de 200 (82%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -146,7 +146,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 8 | Ponto no app | 7 | 7 | ✓ | **Completa** — recontada em 18/09 depois de remapear e não achar tarefa concreta pendente (o "falta o resto do ciclo" era folga de estimativa antiga, não trabalho esquecido; Juan confirmou fechar assim, e aponta o que faltar se aparecer usando de verdade). O meio com selfie; `registrarEntradaLivre` (auto-atendimento) real na API; a credencial esconde o QR quando a participação não está credenciada, e avisa quando o dia foi cancelado; troca de evento quando a pessoa está em dois ao mesmo tempo; aviso de batida pendente na aba; contestar uma batida errada ou que faltou |
 | 9 | Histórico | 4 | 11 | — | Meus dias e Meu pagamento prontos |
 | 10 | Supervisor | 19 | 19 | — | Equipe, ficha da pessoa e histórico; tirar da equipe/excluir de vez/corrigir telefone são tasks novas, achadas em 14/09. Ativar/desativar sem tirar da equipe, foto/localização na presença de hoje, corrigir função, corrigir CPF e a aba de crachá (todos 21/09) — os 5 achados comparando com o site, todos fechados |
-| 11 | Push | 1 | 12 | — | Registro do token do aparelho pronto. Firebase (Android/FCM) configurado de ponta a ponta em 21/09 — pronto pra receber. iOS (APNs) segue parado: precisa do Apple Developer Program pago, adiado por decisão do Juan. Falta ainda o código de ENVIAR e o MODELO do que notificar (decisão do Juan) |
+| 11 | Push | 2 | 12 | — | Registro do token pronto. Firebase (Android/FCM) configurado de ponta a ponta em 21/09. Primeiro lembrete de verdade construído no mesmo dia — `lembrete_entrada`, cópia do que o site já manda por WhatsApp. Juan escolheu trazer os dois modelos (lembretes automáticos + mural "Avisos") — faltam os outros 14 tipos de mensagem do site e o mural inteiro (não existe no app ainda); o total desta epic (12) ainda não reflete esse tamanho, vai crescer conforme cada um for escopado. iOS (APNs) parado: precisa do Apple Developer Program pago, adiado por decisão do Juan |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 8 | 16 | — | Isolamento, limite e a trilha de auditoria feitos. Retenção de foto (ADR 003, 90 dias) e "excluir minha conta" (LGPD, direito ao esquecimento) construídos em 21/09 — escopo novo, decidido na hora com o Juan; falta o resto do LGPD |
@@ -1249,6 +1249,48 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > zero dias de entrada registrados.
 >
 > Não muda nenhum Feito/Total — é correção de bug, não escopo novo.
+>
+> **21/09/2026 — push de verdade: Firebase configurado e o primeiro
+> lembrete construído (Epic 11).** O Juan achou que as coisas estavam
+> muito atrasadas pro prazo — investigando, boa parte do que falta (Push
+> + as duas lojas, 29 tasks) estava esperando conta externa que só ele
+> pode criar, não código. Resolvido junto, passo a passo:
+>
+> - **Firebase (Android)**: projeto criado, app cadastrado
+>   (`com.produzimos.credenciei`), `google-services.json` no lugar,
+>   conta Expo criada, projeto ligado ao EAS, chave de serviço do
+>   Firebase enviada pro EAS (FCM V1) — o Android está pronto pra
+>   RECEBER push. Detalhe técnico em "Onde a API roda de verdade" não
+>   mudou — isto é infraestrutura do APP, não da API.
+> - **iOS parado por decisão, não por falta de orientação**: o Juan só
+>   tem Apple ID comum, não o Developer Program pago (US$ 99/ano) —
+>   sem ele não sai nem a chave APNs nem a App Store. Decidiu deixar
+>   pra depois.
+> - **Modelo de notificação decidido**: reaproveitar os lembretes
+>   automáticos que o site já manda por WhatsApp (`lib/mensagens.ts`,
+>   15 tipos) E construir o mural "Avisos" (não existe no app ainda) —
+>   os dois, não um ou outro. Dado o tamanho real (o motor do site tem
+>   1.449 linhas, deliberadamente isolado da tabela de tokens do app —
+>   `app_push_tokens` foi construída de propósito pro site NUNCA ler),
+>   entramos com o primeiro pedaço, não tudo de uma vez.
+> - **`lembrete_entrada` construído de ponta a ponta**: quem ainda não
+>   bateu a entrada, num dia principal sem auto-atendimento, dentro de
+>   2h do prazo, leva um push — motor PRÓPRIO do app (não reaproveita o
+>   do site, que é isolado de propósito), mesma trava (`diaComTrava`) e
+>   mesma janela de antecedência que o site já usa. Rota nova
+>   (`POST /manutencao/lembrete-entrada`), mesmo padrão da retenção de
+>   foto: fora de `/v1`, protegida pelo `SEGREDO_MANUTENCAO` que já
+>   existe, chamada por um agendador externo — falta o Juan configurar
+>   esse agendador batendo nela (cron-job.org, mesma ferramenta cotada
+>   pra retenção de foto). Idempotente por dia (`app_lembretes_enviados`,
+>   migração 008, ainda não executada) — o agendador pode bater quantas
+>   vezes quiser, cada pessoa recebe o lembrete uma vez só. 7 testes
+>   novos na regra, 2 na rota.
+>
+> **Epic 11 sobe de 1/12 para 2/12** — o total (12) ainda não reflete o
+> tamanho real da escolha "os dois": faltam os outros 14 tipos de
+> lembrete e o mural inteiro, que ainda não foram escopados tarefa a
+> tarefa.
 
 ## Bloqueado, esperando o Juan
 
@@ -1276,4 +1318,6 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 
 - ~~Projeto Firebase (Android)~~ → **feito em 21/09/2026, guiado passo a passo com o Juan.** Projeto "Credenciei" criado no Firebase, app Android cadastrado (`com.produzimos.credenciei`), `google-services.json` no lugar (`apps/app/google-services.json`, referenciado em `app.json`), conta Expo criada, projeto ligado ao EAS (`eas init`), e a chave de conta de serviço do Firebase enviada pro EAS via `eas credentials` (FCM V1) — o Android já está pronto pra RECEBER notificação por push assim que o app tiver o código de ENVIAR uma (ver "Modelo de notificação" abaixo). A chave de serviço (`firebase-adminsdk.json`) fica só na máquina do Juan, nunca commitada — `.gitignore` atualizado pra isso.
 - **Chave APNs e App Id (iOS)** → segue bloqueado, agora por decisão explícita: sem o Apple Developer Program pago (US$ 99/ano) não dá pra gerar nem uma coisa nem outra. Juan decidiu deixar pra depois (21/09) — Android segue sem depender disso.
-- **Modelo de notificação** (lembrete automático × aviso escrito por um admin, ou os dois) → decisão de produto antes de continuar a Epic 11 além do registro do token e das credenciais — ver seção 7 de `docs/credenciei-web-estado-atual.md`
+- ~~Modelo de notificação~~ → **decidido em 21/09/2026: os dois** (lembretes automáticos, reaproveitando as regras que o site já usa, e o mural "Avisos", que ainda não existe no app). Primeiro lembrete (`lembrete_entrada`) já construído — ver o achado de 21/09 acima.
+- **Rodar a migração 008** (`app_lembretes_enviados`) — aditiva e segura, sem pressa, mesma régua das 001/003 acima.
+- **Configurar um agendador externo** (cron-job.org, mesma ferramenta já cotada pra retenção de foto) batendo em `POST /manutencao/lembrete-entrada` de tempos em tempos (sugestão: a cada 15-30 min) — sem isso, o lembrete existe no código mas nunca dispara sozinho.

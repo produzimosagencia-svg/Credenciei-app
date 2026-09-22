@@ -29,6 +29,7 @@ import type { Dependencias as DepSessao } from './rotas/sessao.js'
 import { entrar, entrarComSenha, pedirCodigo } from './rotas/sessao.js'
 import { contestarBatida, registrarBatida, registrarEntradaLivre } from './rotas/batidas.js'
 import { apagarFotosVencidas } from './rotas/manutencao.js'
+import { enviarLembretesDeEntrada, type EnviarPush } from './rotas/lembretes.js'
 import { excluirMinhaConta } from './rotas/conta.js'
 import { painelDaEquipe } from './rotas/equipe.js'
 import { painel } from './rotas/painel.js'
@@ -109,6 +110,8 @@ export type Ambiente = {
    * configurado, mais vale não expor nada do que expor sem proteção.
    */
   segredoManutencao: string | null
+  /** Manda a notificação de verdade (Expo Push) — ver `expo-push.ts`. */
+  enviarPush: EnviarPush
 }
 
 type Variaveis = { pessoaId: string; papel: Papel }
@@ -130,6 +133,13 @@ export function criarServidor(amb: Ambiente) {
     const recebido = c.req.header('X-Segredo-Manutencao') ?? ''
     if (recebido !== amb.segredoManutencao) return c.json({ erro: 'Não autorizado.' }, 401)
     return c.json(await apagarFotosVencidas(amb.repo))
+  })
+
+  app.post('/manutencao/lembrete-entrada', async c => {
+    if (!amb.segredoManutencao) return c.notFound()
+    const recebido = c.req.header('X-Segredo-Manutencao') ?? ''
+    if (recebido !== amb.segredoManutencao) return c.json({ erro: 'Não autorizado.' }, 401)
+    return c.json(await enviarLembretesDeEntrada(amb.repo, amb.enviarPush))
   })
 
   /*

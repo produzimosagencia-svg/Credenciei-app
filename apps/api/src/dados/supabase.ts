@@ -1811,6 +1811,69 @@ export class RepositorioSupabase implements Repositorio {
     )
   }
 
+  async tokensDePush(pessoaId: string): Promise<{ token: string; plataforma: 'ios' | 'android' }[]> {
+    const { data } = await this.db.from('app_push_tokens').select('token, plataforma').eq('pessoa_id', pessoaId)
+    return (data ?? []).map(l => ({ token: l.token as string, plataforma: l.plataforma as 'ios' | 'android' }))
+  }
+
+  async participacoesSemEntradaHoje(agora: Date): Promise<{
+    participacaoId: string; pessoaId: string; nome: string; janelaEntradaFim: string | null
+  }[]> {
+    const hoje = diaBRT(agora)
+
+    // 1) Eventos ativos, sem auto-atendimento — quem tem batida livre não
+    // tem prazo fixo, não faz sentido cobrar.
+    const { data: eventosAtivos } = await this.db
+      .from('eventos').select('id, janela_entrada_fim').eq('ativo', true).or('batida_livre.is.null,batida_livre.eq.false')
+    const eventoIds = (eventosAtivos ?? []).map(e => e.id as string)
+    if (!eventoIds.length) return []
+    const fimPorEvento = new Map((eventosAtivos ?? []).map(e => [e.id as string, e.janela_entrada_fim as string | null]))
+
+    // 2) Só quem tem HOJE como dia principal, não cancelado.
+    const { data: diasHoje } = await this.db
+      .from('jornada_dias').select('evento_id')
+      .eq('data', hoje).eq('tipo', 'principal').eq('cancelado', false).in('evento_id', eventoIds)
+    const eventosComTrava = [...new Set((diasHoje ?? []).map(d => d.evento_id as string))]
+    if (!eventosComTrava.length) return []
+
+    // 3) A equipe ativa desses eventos.
+    const { data: equipe } = await this.db
+      .from('funcionarios')
+      .select(`${CAMPOS_FUNCIONARIO}, fornecedores!inner(evento_id)`)
+      .eq('ativo', true).is('descredenciado_em', null)
+      .in('fornecedores.evento_id', eventosComTrava)
+    const linhas = (equipe ?? []) as unknown as (LinhaFuncionario & { fornecedores: { evento_id: string } })[]
+    if (!linhas.length) return []
+
+    // 4) Quem já bateu entrada hoje — o resto é quem falta lembrar.
+    const funcionarioIds = linhas.map(l => l.id)
+    const { data: jaEntraram } = await this.db
+      .from('registros').select('funcionario_id')
+      .eq('tipo', 'entrada').eq('data_ref', hoje).in('funcionario_id', funcionarioIds)
+    const entraram = new Set((jaEntraram ?? []).map(r => r.funcionario_id as string))
+
+    return linhas
+      .filter(l => !entraram.has(l.id))
+      .map(l => ({
+        participacaoId: l.id,
+        pessoaId: idDaPessoa(l.cpf),
+        nome: l.nome,
+        janelaEntradaFim: fimPorEvento.get(l.fornecedores.evento_id) ?? null,
+      }))
+  }
+
+  async jaEnviouLembreteHoje(participacaoId: string, tipo: string, data: string): Promise<boolean> {
+    const { data: linha } = await this.db
+      .from('app_lembretes_enviados').select('participacao_id')
+      .eq('participacao_id', participacaoId).eq('tipo', tipo).eq('data_ref', data).maybeSingle()
+    return !!linha
+  }
+
+  async registrarLembreteEnviado(participacaoId: string, tipo: string, data: string): Promise<void> {
+    await this.db.from('app_lembretes_enviados')
+      .upsert({ participacao_id: participacaoId, tipo, data_ref: data }, { onConflict: 'participacao_id,tipo,data_ref' })
+  }
+
   // ── Contestação de batida ──────────────────────────────────────────────────
 
   async criarContestacao(dados: {
