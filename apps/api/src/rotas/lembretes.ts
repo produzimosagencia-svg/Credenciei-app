@@ -24,6 +24,7 @@
 // dedupe (`jaEnviouLembreteHoje`/`registrarLembreteEnviado`), a mesma
 // pessoa levaria um push a cada chamada, até o prazo passar.
 
+import { janelaMeio } from '@credenciei/dominio'
 import type { Repositorio } from '../dados/repositorio.js'
 
 const ANTECEDENCIA_HORAS = 2
@@ -89,6 +90,46 @@ export async function enviarLembretesDeSaida(
   repo: Repositorio, enviarPush: EnviarPush, agora: Date = new Date(),
 ): Promise<{ enviados: number }> {
   return enviarLembretes(repo, 'fim', enviarPush, agora)
+}
+
+// ─── O meio ──────────────────────────────────────────────────────────────
+//
+// Diferente de entrada/saída: a janela não é do EVENTO, é da PESSOA — abre
+// 4h depois da entrada REAL dela (`janelaMeio`, no domínio), e vale todo
+// dia, montagem incluída (ao contrário do resto, o meio fica de FORA da
+// trava de "dia principal, sem batida livre" — mesmo raciocínio do site).
+// Por isso usa `participacoesSemMeioHoje`, uma consulta própria, não
+// `participacoesSemRegistroHoje`.
+
+export async function enviarLembretesDeMeio(
+  repo: Repositorio, enviarPush: EnviarPush, agora: Date = new Date(),
+): Promise<{ enviados: number }> {
+  const TIPO = 'lembrete_meio'
+  const candidatos = await repo.participacoesSemMeioHoje(agora)
+
+  let enviados = 0
+  for (const p of candidatos) {
+    const janela = janelaMeio(p.entradaEm)
+    const fim = new Date(janela.fim).getTime()
+    const faltamHoras = (fim - agora.getTime()) / 3_600_000
+    if (faltamHoras < 0 || faltamHoras > ANTECEDENCIA_HORAS) continue
+
+    if (await repo.jaEnviouLembreteHoje(p.participacaoId, TIPO, p.diaRef)) continue
+
+    const tokens = await repo.tokensDePush(p.pessoaId)
+    if (!tokens.length) continue
+
+    await enviarPush(tokens.map(t => t.token), {
+      titulo: 'Falta bater o meio',
+      corpo: `${p.nome.split(' ')[0]}, o prazo da selfie do meio está chegando. `
+        + 'Abra a credencial e registre com a câmera.',
+      dados: { tipo: TIPO, participacaoId: p.participacaoId },
+    })
+    await repo.registrarLembreteEnviado(p.participacaoId, TIPO, p.diaRef)
+    enviados++
+  }
+
+  return { enviados }
 }
 
 // ─── Alerta ao supervisor ───────────────────────────────────────────────────

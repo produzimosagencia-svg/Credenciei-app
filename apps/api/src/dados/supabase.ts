@@ -1898,6 +1898,60 @@ export class RepositorioSupabase implements Repositorio {
     return (data?.id as string | undefined) ?? null
   }
 
+  async participacoesSemMeioHoje(agora: Date): Promise<{
+    participacaoId: string; pessoaId: string; nome: string; entradaEm: string; diaRef: string
+  }[]> {
+    const hoje = diaBRT(agora)
+    const ontem = diaBRT(new Date(agora.getTime() - 24 * 3_600_000))
+
+    // 1) Toda entrada recente — é dela que a janela do meio é calculada.
+    const { data: entradas } = await this.db
+      .from('registros').select('funcionario_id, data_ref, created_at')
+      .eq('tipo', 'entrada').in('data_ref', [hoje, ontem])
+    if (!entradas?.length) return []
+
+    // 2) Quem já fez o meio NAQUELE turno (mesmo funcionário, mesmo dia) —
+    // o resto é quem falta lembrar.
+    const funcionarioIds = [...new Set(entradas.map(e => e.funcionario_id as string))]
+    const { data: meios } = await this.db
+      .from('registros').select('funcionario_id, data_ref')
+      .eq('tipo', 'meio').in('data_ref', [hoje, ontem]).in('funcionario_id', funcionarioIds)
+    const jaFizeramMeio = new Set((meios ?? []).map(m => `${m.funcionario_id}|${m.data_ref}`))
+    const pendentes = entradas.filter(e => !jaFizeramMeio.has(`${e.funcionario_id}|${e.data_ref}`))
+    if (!pendentes.length) return []
+
+    // 3) Só quem ainda está ativo na equipe.
+    const { data: funcionarios } = await this.db
+      .from('funcionarios')
+      .select(`${CAMPOS_FUNCIONARIO}, fornecedores!inner(evento_id)`)
+      .eq('ativo', true).is('descredenciado_em', null).in('id', funcionarioIds)
+    const funcPorId = new Map(
+      (funcionarios ?? []).map(f => [f.id as string, f as unknown as LinhaFuncionario & { fornecedores: { evento_id: string } }]),
+    )
+
+    // 4) Só em dias que exigem meio — nasce LIGADO (ver `DiaDeTrabalho.exigeMeio`).
+    const eventoIds = [...new Set([...funcPorId.values()].map(f => f.fornecedores.evento_id))]
+    const datas = [...new Set(pendentes.map(e => e.data_ref as string))]
+    const { data: dias } = await this.db
+      .from('jornada_dias').select('evento_id, data, exige_meio').in('evento_id', eventoIds).in('data', datas)
+    const exigeMeioPor = new Map((dias ?? []).map(d => [`${d.evento_id}|${d.data}`, d.exige_meio !== false]))
+
+    const resultado: { participacaoId: string; pessoaId: string; nome: string; entradaEm: string; diaRef: string }[] = []
+    for (const e of pendentes) {
+      const func = funcPorId.get(e.funcionario_id as string)
+      if (!func) continue
+      if (exigeMeioPor.get(`${func.fornecedores.evento_id}|${e.data_ref}`) === false) continue
+      resultado.push({
+        participacaoId: func.id,
+        pessoaId: idDaPessoa(func.cpf),
+        nome: func.nome,
+        entradaEm: e.created_at as string,
+        diaRef: e.data_ref as string,
+      })
+    }
+    return resultado
+  }
+
   async jaEnviouLembreteHoje(participacaoId: string, tipo: string, data: string): Promise<boolean> {
     const { data: linha } = await this.db
       .from('app_lembretes_enviados').select('participacao_id')

@@ -813,6 +813,22 @@ export interface Repositorio {
   /** O pessoaId (perfil) de quem supervisiona este setor agora — `null` se não tiver. */
   supervisorDoSetor(equipeId: string): Promise<string | null>
 
+  /**
+   * Quem já bateu a entrada mas ainda não fez o meio, em dias que exigem
+   * meio. Diferente de `participacoesSemRegistroHoje`: o meio fica FORA
+   * da trava de dia principal/sem batida livre — mesmo raciocínio do
+   * site (`lib/mensagens.ts`): a janela do meio é individual (entrada
+   * real da pessoa + 4h) e vale todo dia, montagem incluída.
+   */
+  participacoesSemMeioHoje(agora: Date): Promise<{
+    participacaoId: string
+    pessoaId: string
+    nome: string
+    /** O relógio do aparelho na entrada — `janelaMeio` calcula a janela a partir daqui. */
+    entradaEm: string
+    diaRef: string
+  }[]>
+
   /** Já mandamos este lembrete pra esta participação, neste dia? Evita duplicar. */
   jaEnviouLembreteHoje(participacaoId: string, tipo: string, data: string): Promise<boolean>
   /** Marca o lembrete como enviado — chamar só depois do envio de verdade dar certo. */

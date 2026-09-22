@@ -192,6 +192,19 @@ test('lembrete de saída também exige o segredo, e responde com ele certo', asy
   assert.equal(typeof (await r.json()).enviados, 'number')
 })
 
+test('lembrete de meio também exige o segredo, e responde com ele certo', async () => {
+  const { app } = montar()
+  const semNada = await app.request('/manutencao/lembrete-meio', { method: 'POST' })
+  assert.equal(semNada.status, 401)
+
+  const r = await app.request('/manutencao/lembrete-meio', {
+    method: 'POST',
+    headers: { 'X-Segredo-Manutencao': 'segredo-de-manutencao-teste' },
+  })
+  assert.equal(r.status, 200)
+  assert.equal(typeof (await r.json()).enviados, 'number')
+})
+
 test('alerta ao supervisor (entrada e saída) também exige o segredo, e responde com ele certo', async () => {
   const { app } = montar()
   for (const rota of ['/manutencao/alerta-supervisor-entrada', '/manutencao/alerta-supervisor-saida']) {

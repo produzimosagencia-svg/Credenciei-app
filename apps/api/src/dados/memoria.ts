@@ -1141,6 +1141,42 @@ export class RepositorioEmMemoria implements Repositorio {
     return equipe?.supervisorPessoaId ?? null
   }
 
+  async participacoesSemMeioHoje(agora: Date): Promise<{
+    participacaoId: string; pessoaId: string; nome: string; entradaEm: string; diaRef: string
+  }[]> {
+    const hoje = diaBRT(agora)
+    const ontem = diaBRT(new Date(agora.getTime() - 24 * 3_600_000))
+    const diasValidos = new Set([hoje, ontem])
+
+    const entradas = this.registros.filter(r => r.tipo === 'entrada' && diasValidos.has(r.dataRef))
+    const jaFizeramMeio = new Set(
+      this.registros
+        .filter(r => r.tipo === 'meio' && diasValidos.has(r.dataRef))
+        .map(r => `${r.participacaoId}|${r.dataRef}`),
+    )
+
+    const resultado: { participacaoId: string; pessoaId: string; nome: string; entradaEm: string; diaRef: string }[] = []
+    for (const entrada of entradas) {
+      if (jaFizeramMeio.has(`${entrada.participacaoId}|${entrada.dataRef}`)) continue
+
+      const p = this.participacoes.find(x => x.id === entrada.participacaoId)
+      if (!p || !p.ativo || p.descredenciadoEm) continue
+
+      // Nasce LIGADO — ver `DiaDeTrabalho.exigeMeio`.
+      const dia = (this.dias.get(p.eventoId) ?? []).find(d => d.data === entrada.dataRef)
+      if (dia && !dia.exigeMeio) continue
+
+      resultado.push({
+        participacaoId: p.id,
+        pessoaId: p.pessoaId,
+        nome: this.pessoas.find(pe => pe.id === p.pessoaId)?.nome ?? '',
+        entradaEm: entrada.registradoEm,
+        diaRef: entrada.dataRef,
+      })
+    }
+    return resultado
+  }
+
   async jaEnviouLembreteHoje(participacaoId: string, tipo: string, data: string): Promise<boolean> {
     return this.lembretesEnviados.has(`${participacaoId}|${tipo}|${data}`)
   }

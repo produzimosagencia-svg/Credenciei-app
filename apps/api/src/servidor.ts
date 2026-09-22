@@ -31,7 +31,7 @@ import { contestarBatida, registrarBatida, registrarEntradaLivre } from './rotas
 import { apagarFotosVencidas } from './rotas/manutencao.js'
 import {
   enviarAlertaSupervisorDeEntrada, enviarAlertaSupervisorDeSaida,
-  enviarLembretesDeEntrada, enviarLembretesDeSaida, type EnviarPush,
+  enviarLembretesDeEntrada, enviarLembretesDeMeio, enviarLembretesDeSaida, type EnviarPush,
 } from './rotas/lembretes.js'
 import { excluirMinhaConta } from './rotas/conta.js'
 import { painelDaEquipe } from './rotas/equipe.js'
@@ -150,6 +150,13 @@ export function criarServidor(amb: Ambiente) {
     const recebido = c.req.header('X-Segredo-Manutencao') ?? ''
     if (recebido !== amb.segredoManutencao) return c.json({ erro: 'Não autorizado.' }, 401)
     return c.json(await enviarLembretesDeSaida(amb.repo, amb.enviarPush))
+  })
+
+  app.post('/manutencao/lembrete-meio', async c => {
+    if (!amb.segredoManutencao) return c.notFound()
+    const recebido = c.req.header('X-Segredo-Manutencao') ?? ''
+    if (recebido !== amb.segredoManutencao) return c.json({ erro: 'Não autorizado.' }, 401)
+    return c.json(await enviarLembretesDeMeio(amb.repo, amb.enviarPush))
   })
 
   app.post('/manutencao/alerta-supervisor-entrada', async c => {

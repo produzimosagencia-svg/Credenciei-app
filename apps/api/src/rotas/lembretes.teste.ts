@@ -6,7 +6,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import {
-  enviarAlertaSupervisorDeEntrada, enviarLembretesDeEntrada, enviarLembretesDeSaida, type EnviarPush,
+  enviarAlertaSupervisorDeEntrada, enviarLembretesDeEntrada, enviarLembretesDeMeio, enviarLembretesDeSaida,
+  type EnviarPush,
 } from './lembretes.js'
 
 function coletor() {
@@ -180,6 +181,122 @@ test('entrada e saída são lembretes independentes — um não bloqueia o outro
 
   assert.equal(r.enviados, 1)
   assert.equal(enviados[0]?.titulo, 'Falta bater a saída')
+})
+
+// ─── O meio ─────────────────────────────────────────────────────────────
+//
+// Janela é da PESSOA, não do evento: entrada às 18:00 abre o meio às 22:00
+// e fecha às 00:00 (HORAS_ATE_MEIO=4, DURACAO_JANELA_MEIO_H=2).
+
+function comEntrada(registradoEm = '2026-09-05T18:00:00-03:00') {
+  const cenario = cenarioHenriqueEJuliano()
+  cenario.repo.registros.push({
+    id: 'reg-entrada', participacaoId: cenario.participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
+    registradoEm, recebidoEm: registradoEm, fotoPath: null, lat: null, lng: null, manual: false,
+  })
+  return cenario
+}
+
+const MEIO_DENTRO_DA_JANELA = new Date('2026-09-05T23:00:00-03:00') // 1h antes do prazo (00:00)
+const MEIO_CEDO_DEMAIS = new Date('2026-09-05T19:00:00-03:00') // a janela nem abriu (abre 22:00)
+const MEIO_DEPOIS_DO_PRAZO = new Date('2026-09-06T01:00:00-03:00')
+
+test('manda o push pra quem entrou mas ainda não fez o meio, dentro da janela', async () => {
+  const { repo, pessoa, participacao } = comEntrada()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeMeio(repo, enviarPush, MEIO_DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 1)
+  assert.deepEqual(enviados, [{ tokens: ['tok-joao'], titulo: 'Falta bater o meio' }])
+  assert.equal(await repo.jaEnviouLembreteHoje(participacao.id, 'lembrete_meio', '2026-09-05'), true)
+})
+
+test('meio: antes da janela abrir não manda', async () => {
+  const { repo, pessoa } = comEntrada()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeMeio(repo, enviarPush, MEIO_CEDO_DEMAIS)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('meio: depois do prazo não manda mais', async () => {
+  const { repo, pessoa } = comEntrada()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeMeio(repo, enviarPush, MEIO_DEPOIS_DO_PRAZO)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('quem já fez o meio não recebe lembrete', async () => {
+  const { repo, pessoa, participacao } = comEntrada()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+  repo.registros.push({
+    id: 'reg-meio', participacaoId: participacao.id, tipo: 'meio', dataRef: '2026-09-05',
+    registradoEm: '2026-09-05T22:30:00-03:00', recebidoEm: '2026-09-05T22:30:00-03:00',
+    fotoPath: 'foto.jpg', lat: null, lng: null, manual: false,
+  })
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeMeio(repo, enviarPush, MEIO_DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('quem nunca bateu entrada não tem meio pra lembrar', async () => {
+  const { repo, pessoa } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeMeio(repo, enviarPush, MEIO_DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('dia que não exige meio não manda lembrete, mesmo com entrada registrada', async () => {
+  const { repo, pessoa, evento } = comEntrada()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+  const dia = repo.dias.get(evento.id)!.find(d => d.data === '2026-09-05')!
+  dia.exigeMeio = false
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeMeio(repo, enviarPush, MEIO_DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('meio funciona mesmo em evento com batida livre — a trava de dia principal não vale aqui', async () => {
+  const { repo, pessoa, evento } = comEntrada()
+  evento.batida_livre = true
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeMeio(repo, enviarPush, MEIO_DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 1)
+})
+
+test('não manda o lembrete de meio duas vezes no mesmo turno', async () => {
+  const { repo, pessoa } = comEntrada()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  await enviarLembretesDeMeio(repo, coletor().enviarPush, MEIO_DENTRO_DA_JANELA)
+
+  const segunda = coletor()
+  const r = await enviarLembretesDeMeio(repo, segunda.enviarPush, MEIO_DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(segunda.enviados.length, 0)
 })
 
 // ─── Alerta ao supervisor ───────────────────────────────────────────────────
