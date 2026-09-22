@@ -5,7 +5,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
-import { enviarLembretesDeEntrada, enviarLembretesDeSaida, type EnviarPush } from './lembretes.js'
+import {
+  enviarAlertaSupervisorDeEntrada, enviarLembretesDeEntrada, enviarLembretesDeSaida, type EnviarPush,
+} from './lembretes.js'
 
 function coletor() {
   const enviados: { tokens: string[]; titulo: string }[] = []
@@ -178,4 +180,64 @@ test('entrada e saída são lembretes independentes — um não bloqueia o outro
 
   assert.equal(r.enviados, 1)
   assert.equal(enviados[0]?.titulo, 'Falta bater a saída')
+})
+
+// ─── Alerta ao supervisor ───────────────────────────────────────────────────
+
+function comSupervisor() {
+  const cenario = cenarioHenriqueEJuliano()
+  const equipe = cenario.repo.equipes.find(e => e.id === 'eq-1')!
+  equipe.supervisorPessoaId = 'auth-supervisor'
+  return cenario
+}
+
+test('avisa o supervisor com a lista de quem falta, dentro da janela', async () => {
+  const { repo } = comSupervisor()
+  await repo.registrarTokenDePush('auth-supervisor', 'tok-supervisor', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarAlertaSupervisorDeEntrada(repo, enviarPush, DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 1)
+  assert.equal(enviados[0]?.tokens[0], 'tok-supervisor')
+  assert.match(enviados[0]?.titulo ?? '', /Produção: 1 sem entrada/)
+})
+
+test('sem pendência, sem aviso ao supervisor', async () => {
+  const { repo, participacao } = comSupervisor()
+  await repo.registrarTokenDePush('auth-supervisor', 'tok-supervisor', 'android')
+  repo.registros.push({
+    id: 'reg-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
+    registradoEm: '2026-09-05T18:00:00-03:00', recebidoEm: '2026-09-05T18:00:01-03:00',
+    fotoPath: null, lat: null, lng: null, manual: false,
+  })
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarAlertaSupervisorDeEntrada(repo, enviarPush, DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('setor sem supervisor definido não quebra, só não manda', async () => {
+  const { repo } = cenarioHenriqueEJuliano() // sem supervisorPessoaId na equipe
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarAlertaSupervisorDeEntrada(repo, enviarPush, DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('não avisa o supervisor duas vezes no mesmo dia pela mesma etapa', async () => {
+  const { repo } = comSupervisor()
+  await repo.registrarTokenDePush('auth-supervisor', 'tok-supervisor', 'android')
+
+  await enviarAlertaSupervisorDeEntrada(repo, coletor().enviarPush, DENTRO_DA_JANELA)
+
+  const segunda = coletor()
+  const r = await enviarAlertaSupervisorDeEntrada(repo, segunda.enviarPush, DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(segunda.enviados.length, 0)
 })

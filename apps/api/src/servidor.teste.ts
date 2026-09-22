@@ -192,6 +192,21 @@ test('lembrete de saída também exige o segredo, e responde com ele certo', asy
   assert.equal(typeof (await r.json()).enviados, 'number')
 })
 
+test('alerta ao supervisor (entrada e saída) também exige o segredo, e responde com ele certo', async () => {
+  const { app } = montar()
+  for (const rota of ['/manutencao/alerta-supervisor-entrada', '/manutencao/alerta-supervisor-saida']) {
+    const semNada = await app.request(rota, { method: 'POST' })
+    assert.equal(semNada.status, 401, rota)
+
+    const r = await app.request(rota, {
+      method: 'POST',
+      headers: { 'X-Segredo-Manutencao': 'segredo-de-manutencao-teste' },
+    })
+    assert.equal(r.status, 200, rota)
+    assert.equal(typeof (await r.json()).enviados, 'number', rota)
+  }
+})
+
 // ─── Autenticação ───────────────────────────────────────────────────────────
 
 test('sem token, nada abaixo de /v1 responde', async () => {

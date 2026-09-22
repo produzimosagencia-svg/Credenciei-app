@@ -1088,7 +1088,9 @@ export class RepositorioEmMemoria implements Repositorio {
   }
 
   async participacoesSemRegistroHoje(momento: 'entrada' | 'fim', agora: Date): Promise<{
-    participacaoId: string; pessoaId: string; nome: string; janelaFim: string | null; diaRef: string
+    participacaoId: string; pessoaId: string; nome: string; cpf: string
+    equipeId: string; equipeNome: string; eventoNome: string
+    janelaFim: string | null; diaRef: string
   }[]> {
     const hoje = diaBRT(agora)
     // A saída de um turno que atravessa a meia-noite ainda pertence ao dia
@@ -1119,14 +1121,24 @@ export class RepositorioEmMemoria implements Repositorio {
       .filter(p => !jaRegistraram.has(p.id))
       .map(p => {
         const evento = this.eventos.find(e => e.id === p.eventoId)
+        const pessoa = this.pessoas.find(pe => pe.id === p.pessoaId)
         return {
           participacaoId: p.id,
           pessoaId: p.pessoaId,
-          nome: this.pessoas.find(pe => pe.id === p.pessoaId)?.nome ?? '',
+          nome: pessoa?.nome ?? '',
+          cpf: pessoa?.cpf ?? '',
+          equipeId: p.equipeId,
+          equipeNome: p.equipeNome,
+          eventoNome: evento?.nome ?? '',
           janelaFim: (momento === 'entrada' ? evento?.janela_entrada_fim : evento?.janela_fim_fim) ?? null,
           diaRef: diaRefPorEvento.get(p.eventoId)!,
         }
       })
+  }
+
+  async supervisorDoSetor(equipeId: string): Promise<string | null> {
+    const equipe = this.equipes.find(e => e.id === equipeId)
+    return equipe?.supervisorPessoaId ?? null
   }
 
   async jaEnviouLembreteHoje(participacaoId: string, tipo: string, data: string): Promise<boolean> {

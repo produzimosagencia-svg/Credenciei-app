@@ -797,6 +797,10 @@ export interface Repositorio {
     participacaoId: string
     pessoaId: string
     nome: string
+    cpf: string
+    equipeId: string
+    equipeNome: string
+    eventoNome: string
     janelaFim: string | null
     /**
      * O dia do PRINCIPAL, não o calendário de `agora` — numa saída depois
@@ -805,6 +809,9 @@ export interface Repositorio {
      */
     diaRef: string
   }[]>
+
+  /** O pessoaId (perfil) de quem supervisiona este setor agora — `null` se não tiver. */
+  supervisorDoSetor(equipeId: string): Promise<string | null>
 
   /** Já mandamos este lembrete pra esta participação, neste dia? Evita duplicar. */
   jaEnviouLembreteHoje(participacaoId: string, tipo: string, data: string): Promise<boolean>

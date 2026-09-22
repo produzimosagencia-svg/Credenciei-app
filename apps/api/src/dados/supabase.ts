@@ -1817,7 +1817,9 @@ export class RepositorioSupabase implements Repositorio {
   }
 
   async participacoesSemRegistroHoje(momento: 'entrada' | 'fim', agora: Date): Promise<{
-    participacaoId: string; pessoaId: string; nome: string; janelaFim: string | null; diaRef: string
+    participacaoId: string; pessoaId: string; nome: string; cpf: string
+    equipeId: string; equipeNome: string; eventoNome: string
+    janelaFim: string | null; diaRef: string
   }[]> {
     const hoje = diaBRT(agora)
     // A saída de um turno que atravessa a meia-noite ainda pertence ao dia
@@ -1830,12 +1832,13 @@ export class RepositorioSupabase implements Repositorio {
     // 1) Eventos ativos, sem auto-atendimento — quem tem batida livre não
     // tem prazo fixo, não faz sentido cobrar.
     const { data: eventosAtivos } = await this.db
-      .from('eventos').select(`id, ${colunaJanela}`).eq('ativo', true).or('batida_livre.is.null,batida_livre.eq.false')
+      .from('eventos').select(`id, nome, ${colunaJanela}`).eq('ativo', true).or('batida_livre.is.null,batida_livre.eq.false')
     const eventoIds = (eventosAtivos ?? []).map(e => e.id as string)
     if (!eventoIds.length) return []
     const fimPorEvento = new Map(
       (eventosAtivos ?? []).map(e => [e.id as string, (e as Record<string, unknown>)[colunaJanela] as string | null]),
     )
+    const nomePorEvento = new Map((eventosAtivos ?? []).map(e => [e.id as string, e.nome as string]))
 
     // 2) Só quem tem hoje OU ontem como dia principal, não cancelado — um
     // evento tem no máximo um dia principal em qualquer uma dessas datas.
@@ -1849,10 +1852,11 @@ export class RepositorioSupabase implements Repositorio {
     // 3) A equipe ativa desses eventos.
     const { data: equipe } = await this.db
       .from('funcionarios')
-      .select(`${CAMPOS_FUNCIONARIO}, fornecedores!inner(evento_id)`)
+      .select(`${CAMPOS_FUNCIONARIO}, fornecedores!inner(id, nome, evento_id)`)
       .eq('ativo', true).is('descredenciado_em', null)
       .in('fornecedores.evento_id', eventosComTrava)
-    const linhas = (equipe ?? []) as unknown as (LinhaFuncionario & { fornecedores: { evento_id: string } })[]
+    const linhas = (equipe ?? []) as unknown as
+      (LinhaFuncionario & { fornecedores: { id: string; nome: string; evento_id: string } })[]
     if (!linhas.length) return []
 
     // 4) Quem já bateu esta etapa no dia de referência do PRÓPRIO evento —
@@ -1874,9 +1878,24 @@ export class RepositorioSupabase implements Repositorio {
         participacaoId: l.id,
         pessoaId: idDaPessoa(l.cpf),
         nome: l.nome,
+        cpf: l.cpf,
+        equipeId: l.fornecedores.id,
+        equipeNome: l.fornecedores.nome,
+        eventoNome: nomePorEvento.get(l.fornecedores.evento_id) ?? '',
         janelaFim: fimPorEvento.get(l.fornecedores.evento_id) ?? null,
         diaRef: diaRefPorEvento.get(l.fornecedores.evento_id)!,
       }))
+  }
+
+  async supervisorDoSetor(equipeId: string): Promise<string | null> {
+    // Mesma régua de `equipeDoSupervisor` (o inverso desta consulta):
+    // `perfis.fornecedor_id` guarda só o setor ATUAL do supervisor — não
+    // os outros que ele também alcança (`supervisor_setores`). Limitação
+    // já documentada no CLAUDE.md ("um supervisor só enxerga um setor por
+    // vez"); o alerta segue a mesma régua, de propósito.
+    const { data } = await this.db
+      .from('perfis').select('id').eq('fornecedor_id', equipeId).eq('role', 'supervisor').limit(1).maybeSingle()
+    return (data?.id as string | undefined) ?? null
   }
 
   async jaEnviouLembreteHoje(participacaoId: string, tipo: string, data: string): Promise<boolean> {
