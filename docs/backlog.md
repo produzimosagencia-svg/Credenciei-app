@@ -1,8 +1,8 @@
 # Backlog
 
-**315 tasks · 188 no MVP · 218 concluídas (69%)**
+**311 tasks · 184 no MVP · 218 concluídas (70%)**
 
-**Só o MVP: 161 de 188 (86%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 161 de 184 (88%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -122,7 +122,7 @@ cada uma.
 |---|---|---|---|
 | 1 — Fechar o mapeamento | 17 | 3 | Restam só as três telas de WhatsApp (conversas, disparo, fluxos) — deliberadamente adiadas |
 | 2 — Ligar a API de verdade | 3, 17, 18 | 0 | **Completa.** Epic 3, Epic 18 e a Epic 17 inteira — organizações, veículos, bloqueio de CPF, base de funcionários, encontrar colaborador, relatórios (com planilha `.xlsx`/`.zip` de verdade), cartaz da portaria, criar setor e equipe do setor |
-| 3 — Fechar os ciclos pela metade | 2, 4, 6, 7, 8, 9, 10 | 16 | Sincronização com o site, QR (Ed25519, código giratório), histórico. **Epic 8 fechou em 18/09** (7/7), **Epic 7 em 21/09** (13/13), **Epic 4 em 22/09** (6/6) e **Epic 10 já estava fechada** (19/19) — todas remapeadas sem tarefa concreta sobrando. Resta Epic 2 (4, os 3 papéis que faltavam já prontos, sobra sem checklist), Epic 6 (5, Ed25519/código giratório — travado esperando tempo em produção) e Epic 9 (7, ainda sem lista detalhada) |
+| 3 — Fechar os ciclos pela metade | 2, 4, 6, 7, 8, 9, 10 | 12 | QR (Ed25519, código giratório) e histórico. **Epic 8 fechou em 18/09** (7/7), **Epic 7 em 21/09** (13/13), **Epic 2 e Epic 4 em 22/09** (9/9 e 6/6) e **Epic 10 já estava fechada** (19/19) — todas remapeadas sem tarefa concreta sobrando. Resta só Epic 6 (5, Ed25519/código giratório — travado esperando tempo em produção) e Epic 9 (7, ainda sem lista detalhada) |
 | 4 — Aguentar 20 mil pessoas | 13, 14 | 22 | Teste de carga, resto do LGPD. **Retenção de foto (90 dias) construída em 21/09** |
 | 5 — Publicar | 11, 16 | 30 | Push e as duas lojas — **bloqueado na conta Apple Developer** |
 | 6 — O banco de verdade | 1 | ~10 | **Não é mais bloqueio** — decisão de rodar direto em produção, com cuidado, tomada há semanas. Das 8 migrações escritas (001-008, 010), TODAS já rodaram; falta recontar a epic tarefa a tarefa (número antigo, não confiar) |
@@ -139,7 +139,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | # | Epic | Feito | Total | MVP | Situação |
 |---|---|---|---|---|---|
 | 1 | Modelo de dados | 3 | 16 | ✓ | Número desatualizado — só contava "SQL escrito" pras 3 migrações originais (pessoas, código de convite, dois relógios). Na real: 8 migrações escritas (001-008, 010) e TODAS já rodaram em produção (última confirmação: 010, 22/09) — falta remapear a epic tarefa a tarefa pra um Feito/Total confiável, mesma régua que fechou Epic 7/8 |
-| 2 | Fundação | 9 | 13 | ✓ | `operador_portao`, `suporte` e `produtor` (22/09, junto com Gastos) no domínio — os três papéis que faltavam estão prontos. Sobram 4 tasks sem checklist que as explique |
+| 2 | Fundação | 9 | 9 | ✓ | **Completa** — remapeada em 22/09, mesmo método que fechou Epic 4/7/8. Workspace, sincronização, `janelas`/`format`/`tz` portados, `credencial-qr`, teste de assinatura, suíte rodando, e os três papéis que faltavam (`operador_portao`, `suporte`, `produtor`) no domínio. O catálogo "Funções ligadas" (3 camadas de permissão) já estava contado na Epic 17, não aqui — nenhuma lacuna de verdade sobrando |
 | 3 | API v1 | 32 | 32 | ✓ | Completo: login, painel, escanear, ponto assistido, atividades e acessos, todos reais e ligados pelo `ClienteHttp` |
 | 4 | Conta do colaborador | 6 | 6 | ✓ | **Completa** — remapeada em 22/09, mesmo método que fechou Epic 7/8: o fluxo inteiro (pedir código → entrar → guardar sessão → consultar convite → completar formulário → entrar no evento) está construído e testado de ponta a ponta (`apps/app/src/fluxo.teste.ts`). O número antigo (9/18) não tinha histórico nem checklist que o justificasse |
 | 5 | App base | 15 | 15 | ✓ | Navegação com voltar, campos, data/hora e o redesign "Arena" (laranja/escuro) |
@@ -1585,6 +1585,18 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > régua que fechou Epic 8 (e diferente de Epic 7, que foi remapeada sem
 > essa confirmação). **327 tasks vira 315** (188 no MVP, era 200) — o
 > número antigo superestimava, não o trabalho que faltava.
+>
+> **22/09/2026 — Epic 2 (Fundação) remapeada e fechada em 9/9, mesmo dia.**
+> Sobravam 4 tasks sem checklist, depois de contar os três papéis que
+> faltavam (`operador_portao`, `suporte`, `produtor`, todos prontos hoje).
+> Suspeitei que o catálogo "Funções ligadas" (3 camadas de permissão)
+> pudesse ser a peça que faltava — checando o histórico, já estava
+> contado na Epic 17 desde 13/09/2026, não aqui. Sem mais nada de fundação
+> genuinamente pendente (workspace, sincronização, portação de
+> `janelas`/`format`/`tz`, `credencial-qr`, teste de assinatura, suíte
+> rodando — tudo já feito há semanas). **315 tasks vira 311** (184 no
+> MVP). Com isto, a Fase 3 do backlog fica só com Epic 6 (QR) e Epic 9
+> (Histórico) — as duas com pendência real, não número vago.
 
 ## Bloqueado, esperando o Juan
 
