@@ -1087,34 +1087,46 @@ export class RepositorioEmMemoria implements Repositorio {
       .map(([token, dono]) => ({ token, plataforma: dono.plataforma }))
   }
 
-  async participacoesSemEntradaHoje(agora: Date): Promise<{
-    participacaoId: string; pessoaId: string; nome: string; janelaEntradaFim: string | null
+  async participacoesSemRegistroHoje(momento: 'entrada' | 'fim', agora: Date): Promise<{
+    participacaoId: string; pessoaId: string; nome: string; janelaFim: string | null; diaRef: string
   }[]> {
     const hoje = diaBRT(agora)
+    // A saída de um turno que atravessa a meia-noite ainda pertence ao dia
+    // principal de ONTEM (mesmo `dataRef` da entrada que abriu o turno) —
+    // sem isto, o lembrete de saída nunca dispararia depois da virada do
+    // dia. Mesmo raciocínio de `diaDeReferenciaAssistida`, no domínio.
+    const ontem = diaBRT(new Date(agora.getTime() - 24 * 3_600_000))
 
-    const eventosComTrava = new Set(
-      this.eventos
-        .filter(e => e.ativo && e.batida_livre !== true)
-        .filter(e => (this.dias.get(e.id) ?? []).some(d => d.data === hoje && d.tipo === 'principal' && !d.cancelado))
-        .map(e => e.id),
-    )
-    if (!eventosComTrava.size) return []
+    const diaRefPorEvento = new Map<string, string>()
+    for (const e of this.eventos) {
+      if (!e.ativo || e.batida_livre === true) continue
+      const dia = (this.dias.get(e.id) ?? [])
+        .find(d => (d.data === hoje || d.data === ontem) && d.tipo === 'principal' && !d.cancelado)
+      if (dia) diaRefPorEvento.set(e.id, dia.data)
+    }
+    if (!diaRefPorEvento.size) return []
 
-    const jaEntraram = new Set(
+    const jaRegistraram = new Set(
       this.registros
-        .filter(r => r.tipo === 'entrada' && r.dataRef === hoje)
+        .filter(r => r.tipo === momento && diaRefPorEvento.get(
+          this.participacoes.find(p => p.id === r.participacaoId)?.eventoId ?? '',
+        ) === r.dataRef)
         .map(r => r.participacaoId),
     )
 
     return this.participacoes
-      .filter(p => p.ativo && !p.descredenciadoEm && eventosComTrava.has(p.eventoId))
-      .filter(p => !jaEntraram.has(p.id))
-      .map(p => ({
-        participacaoId: p.id,
-        pessoaId: p.pessoaId,
-        nome: this.pessoas.find(pe => pe.id === p.pessoaId)?.nome ?? '',
-        janelaEntradaFim: this.eventos.find(e => e.id === p.eventoId)?.janela_entrada_fim ?? null,
-      }))
+      .filter(p => p.ativo && !p.descredenciadoEm && diaRefPorEvento.has(p.eventoId))
+      .filter(p => !jaRegistraram.has(p.id))
+      .map(p => {
+        const evento = this.eventos.find(e => e.id === p.eventoId)
+        return {
+          participacaoId: p.id,
+          pessoaId: p.pessoaId,
+          nome: this.pessoas.find(pe => pe.id === p.pessoaId)?.nome ?? '',
+          janelaFim: (momento === 'entrada' ? evento?.janela_entrada_fim : evento?.janela_fim_fim) ?? null,
+          diaRef: diaRefPorEvento.get(p.eventoId)!,
+        }
+      })
   }
 
   async jaEnviouLembreteHoje(participacaoId: string, tipo: string, data: string): Promise<boolean> {

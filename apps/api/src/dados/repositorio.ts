@@ -785,17 +785,25 @@ export interface Repositorio {
   tokensDePush(pessoaId: string): Promise<{ token: string; plataforma: 'ios' | 'android' }[]>
 
   /**
-   * Quem ainda não bateu a entrada hoje, num dia principal sem batida livre
-   * — mesma trava do site (`diaComTrava`, em `lib/mensagens.ts`): só entra
-   * aqui quem tem um prazo de verdade pra perder. Fora disso (montagem,
-   * desmontagem, evento com auto-atendimento) ninguém precisa de lembrete,
-   * porque não existe hora fixa pra cobrar.
+   * Quem ainda não bateu a entrada/saída hoje, num dia principal sem
+   * batida livre — mesma trava do site (`diaComTrava`, em
+   * `lib/mensagens.ts`): só entra aqui quem tem um prazo de verdade pra
+   * perder. Fora disso (montagem, desmontagem, evento com auto-
+   * atendimento) ninguém precisa de lembrete, porque não existe hora fixa
+   * pra cobrar. `momento` decide qual etapa e qual janela do evento
+   * (`janela_entrada_fim`/`janela_fim_fim`) valem.
    */
-  participacoesSemEntradaHoje(agora: Date): Promise<{
+  participacoesSemRegistroHoje(momento: 'entrada' | 'fim', agora: Date): Promise<{
     participacaoId: string
     pessoaId: string
     nome: string
-    janelaEntradaFim: string | null
+    janelaFim: string | null
+    /**
+     * O dia do PRINCIPAL, não o calendário de `agora` — numa saída depois
+     * da meia-noite os dois divergem, e é este que serve pra dedupe
+     * (`jaEnviouLembreteHoje`/`registrarLembreteEnviado`).
+     */
+    diaRef: string
   }[]>
 
   /** Já mandamos este lembrete pra esta participação, neste dia? Evita duplicar. */

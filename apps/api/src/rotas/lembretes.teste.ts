@@ -1,11 +1,11 @@
 /*
- * Lembrete automático de bater a entrada — cópia, como push, do primeiro dos
- * lembretes que o site já manda por WhatsApp (`lib/mensagens.ts`).
+ * Lembretes automáticos de entrada e saída — cópia, como push, dos dois
+ * primeiros lembretes que o site já manda por WhatsApp (`lib/mensagens.ts`).
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
-import { enviarLembretesDeEntrada, type EnviarPush } from './lembretes.js'
+import { enviarLembretesDeEntrada, enviarLembretesDeSaida, type EnviarPush } from './lembretes.js'
 
 function coletor() {
   const enviados: { tokens: string[]; titulo: string }[] = []
@@ -104,4 +104,78 @@ test('evento com batida livre não cobra prazo — não manda lembrete', async (
 
   assert.equal(r.enviados, 0)
   assert.equal(enviados.length, 0)
+})
+
+// ─── Saída — o mesmo motor, atravessando a meia-noite ──────────────────────
+//
+// Evento: dia principal 09-05, janela de saída fecha 2026-09-06T08:00:00-03:00
+// — depois da virada do dia, então o dia principal (`hoje`, pro relógio) já
+// é ONTEM. Sem tratar isso, o lembrete de saída nunca dispararia.
+
+const SAIDA_DENTRO_DA_JANELA = new Date('2026-09-06T07:00:00-03:00') // 1h antes do prazo
+const SAIDA_CEDO_DEMAIS = new Date('2026-09-06T02:00:00-03:00')
+const SAIDA_DEPOIS_DO_PRAZO = new Date('2026-09-06T09:00:00-03:00')
+
+test('manda o push pra quem ainda não bateu saída, mesmo depois da virada do dia', async () => {
+  const { repo, pessoa, participacao } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeSaida(repo, enviarPush, SAIDA_DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 1)
+  assert.deepEqual(enviados, [{ tokens: ['tok-joao'], titulo: 'Falta bater a saída' }])
+  // O dia de referência é o principal (09-05), não o calendário de agora (09-06).
+  assert.equal(await repo.jaEnviouLembreteHoje(participacao.id, 'lembrete_fim', '2026-09-05'), true)
+})
+
+test('saída: cedo demais não manda ainda', async () => {
+  const { repo, pessoa } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeSaida(repo, enviarPush, SAIDA_CEDO_DEMAIS)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('saída: depois do prazo não manda mais', async () => {
+  const { repo, pessoa } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeSaida(repo, enviarPush, SAIDA_DEPOIS_DO_PRAZO)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('quem já bateu saída (registrada no dia principal) não recebe lembrete', async () => {
+  const { repo, pessoa, participacao } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+  repo.registros.push({
+    id: 'reg-saida', participacaoId: participacao.id, tipo: 'fim', dataRef: '2026-09-05',
+    registradoEm: '2026-09-06T06:00:00-03:00', recebidoEm: '2026-09-06T06:00:01-03:00',
+    fotoPath: null, lat: null, lng: null, manual: false,
+  })
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeSaida(repo, enviarPush, SAIDA_DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('entrada e saída são lembretes independentes — um não bloqueia o outro', async () => {
+  const { repo, pessoa } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  await enviarLembretesDeEntrada(repo, coletor().enviarPush, DENTRO_DA_JANELA)
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarLembretesDeSaida(repo, enviarPush, SAIDA_DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 1)
+  assert.equal(enviados[0]?.titulo, 'Falta bater a saída')
 })

@@ -169,9 +169,22 @@ test('lembrete de entrada também exige o segredo — mesma proteção, mesma r�
   assert.equal(errado.status, 401)
 })
 
-test('com o segredo certo, a rota de lembrete responde — a regra de quando mandar já é testada em `rotas/lembretes.teste.ts`', async () => {
+test('com o segredo certo, a rota de lembrete de entrada responde — a regra de quando mandar já é testada em `rotas/lembretes.teste.ts`', async () => {
   const { app } = montar()
   const r = await app.request('/manutencao/lembrete-entrada', {
+    method: 'POST',
+    headers: { 'X-Segredo-Manutencao': 'segredo-de-manutencao-teste' },
+  })
+  assert.equal(r.status, 200)
+  assert.equal(typeof (await r.json()).enviados, 'number')
+})
+
+test('lembrete de saída também exige o segredo, e responde com ele certo', async () => {
+  const { app } = montar()
+  const semNada = await app.request('/manutencao/lembrete-saida', { method: 'POST' })
+  assert.equal(semNada.status, 401)
+
+  const r = await app.request('/manutencao/lembrete-saida', {
     method: 'POST',
     headers: { 'X-Segredo-Manutencao': 'segredo-de-manutencao-teste' },
   })

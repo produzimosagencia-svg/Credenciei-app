@@ -1816,25 +1816,35 @@ export class RepositorioSupabase implements Repositorio {
     return (data ?? []).map(l => ({ token: l.token as string, plataforma: l.plataforma as 'ios' | 'android' }))
   }
 
-  async participacoesSemEntradaHoje(agora: Date): Promise<{
-    participacaoId: string; pessoaId: string; nome: string; janelaEntradaFim: string | null
+  async participacoesSemRegistroHoje(momento: 'entrada' | 'fim', agora: Date): Promise<{
+    participacaoId: string; pessoaId: string; nome: string; janelaFim: string | null; diaRef: string
   }[]> {
     const hoje = diaBRT(agora)
+    // A saída de um turno que atravessa a meia-noite ainda pertence ao dia
+    // principal de ONTEM (mesmo `dataRef` da entrada que abriu o turno) —
+    // sem isto, o lembrete de saída nunca dispararia depois da virada do
+    // dia. Mesmo raciocínio de `diaDeReferenciaAssistida`, no domínio.
+    const ontem = diaBRT(new Date(agora.getTime() - 24 * 3_600_000))
+    const colunaJanela = momento === 'entrada' ? 'janela_entrada_fim' : 'janela_fim_fim'
 
     // 1) Eventos ativos, sem auto-atendimento — quem tem batida livre não
     // tem prazo fixo, não faz sentido cobrar.
     const { data: eventosAtivos } = await this.db
-      .from('eventos').select('id, janela_entrada_fim').eq('ativo', true).or('batida_livre.is.null,batida_livre.eq.false')
+      .from('eventos').select(`id, ${colunaJanela}`).eq('ativo', true).or('batida_livre.is.null,batida_livre.eq.false')
     const eventoIds = (eventosAtivos ?? []).map(e => e.id as string)
     if (!eventoIds.length) return []
-    const fimPorEvento = new Map((eventosAtivos ?? []).map(e => [e.id as string, e.janela_entrada_fim as string | null]))
+    const fimPorEvento = new Map(
+      (eventosAtivos ?? []).map(e => [e.id as string, (e as Record<string, unknown>)[colunaJanela] as string | null]),
+    )
 
-    // 2) Só quem tem HOJE como dia principal, não cancelado.
-    const { data: diasHoje } = await this.db
-      .from('jornada_dias').select('evento_id')
-      .eq('data', hoje).eq('tipo', 'principal').eq('cancelado', false).in('evento_id', eventoIds)
-    const eventosComTrava = [...new Set((diasHoje ?? []).map(d => d.evento_id as string))]
-    if (!eventosComTrava.length) return []
+    // 2) Só quem tem hoje OU ontem como dia principal, não cancelado — um
+    // evento tem no máximo um dia principal em qualquer uma dessas datas.
+    const { data: diasCandidatos } = await this.db
+      .from('jornada_dias').select('evento_id, data')
+      .in('data', [hoje, ontem]).eq('tipo', 'principal').eq('cancelado', false).in('evento_id', eventoIds)
+    const diaRefPorEvento = new Map((diasCandidatos ?? []).map(d => [d.evento_id as string, d.data as string]))
+    if (!diaRefPorEvento.size) return []
+    const eventosComTrava = [...diaRefPorEvento.keys()]
 
     // 3) A equipe ativa desses eventos.
     const { data: equipe } = await this.db
@@ -1845,20 +1855,27 @@ export class RepositorioSupabase implements Repositorio {
     const linhas = (equipe ?? []) as unknown as (LinhaFuncionario & { fornecedores: { evento_id: string } })[]
     if (!linhas.length) return []
 
-    // 4) Quem já bateu entrada hoje — o resto é quem falta lembrar.
+    // 4) Quem já bateu esta etapa no dia de referência do PRÓPRIO evento —
+    // o resto é quem falta lembrar.
     const funcionarioIds = linhas.map(l => l.id)
-    const { data: jaEntraram } = await this.db
-      .from('registros').select('funcionario_id')
-      .eq('tipo', 'entrada').eq('data_ref', hoje).in('funcionario_id', funcionarioIds)
-    const entraram = new Set((jaEntraram ?? []).map(r => r.funcionario_id as string))
+    const { data: registros } = await this.db
+      .from('registros').select('funcionario_id, data_ref')
+      .eq('tipo', momento).in('data_ref', [hoje, ontem]).in('funcionario_id', funcionarioIds)
+    const funcionarioPorId = new Map(linhas.map(l => [l.id, l]))
+    const registraram = new Set(
+      (registros ?? [])
+        .filter(r => diaRefPorEvento.get(funcionarioPorId.get(r.funcionario_id as string)?.fornecedores.evento_id ?? '') === r.data_ref)
+        .map(r => r.funcionario_id as string),
+    )
 
     return linhas
-      .filter(l => !entraram.has(l.id))
+      .filter(l => !registraram.has(l.id))
       .map(l => ({
         participacaoId: l.id,
         pessoaId: idDaPessoa(l.cpf),
         nome: l.nome,
-        janelaEntradaFim: fimPorEvento.get(l.fornecedores.evento_id) ?? null,
+        janelaFim: fimPorEvento.get(l.fornecedores.evento_id) ?? null,
+        diaRef: diaRefPorEvento.get(l.fornecedores.evento_id)!,
       }))
   }
 
