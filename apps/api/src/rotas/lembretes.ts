@@ -211,3 +211,44 @@ export async function enviarAlertaSupervisorDeSaida(
 ): Promise<{ enviados: number }> {
   return enviarAlertaSupervisor(repo, 'fim', enviarPush, agora)
 }
+
+// ─── Aviso do dia (evento, montagem, desmontagem) ──────────────────────────
+//
+// Diferente dos lembretes: não é "você está devendo algo", é "hoje tem
+// trabalho". Cópia de `aviso_dia_evento`/`aviso_montagem`/`aviso_desmontagem`
+// no site — o dia do evento sai na hora calculada por `quandoAvisarDoDia`
+// (07:00 fixo, ou antes se o credenciamento inteiro fecha cedo); montagem e
+// desmontagem saem sempre às 07:00 (`HORA_AVISO_DIA`). Sem janela futura pra
+// antecipar — o aviso só existe depois que a hora combinada chega, no
+// próprio dia (`diasParaAvisarHoje` já filtra pro dia de hoje).
+
+const TITULO_POR_FASE: Record<'montagem' | 'evento' | 'desmontagem', string> = {
+  montagem: 'Hoje é dia de montagem',
+  evento: 'Hoje é o dia do evento',
+  desmontagem: 'Hoje é dia de desmontagem',
+}
+
+export async function enviarAvisoDoDia(
+  repo: Repositorio, enviarPush: EnviarPush, agora: Date = new Date(),
+): Promise<{ enviados: number }> {
+  const candidatos = await repo.diasParaAvisarHoje(agora)
+
+  let enviados = 0
+  for (const p of candidatos) {
+    const tipo = `aviso_${p.fase === 'evento' ? 'dia_evento' : p.fase}`
+    if (await repo.jaEnviouLembreteHoje(p.participacaoId, tipo, p.data)) continue
+
+    const tokens = await repo.tokensDePush(p.pessoaId)
+    if (!tokens.length) continue
+
+    await enviarPush(tokens.map(t => t.token), {
+      titulo: TITULO_POR_FASE[p.fase],
+      corpo: `${p.nome.split(' ')[0]}, ${p.eventoNome} conta com você hoje. Abra a credencial pra ver os detalhes.`,
+      dados: { tipo, participacaoId: p.participacaoId },
+    })
+    await repo.registrarLembreteEnviado(p.participacaoId, tipo, p.data)
+    enviados++
+  }
+
+  return { enviados }
+}

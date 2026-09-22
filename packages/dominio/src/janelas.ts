@@ -607,6 +607,43 @@ export function faseAtualDoQR(
 /** Hora em que o aviso do dia sai, nos dias de montagem e desmontagem. */
 export const HORA_AVISO_DIA = '07:00'
 
+/**
+ * Antecedência usada quando o credenciamento inteiro do dia do evento
+ * acontece antes das 9h — ver `quandoAvisarDoDia`.
+ */
+export const ANTECEDENCIA_AVISO_DIA_HORAS = 2
+
+/**
+ * Quando o aviso do DIA DO EVENTO deve sair — cópia de `quandoAvisarDoDia`
+ * no site (`lib/mensagens.ts`).
+ *
+ * Horário FIXO (`HORA_AVISO_DIA`), não derivado da abertura do
+ * credenciamento: um aviso preso a "duas horas antes da entrada abrir"
+ * mandava mensagem às 5h da manhã numa entrada que abre às 7h — acordar todo
+ * mundo de madrugada é ruim por si só, e ainda derrota o propósito, porque
+ * às 8h a mensagem já está enterrada sob as outras do grupo.
+ *
+ * A regra olha o FECHAMENTO da entrada, não a abertura: um evento cujo
+ * credenciamento abre 06:00 e fecha 08:00 não pode ser avisado às 07:00 —
+ * a mensagem chegaria com a portaria já fechada. Só nesse caso o horário
+ * fixo cede e o aviso volta a ser relativo à abertura.
+ */
+export function quandoAvisarDoDia(
+  diaPrincipal: string, entradaAbreEm: string, entradaFechaEm: string | null,
+): string {
+  const horaPadrao = new Date(`${diaPrincipal}T${HORA_AVISO_DIA}:00-03:00`)
+
+  // A janela ainda estará aberta no horário padrão? Então ele vale, e ponto.
+  if (!entradaFechaEm || horaPadrao.getTime() < new Date(entradaFechaEm).getTime()) {
+    return horaPadrao.toISOString()
+  }
+
+  // A janela inteira termina antes do horário padrão: avisa antes de ela abrir.
+  return new Date(
+    new Date(entradaAbreEm).getTime() - ANTECEDENCIA_AVISO_DIA_HORAS * 60 * 60_000,
+  ).toISOString()
+}
+
 // ─── Liberação do QR ─────────────────────────────────────────────────────────
 
 /**

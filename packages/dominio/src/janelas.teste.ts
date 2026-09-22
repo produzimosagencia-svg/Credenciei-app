@@ -13,7 +13,7 @@ import {
   conferirHorariosDoEvento, ehDiaPrincipal, horariosEsperados, periodoDoEvento,
   inferirMomentoDoScanner, type RegistroParaInferencia,
   HORAS_ATE_MEIO, janelaDeOperacaoDoEvento, diaDeReferenciaAssistida,
-  liberacaoDoQR,
+  liberacaoDoQR, quandoAvisarDoDia,
 } from './janelas.js'
 
 // ─── O fuso ─────────────────────────────────────────────────────────────────
@@ -582,4 +582,26 @@ test('os horários continuam valendo como referência', () => {
   )
   assert.deepEqual(livre, comum)
   assert.ok(comum.entrada, 'o horário esperado tinha que existir para o teste valer')
+})
+
+// ─── Quando avisar do dia do evento ─────────────────────────────────────────
+//
+// 07:00 fixo, achado real: um aviso preso a "duas horas antes de abrir"
+// mandava mensagem às 5h da manhã numa entrada que abre às 7h.
+
+test('com entrada que continua aberta às 7h, o aviso sai às 7h', () => {
+  const quando = quandoAvisarDoDia('2026-09-05', '2026-09-05T07:00:00-03:00', '2026-09-05T23:55:00-03:00')
+  assert.equal(quando, new Date('2026-09-05T07:00:00-03:00').toISOString())
+})
+
+test('sem horário de fechamento configurado, o aviso sai às 7h — nada a temer', () => {
+  const quando = quandoAvisarDoDia('2026-09-05', '2026-09-05T07:00:00-03:00', null)
+  assert.equal(quando, new Date('2026-09-05T07:00:00-03:00').toISOString())
+})
+
+test('entrada que fecha antes das 7h faz o aviso ceder pra antes de abrir', () => {
+  // Credenciamento abre 05:00, fecha 06:00 — a janela inteira já teria
+  // fechado no horário padrão (07:00). Cai pra 2h antes de abrir: 03:00.
+  const quando = quandoAvisarDoDia('2026-09-05', '2026-09-05T05:00:00-03:00', '2026-09-05T06:00:00-03:00')
+  assert.equal(quando, new Date('2026-09-05T03:00:00-03:00').toISOString())
 })

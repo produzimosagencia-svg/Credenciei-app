@@ -6,8 +6,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import {
-  enviarAlertaSupervisorDeEntrada, enviarLembretesDeEntrada, enviarLembretesDeMeio, enviarLembretesDeSaida,
-  type EnviarPush,
+  enviarAlertaSupervisorDeEntrada, enviarAvisoDoDia, enviarLembretesDeEntrada, enviarLembretesDeMeio,
+  enviarLembretesDeSaida, type EnviarPush,
 } from './lembretes.js'
 
 function coletor() {
@@ -354,6 +354,93 @@ test('não avisa o supervisor duas vezes no mesmo dia pela mesma etapa', async (
 
   const segunda = coletor()
   const r = await enviarAlertaSupervisorDeEntrada(repo, segunda.enviarPush, DENTRO_DA_JANELA)
+
+  assert.equal(r.enviados, 0)
+  assert.equal(segunda.enviados.length, 0)
+})
+
+// ─── Aviso do dia (evento, montagem, desmontagem) ──────────────────────────
+//
+// Evento: dia principal 09-05 (entrada 07:00-23:55), 09-03/09-04 preparação
+// antes (montagem), 09-06 preparação depois (desmontagem).
+
+test('avisa "hoje é o dia do evento" depois das 7h, no dia principal', async () => {
+  const { repo, pessoa, participacao } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarAvisoDoDia(repo, enviarPush, new Date('2026-09-05T08:00:00-03:00'))
+
+  assert.equal(r.enviados, 1)
+  assert.deepEqual(enviados, [{ tokens: ['tok-joao'], titulo: 'Hoje é o dia do evento' }])
+  assert.equal(await repo.jaEnviouLembreteHoje(participacao.id, 'aviso_dia_evento', '2026-09-05'), true)
+})
+
+test('antes das 7h, o aviso do dia do evento ainda não sai', async () => {
+  const { repo, pessoa } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarAvisoDoDia(repo, enviarPush, new Date('2026-09-05T06:00:00-03:00'))
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('avisa "hoje é dia de montagem", num dia de preparação antes do principal', async () => {
+  const { repo, pessoa } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarAvisoDoDia(repo, enviarPush, new Date('2026-09-03T08:00:00-03:00'))
+
+  assert.equal(r.enviados, 1)
+  assert.equal(enviados[0]?.titulo, 'Hoje é dia de montagem')
+})
+
+test('avisa "hoje é dia de desmontagem", num dia de preparação depois do principal', async () => {
+  const { repo, pessoa } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarAvisoDoDia(repo, enviarPush, new Date('2026-09-06T08:00:00-03:00'))
+
+  assert.equal(r.enviados, 1)
+  assert.equal(enviados[0]?.titulo, 'Hoje é dia de desmontagem')
+})
+
+test('dia cancelado não recebe aviso nenhum', async () => {
+  const { repo, evento, pessoa } = cenarioHenriqueEJuliano()
+  repo.dias.get(evento.id)!.find(d => d.data === '2026-09-05')!.cancelado = true
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarAvisoDoDia(repo, enviarPush, new Date('2026-09-05T08:00:00-03:00'))
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('sem horário de entrada configurado, o dia do evento não tem aviso — mensagem viraria "das a definir"', async () => {
+  const { repo, evento, pessoa } = cenarioHenriqueEJuliano()
+  evento.janela_entrada_inicio = null
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  const { enviados, enviarPush } = coletor()
+  const r = await enviarAvisoDoDia(repo, enviarPush, new Date('2026-09-05T08:00:00-03:00'))
+
+  assert.equal(r.enviados, 0)
+  assert.equal(enviados.length, 0)
+})
+
+test('não avisa duas vezes o mesmo dia', async () => {
+  const { repo, pessoa } = cenarioHenriqueEJuliano()
+  await repo.registrarTokenDePush(pessoa.id, 'tok-joao', 'android')
+
+  await enviarAvisoDoDia(repo, coletor().enviarPush, new Date('2026-09-05T08:00:00-03:00'))
+
+  const segunda = coletor()
+  const r = await enviarAvisoDoDia(repo, segunda.enviarPush, new Date('2026-09-05T08:00:00-03:00'))
 
   assert.equal(r.enviados, 0)
   assert.equal(segunda.enviados.length, 0)

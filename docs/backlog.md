@@ -1,6 +1,6 @@
 # Backlog
 
-**326 tasks · 200 no MVP · 209 concluídas (64%)**
+**326 tasks · 200 no MVP · 210 concluídas (64%)**
 
 **Só o MVP: 163 de 200 (82%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -146,7 +146,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 8 | Ponto no app | 7 | 7 | ✓ | **Completa** — recontada em 18/09 depois de remapear e não achar tarefa concreta pendente (o "falta o resto do ciclo" era folga de estimativa antiga, não trabalho esquecido; Juan confirmou fechar assim, e aponta o que faltar se aparecer usando de verdade). O meio com selfie; `registrarEntradaLivre` (auto-atendimento) real na API; a credencial esconde o QR quando a participação não está credenciada, e avisa quando o dia foi cancelado; troca de evento quando a pessoa está em dois ao mesmo tempo; aviso de batida pendente na aba; contestar uma batida errada ou que faltou |
 | 9 | Histórico | 4 | 11 | — | Meus dias e Meu pagamento prontos |
 | 10 | Supervisor | 19 | 19 | — | Equipe, ficha da pessoa e histórico; tirar da equipe/excluir de vez/corrigir telefone são tasks novas, achadas em 14/09. Ativar/desativar sem tirar da equipe, foto/localização na presença de hoje, corrigir função, corrigir CPF e a aba de crachá (todos 21/09) — os 5 achados comparando com o site, todos fechados |
-| 11 | Push | 6 | 12 | — | Registro do token pronto. Firebase (Android/FCM) configurado de ponta a ponta em 21/09. `lembrete_entrada`, `lembrete_fim`, `lembrete_meio` e `alerta_supervisor_entrada`/`alerta_supervisor_fim` construídos no mesmo dia — motor próprio, cópia da regra que o site já manda por WhatsApp. O meio tem consulta própria (`participacoesSemMeioHoje`): janela é da PESSOA (entrada real +4h), não do evento, e vale todo dia, até com batida livre — fica de fora da trava de dia principal que os outros usam. Juan escolheu trazer os dois modelos (lembretes automáticos + mural "Avisos") — faltam confirmação de escala, aviso do dia, boas-vindas, avisos de montagem/desmontagem, disparo manual, e o mural inteiro (não existe no app ainda); o total desta epic (12) ainda não reflete esse tamanho, vai crescer conforme cada um for escopado. iOS (APNs) parado: precisa do Apple Developer Program pago, adiado por decisão do Juan |
+| 11 | Push | 7 | 12 | — | Registro do token pronto. Firebase (Android/FCM) configurado de ponta a ponta em 21/09. `lembrete_entrada`, `lembrete_fim`, `lembrete_meio`, `alerta_supervisor_entrada`/`alerta_supervisor_fim` e `aviso_dia_evento`/`aviso_montagem`/`aviso_desmontagem` construídos no mesmo dia — motor próprio, cópia da regra que o site já manda por WhatsApp (`quandoAvisarDoDia` e `HORA_AVISO_DIA` portados pro domínio). Juan escolheu trazer os dois modelos (lembretes automáticos + mural "Avisos") — faltam confirmação de escala (precisa de um campo novo, `msg_pre_evento_envio`, que o app ainda não modela — decisão de escopo pendente), boas-vindas (arquitetura diferente — dispara na hora do cadastro, não por cron — e o valor é questionável: quem acabou de entrar raramente já tem token de push registrado), disparo manual (ferramenta ad-hoc do site, possivelmente redundante com o mural "Avisos"), e o mural inteiro (não existe no app ainda); o total desta epic (12) ainda não reflete esse tamanho, vai crescer conforme cada um for escopado. iOS (APNs) parado: precisa do Apple Developer Program pago, adiado por decisão do Juan |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 0 | 14 | — | Teste de carga antes de evento grande |
 | 14 | Segurança | 8 | 16 | — | Isolamento, limite e a trilha de auditoria feitos. Retenção de foto (ADR 003, 90 dias) e "excluir minha conta" (LGPD, direito ao esquecimento) construídos em 21/09 — escopo novo, decidido na hora com o Juan; falta o resto do LGPD |
@@ -1339,6 +1339,36 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > (`POST /manutencao/lembrete-meio`), mesmo segredo. 8 testes novos.
 >
 > **Epic 11 sobe de 5/12 para 6/12.**
+>
+> **21/09/2026 — `aviso_dia_evento`/`aviso_montagem`/`aviso_desmontagem`
+> construídos juntos ("hoje tem trabalho", não "você está devendo algo").**
+> `quandoAvisarDoDia` e `HORA_AVISO_DIA` portados do site pro domínio
+> (`packages/dominio/src/janelas.ts`) — 07:00 fixo pro dia do evento, a
+> não ser que o credenciamento inteiro feche antes das 9h, caso em que
+> cede pra 2h antes de abrir (achado real do site: sem essa exceção, um
+> evento com entrada 06:00-08:00 mandaria aviso quando a portaria já
+> tinha fechado). Montagem/desmontagem sempre às 07:00. Repositório ganhou
+> `diasParaAvisarHoje`, que já filtra pro dia de hoje — sem sentido
+> antecipar ou atrasar um aviso de "hoje". Rota nova
+> (`POST /manutencao/aviso-do-dia`), mesmo segredo. 3 testes no domínio, 7
+> na rota.
+>
+> **Parado aqui, por ora — três itens que sobraram pedem decisão ou têm
+> problema de encaixe, não é só "mais um tipo":**
+> - `confirmacao_escala` precisa de um campo novo no evento
+>   (`msg_pre_evento_envio`, quando o produtor quer confirmar a escala)
+>   que o app não modela — teria que virar tela de configuração nova.
+> - `boas_vindas_funcionario` dispara na HORA do cadastro (`after()` no
+>   site), não por cron como os outros — e quem acabou de entrar
+>   raramente já tem um token de push registrado, então o valor prático é
+>   baixo.
+> - `disparo_manual` é uma ferramenta ad-hoc do site (master escolhe
+>   template e manda na hora) que parece redundante com o mural "Avisos" —
+>   talvez nem faça sentido replicar os dois.
+>
+> **Epic 11 sobe de 6/12 para 7/12.** Próximo passo natural: o mural
+> "Avisos" (não existe no app ainda) — é a outra metade do que o Juan
+> escolheu, e maior que qualquer um destes lembretes.
 
 ## Bloqueado, esperando o Juan
 
@@ -1368,4 +1398,5 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 - **Chave APNs e App Id (iOS)** → segue bloqueado, agora por decisão explícita: sem o Apple Developer Program pago (US$ 99/ano) não dá pra gerar nem uma coisa nem outra. Juan decidiu deixar pra depois (21/09) — Android segue sem depender disso.
 - ~~Modelo de notificação~~ → **decidido em 21/09/2026: os dois** (lembretes automáticos, reaproveitando as regras que o site já usa, e o mural "Avisos", que ainda não existe no app). Primeiro lembrete (`lembrete_entrada`) já construído — ver o achado de 21/09 acima.
 - ~~Rodar a migração 008~~ → **feito pelo Juan em 21/09.**
-- **Configurar um agendador externo** (cron-job.org, mesma ferramenta já cotada pra retenção de foto) batendo nas cinco rotas de tempos em tempos (sugestão: a cada 15-30 min) — sem isso, os lembretes existem no código mas nunca disparam sozinhos: `POST /manutencao/lembrete-entrada`, `/lembrete-saida`, `/lembrete-meio`, `/alerta-supervisor-entrada`, `/alerta-supervisor-saida`.
+- **Configurar um agendador externo** (cron-job.org, mesma ferramenta já cotada pra retenção de foto) batendo nas seis rotas de tempos em tempos (sugestão: a cada 15-30 min) — sem isso, os lembretes existem no código mas nunca disparam sozinhos: `POST /manutencao/lembrete-entrada`, `/lembrete-saida`, `/lembrete-meio`, `/alerta-supervisor-entrada`, `/alerta-supervisor-saida`, `/aviso-do-dia`.
+- **Decidir os três itens parados do push** (`confirmacao_escala`, `boas_vindas_funcionario`, `disparo_manual`) — ver o achado de 21/09 acima, cada um tem um motivo diferente pra não ter entrado ainda.

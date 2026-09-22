@@ -220,6 +220,19 @@ test('alerta ao supervisor (entrada e saída) também exige o segredo, e respond
   }
 })
 
+test('aviso do dia também exige o segredo, e responde com ele certo', async () => {
+  const { app } = montar()
+  const semNada = await app.request('/manutencao/aviso-do-dia', { method: 'POST' })
+  assert.equal(semNada.status, 401)
+
+  const r = await app.request('/manutencao/aviso-do-dia', {
+    method: 'POST',
+    headers: { 'X-Segredo-Manutencao': 'segredo-de-manutencao-teste' },
+  })
+  assert.equal(r.status, 200)
+  assert.equal(typeof (await r.json()).enviados, 'number')
+})
+
 // ─── Autenticação ───────────────────────────────────────────────────────────
 
 test('sem token, nada abaixo de /v1 responde', async () => {

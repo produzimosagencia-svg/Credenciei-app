@@ -32,7 +32,7 @@
 
 import { createHash, randomBytes } from 'node:crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { chaveDaPermissao, diaBRT, type Papel } from '@credenciei/dominio'
+import { chaveDaPermissao, diaBRT, faseDoDia, quandoAvisarDoDia, HORA_AVISO_DIA, type Papel } from '@credenciei/dominio'
 import { cpfParaEmail } from '../identificador.js'
 import type {
   AcessoCompleto, AtividadeBruta, BatidaResumida, BloqueioDeCpf, Contestacao, DiaDeTrabalho, EdicaoDeEventoNoRepositorio,
@@ -1948,6 +1948,89 @@ export class RepositorioSupabase implements Repositorio {
         entradaEm: e.created_at as string,
         diaRef: e.data_ref as string,
       })
+    }
+    return resultado
+  }
+
+  async diasParaAvisarHoje(agora: Date): Promise<{
+    participacaoId: string; pessoaId: string; nome: string; eventoNome: string
+    data: string; fase: 'montagem' | 'evento' | 'desmontagem'; horaDoAviso: string
+  }[]> {
+    const hoje = diaBRT(agora)
+
+    const { data: eventosAtivos } = await this.db
+      .from('eventos').select('id, nome, data_inicio, janela_entrada_inicio, janela_entrada_fim')
+      .eq('ativo', true)
+    const eventos = eventosAtivos ?? []
+    if (!eventos.length) return []
+    const eventoIds = eventos.map(e => e.id as string)
+    const eventoPorId = new Map(eventos.map(e => [e.id as string, e]))
+
+    // Só o de HOJE — o aviso é sempre do próprio dia, não tem prazo futuro
+    // pra antecipar nem sentido em avisar de um dia que já passou.
+    const { data: diasHoje } = await this.db
+      .from('jornada_dias').select('evento_id, data, tipo')
+      .eq('data', hoje).eq('cancelado', false).in('evento_id', eventoIds)
+    if (!diasHoje?.length) return []
+
+    type Alvo = {
+      eventoId: string; eventoNome: string; data: string
+      fase: 'montagem' | 'evento' | 'desmontagem'; horaDoAviso: string
+    }
+    const alvos: Alvo[] = []
+    for (const dia of diasHoje) {
+      const evento = eventoPorId.get(dia.evento_id as string)
+      if (!evento) continue
+
+      if (dia.tipo === 'principal') {
+        // Sem horário de entrada configurado, a mensagem diria "das a
+        // definir às a definir" — pior que não avisar (mesma régua do site).
+        if (!evento.janela_entrada_inicio) continue
+        const horaDoAviso = quandoAvisarDoDia(
+          dia.data as string,
+          evento.janela_entrada_inicio as string,
+          (evento.janela_entrada_fim as string | null) ?? null,
+        )
+        alvos.push({
+          eventoId: dia.evento_id as string, eventoNome: evento.nome as string,
+          data: dia.data as string, fase: 'evento', horaDoAviso,
+        })
+      } else {
+        const diaPrincipal = diaBRT((evento.data_inicio as string | null) ?? (dia.data as string))
+        const fase = faseDoDia(dia.data as string, diaPrincipal)
+        // 'evento' aqui coincidiria com o dia principal — já coberto acima.
+        if (fase === 'evento') continue
+        alvos.push({
+          eventoId: dia.evento_id as string, eventoNome: evento.nome as string, data: dia.data as string, fase,
+          horaDoAviso: new Date(`${dia.data}T${HORA_AVISO_DIA}:00-03:00`).toISOString(),
+        })
+      }
+    }
+    if (!alvos.length) return []
+
+    // Só quem já passou da hora combinada.
+    const prontos = alvos.filter(a => new Date(a.horaDoAviso).getTime() <= agora.getTime())
+    if (!prontos.length) return []
+
+    const eventosComAlvo = [...new Set(prontos.map(a => a.eventoId))]
+    const { data: funcionarios } = await this.db
+      .from('funcionarios')
+      .select(`${CAMPOS_FUNCIONARIO}, fornecedores!inner(evento_id)`)
+      .eq('ativo', true).is('descredenciado_em', null).in('fornecedores.evento_id', eventosComAlvo)
+    const linhas = (funcionarios ?? []) as unknown as (LinhaFuncionario & { fornecedores: { evento_id: string } })[]
+
+    const resultado: {
+      participacaoId: string; pessoaId: string; nome: string; eventoNome: string
+      data: string; fase: 'montagem' | 'evento' | 'desmontagem'; horaDoAviso: string
+    }[] = []
+    for (const alvo of prontos) {
+      for (const l of linhas) {
+        if (l.fornecedores.evento_id !== alvo.eventoId) continue
+        resultado.push({
+          participacaoId: l.id, pessoaId: idDaPessoa(l.cpf), nome: l.nome,
+          eventoNome: alvo.eventoNome, data: alvo.data, fase: alvo.fase, horaDoAviso: alvo.horaDoAviso,
+        })
+      }
     }
     return resultado
   }

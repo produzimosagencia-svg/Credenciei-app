@@ -7,7 +7,7 @@
 // Este arquivo não vai para produção. Ele existe para os testes e para o
 // desenvolvimento local antes de a implementação sobre o Supabase ficar pronta.
 
-import { chaveDaPermissao, diaBRT } from '@credenciei/dominio'
+import { chaveDaPermissao, diaBRT, faseDoDia, quandoAvisarDoDia, HORA_AVISO_DIA } from '@credenciei/dominio'
 import type { Papel } from '@credenciei/dominio'
 import type {
   AcessoCompleto, AtividadeBruta, BloqueioDeCpf, Contestacao, DiaDeTrabalho, EdicaoDeEventoNoRepositorio,
@@ -1173,6 +1173,63 @@ export class RepositorioEmMemoria implements Repositorio {
         entradaEm: entrada.registradoEm,
         diaRef: entrada.dataRef,
       })
+    }
+    return resultado
+  }
+
+  async diasParaAvisarHoje(agora: Date): Promise<{
+    participacaoId: string; pessoaId: string; nome: string; eventoNome: string
+    data: string; fase: 'montagem' | 'evento' | 'desmontagem'; horaDoAviso: string
+  }[]> {
+    const hoje = diaBRT(agora)
+
+    type Alvo = {
+      eventoId: string; eventoNome: string; data: string
+      fase: 'montagem' | 'evento' | 'desmontagem'; horaDoAviso: string
+    }
+    const alvos: Alvo[] = []
+    for (const evento of this.eventos) {
+      if (!evento.ativo) continue
+      const dia = (this.dias.get(evento.id) ?? []).find(d => d.data === hoje && !d.cancelado)
+      if (!dia) continue
+
+      if (dia.tipo === 'principal') {
+        if (!evento.janela_entrada_inicio) continue
+        alvos.push({
+          eventoId: evento.id, eventoNome: evento.nome, data: dia.data, fase: 'evento',
+          horaDoAviso: quandoAvisarDoDia(dia.data, evento.janela_entrada_inicio, evento.janela_entrada_fim),
+        })
+      } else {
+        const diaPrincipal = diaBRT(evento.dataInicio ?? dia.data)
+        const fase = faseDoDia(dia.data, diaPrincipal)
+        if (fase === 'evento') continue
+        alvos.push({
+          eventoId: evento.id, eventoNome: evento.nome, data: dia.data, fase,
+          horaDoAviso: new Date(`${dia.data}T${HORA_AVISO_DIA}:00-03:00`).toISOString(),
+        })
+      }
+    }
+
+    const prontos = alvos.filter(a => new Date(a.horaDoAviso).getTime() <= agora.getTime())
+    if (!prontos.length) return []
+
+    const resultado: {
+      participacaoId: string; pessoaId: string; nome: string; eventoNome: string
+      data: string; fase: 'montagem' | 'evento' | 'desmontagem'; horaDoAviso: string
+    }[] = []
+    for (const alvo of prontos) {
+      for (const p of this.participacoes) {
+        if (p.eventoId !== alvo.eventoId || !p.ativo || p.descredenciadoEm) continue
+        resultado.push({
+          participacaoId: p.id,
+          pessoaId: p.pessoaId,
+          nome: this.pessoas.find(pe => pe.id === p.pessoaId)?.nome ?? '',
+          eventoNome: alvo.eventoNome,
+          data: alvo.data,
+          fase: alvo.fase,
+          horaDoAviso: alvo.horaDoAviso,
+        })
+      }
     }
     return resultado
   }

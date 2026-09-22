@@ -829,6 +829,23 @@ export interface Repositorio {
     diaRef: string
   }[]>
 
+  /**
+   * O "hoje tem trabalho" de cada dia — evento, montagem ou desmontagem —
+   * pra quem está escalado, na hora certa de avisar (`quandoAvisarDoDia`
+   * pro dia do evento; `HORA_AVISO_DIA` fixo pros dias de preparação).
+   * Cópia de `aviso_dia_evento`/`aviso_montagem`/`aviso_desmontagem` no
+   * site.
+   */
+  diasParaAvisarHoje(agora: Date): Promise<{
+    participacaoId: string
+    pessoaId: string
+    nome: string
+    eventoNome: string
+    data: string
+    fase: 'montagem' | 'evento' | 'desmontagem'
+    horaDoAviso: string
+  }[]>
+
   /** Já mandamos este lembrete pra esta participação, neste dia? Evita duplicar. */
   jaEnviouLembreteHoje(participacaoId: string, tipo: string, data: string): Promise<boolean>
   /** Marca o lembrete como enviado — chamar só depois do envio de verdade dar certo. */
