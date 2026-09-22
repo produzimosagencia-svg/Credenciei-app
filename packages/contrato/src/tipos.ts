@@ -16,8 +16,9 @@
 // perguntando pelo token, e responde sobre essa pessoa. É a diferença entre
 // "quem está pedindo pode ver isto?" e "isto existe?".
 
-import type { Papel } from '@credenciei/dominio'
+import type { CategoriaGasto, DadosGraficosGastos, KpisGastos, OrigemGasto, Papel, StatusGasto } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
+export type { CategoriaGasto, DadosGraficosGastos, KpisGastos, OrigemGasto, StatusGasto }
 
 export type { Papel }
 
@@ -1588,4 +1589,84 @@ export type EdicaoDeSuporte = {
   acessoExpiraEm: string | null
   escopoOrganizacaoIds: string[]
   escopoEventoIds: string[]
+}
+
+// ─── Gastos (produto do Produtor) ───────────────────────────────────────────
+//
+// Cópia do módulo Gastos do site (`lib/gastos.ts`/`lib/actions-gastos.ts`).
+// `EVENTO_INTERNO` (@credenciei/dominio) é o sentinel usado no lugar de
+// `eventoId` quando o gasto não é de nenhum evento — ver o comentário lá.
+
+export type EventoParaGasto = { id: string; nome: string; ativo: boolean }
+
+export type FiltroGastos = {
+  eventoId?: string
+  categoria?: string
+  fornecedor?: string
+  /** `'true'` só pagos, `'false'` só a pagar, ausente é tudo. */
+  pago?: 'true' | 'false'
+  de?: string
+  ate?: string
+}
+
+export type Gasto = {
+  id: string
+  /** `EVENTO_INTERNO` quando o gasto não é de nenhum evento. */
+  eventoId: string
+  eventoNome: string | null
+  descricao: string
+  valor: number
+  fornecedor: string | null
+  formaPagamento: string | null
+  /** Quem adiantou o dinheiro do próprio bolso — pra saber quem reembolsar. */
+  pagador: string | null
+  /** Já saiu do caixa (true) ou é conta a pagar (false)? Não confunde com `status`. */
+  pago: boolean
+  categoria: string
+  dataGasto: string
+  registradoEm: string
+  origem: OrigemGasto
+  status: StatusGasto
+  observacao: string | null
+  transcricao: string | null
+  temComprovante: boolean
+  comprovanteNome: string | null
+  criadoPorNome: string | null
+}
+
+export type DadosDoGasto = {
+  eventoId: string
+  descricao: string
+  valor: number
+  categoria: string
+  dataGasto: string
+  fornecedor: string | null
+  formaPagamento: string | null
+  pagador: string | null
+  pago: boolean
+  observacao: string | null
+  origem: OrigemGasto
+  /** Só quando `origem === 'audio'` — o que a IA ouviu. */
+  transcricao: string | null
+  /** `data:<mime>;base64,<bytes>` — mesmo formato de `fotoBase64` nas batidas. */
+  comprovanteBase64: string | null
+}
+
+/** Resultado de `interpretarAudioDeGasto` — a tela pinta em âmbar os campos incertos. */
+export type GastoExtraido = {
+  /** O que a IA ouviu. Sempre preenchido. */
+  transcricao: string
+  valor: number | null
+  descricao: string | null
+  fornecedor: string | null
+  categoria: string | null
+  /** ISO `YYYY-MM-DD`, já resolvido de "ontem"/"hoje"/"segunda". */
+  dataGasto: string | null
+  /** Nomes de campos em que a IA NÃO tem certeza — a tela pede confirmação. */
+  precisaConfirmar: string[]
+}
+
+export type PainelDeGastos = {
+  kpis: KpisGastos
+  graficos: DadosGraficosGastos
 }

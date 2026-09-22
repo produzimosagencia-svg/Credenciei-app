@@ -12,6 +12,7 @@
   "dependencies": {
     "@credenciei/contrato": "*",
     "@credenciei/dominio": "*",
+    "@google/genai": "^2.15.0",
     "@supabase/supabase-js": "^2.45.0",
     "exceljs": "^4.4.0",
     "hono": "^4.6.0",

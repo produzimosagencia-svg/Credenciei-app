@@ -3210,6 +3210,210 @@ test('revogar desativa e expira na hora — diferente de excluir, o histórico f
   assert.equal(revogado.expirado, true)
 })
 
+// ─── Gastos (produto do Produtor) ───────────────────────────────────────────
+//
+// Produto à parte, isolado do credenciamento — só `produtor` e `master`
+// (dando suporte) entram. Trazido do site em 22/09/2026.
+
+async function comoProdutor(op: ComportamentoFalso = {}) {
+  return new ClienteFalso({
+    ...op,
+    sessaoInicial: {
+      token: 'tok-prod', expiraEm: new Date(Date.now() + 999_999).toISOString(),
+      renovacao: 'ren-prod', papel: 'produtor',
+    },
+  })
+}
+
+test('nenhum papel operacional entra em Gastos — só produtor e master', async () => {
+  const admin = await noPortao()
+  await assert.rejects(() => admin.eventosParaGastos(), /permissão/i)
+
+  const supervisor = new ClienteFalso()
+  await entrarComo(supervisor, 'supervisor')
+  await assert.rejects(() => supervisor.eventosParaGastos(), /permissão/i)
+})
+
+test('o produtor só enxerga os eventos vinculados a ele, mais o Interno', async () => {
+  const c = await comoProdutor()
+  const eventos = await c.eventosParaGastos()
+  const ids = eventos.map(e => e.id)
+
+  assert.ok(ids.includes('ev-1'))
+  assert.ok(ids.includes('ev-2'))
+  assert.ok(!ids.includes('ev-3'), 'ev-3 não está vinculado a este produtor')
+  assert.equal(ids.at(-1), 'interno', 'Interno sempre por último')
+})
+
+test('o master (dando suporte) vê todos os eventos em Gastos', async () => {
+  const c = await comoMaster()
+  const eventos = await c.eventosParaGastos()
+  assert.ok(eventos.some(e => e.id === 'ev-3'))
+})
+
+test('listarGastos respeita o escopo do produtor — não vê gasto de evento que não é dele', async () => {
+  const c = await comoProdutor()
+  const gastos = await c.listarGastos()
+  assert.ok(gastos.every(g => g.eventoId !== 'ev-3'))
+  assert.ok(gastos.some(g => g.eventoId === 'ev-1'))
+  assert.ok(gastos.some(g => g.eventoId === 'interno'), 'Interno aparece mesmo sem evento vinculado')
+})
+
+test('listarGastos filtra por evento, categoria e pago', async () => {
+  const c = await comoProdutor()
+  const doEvento = await c.listarGastos({ eventoId: 'ev-1' })
+  assert.ok(doEvento.every(g => g.eventoId === 'ev-1'))
+
+  const transporte = await c.listarGastos({ categoria: 'Transporte' })
+  assert.ok(transporte.every(g => g.categoria === 'Transporte'))
+
+  const aPagar = await c.listarGastos({ pago: 'false' })
+  assert.ok(aPagar.every(g => g.pago === false))
+})
+
+test('criar gasto exige descrição e valor válido, maior que zero', async () => {
+  const c = await comoProdutor()
+  const base = {
+    eventoId: 'ev-1', descricao: 'Teste', valor: 100, categoria: 'Outros', dataGasto: '2026-09-10',
+    fornecedor: null, formaPagamento: null, pagador: null, pago: true, observacao: null,
+    origem: 'manual' as const, transcricao: null, comprovanteBase64: null,
+  }
+  assert.match((await c.criarGasto({ ...base, descricao: '' })).erro ?? '', /gasto/i)
+  assert.match((await c.criarGasto({ ...base, valor: 0 })).erro ?? '', /valor/i)
+  assert.match((await c.criarGasto({ ...base, valor: -50 })).erro ?? '', /valor/i)
+})
+
+test('produtor não cria gasto num evento que não é dele', async () => {
+  const c = await comoProdutor()
+  const r = await c.criarGasto({
+    eventoId: 'ev-3', descricao: 'Fora do escopo', valor: 100, categoria: 'Outros', dataGasto: '2026-09-10',
+    fornecedor: null, formaPagamento: null, pagador: null, pago: true, observacao: null,
+    origem: 'manual', transcricao: null, comprovanteBase64: null,
+  })
+  assert.match(r.erro ?? '', /disponível/i)
+})
+
+test('gasto criado aparece na listagem, com os campos certos', async () => {
+  const c = await comoProdutor()
+  const r = await c.criarGasto({
+    eventoId: 'ev-1', descricao: 'Locação de gerador', valor: 1200, categoria: 'Equipamentos',
+    dataGasto: '2026-09-10', fornecedor: 'Gerador ES', formaPagamento: 'Boleto', pagador: null,
+    pago: false, observacao: 'Pago na retirada', origem: 'manual', transcricao: null, comprovanteBase64: null,
+  })
+  assert.ok(r.id, r.erro)
+
+  const gastos = await c.listarGastos({ eventoId: 'ev-1' })
+  const novo = gastos.find(g => g.id === r.id)!
+  assert.equal(novo.descricao, 'Locação de gerador')
+  assert.equal(novo.valor, 1200)
+  assert.equal(novo.categoria, 'Equipamentos')
+  assert.equal(novo.pago, false)
+})
+
+test('categoria fora da lista vira "Outros"', async () => {
+  const c = await comoProdutor()
+  const r = await c.criarGasto({
+    eventoId: 'ev-1', descricao: 'Algo estranho', valor: 50, categoria: 'Categoria Inventada',
+    dataGasto: '2026-09-10', fornecedor: null, formaPagamento: null, pagador: null, pago: true,
+    observacao: null, origem: 'manual', transcricao: null, comprovanteBase64: null,
+  })
+  const novo = (await c.listarGastos({ eventoId: 'ev-1' })).find(g => g.id === r.id)!
+  assert.equal(novo.categoria, 'Outros')
+})
+
+test('editar gasto troca os campos, e id inexistente é recusado', async () => {
+  const c = await comoProdutor()
+  const antes = (await c.listarGastos({ eventoId: 'ev-1' }))[0]!
+
+  const r = await c.editarGasto(antes.id, {
+    eventoId: 'ev-1', descricao: 'Descrição corrigida', valor: 999, categoria: 'Segurança',
+    dataGasto: '2026-09-11', fornecedor: 'Novo fornecedor', formaPagamento: 'Pix', pagador: null,
+    pago: true, observacao: null, origem: 'manual', transcricao: null, comprovanteBase64: null,
+  })
+  assert.equal(r.erro, undefined)
+
+  const depois = (await c.listarGastos({ eventoId: 'ev-1' })).find(g => g.id === antes.id)!
+  assert.equal(depois.descricao, 'Descrição corrigida')
+  assert.equal(depois.valor, 999)
+  assert.equal(depois.categoria, 'Segurança')
+
+  const inexistente = await c.editarGasto('gasto-999', {
+    eventoId: 'ev-1', descricao: 'Qualquer', valor: 10, categoria: 'Outros', dataGasto: '2026-09-11',
+    fornecedor: null, formaPagamento: null, pagador: null, pago: true, observacao: null,
+    origem: 'manual', transcricao: null, comprovanteBase64: null,
+  })
+  assert.ok(inexistente.erro)
+})
+
+test('excluir gasto some da listagem; excluir de novo é recusado', async () => {
+  const c = await comoProdutor()
+  const criado = await c.criarGasto({
+    eventoId: 'ev-1', descricao: 'Vai ser excluído', valor: 10, categoria: 'Outros', dataGasto: '2026-09-10',
+    fornecedor: null, formaPagamento: null, pagador: null, pago: true, observacao: null,
+    origem: 'manual', transcricao: null, comprovanteBase64: null,
+  })
+
+  const r = await c.excluirGasto(criado.id!)
+  assert.equal(r.erro, undefined)
+  assert.ok(!(await c.listarGastos({ eventoId: 'ev-1' })).some(g => g.id === criado.id))
+
+  const de_novo = await c.excluirGasto(criado.id!)
+  assert.ok(de_novo.erro)
+})
+
+test('comprovante: null quando não tem anexo, uma URL quando tem', async () => {
+  const c = await comoProdutor()
+  const gastos = await c.listarGastos({ eventoId: 'ev-1' })
+  const comAnexo = gastos.find(g => g.temComprovante)!
+  const semAnexo = gastos.find(g => !g.temComprovante)!
+
+  assert.ok((await c.urlComprovanteGasto(comAnexo.id)).url)
+  assert.equal((await c.urlComprovanteGasto(semAnexo.id)).url, null)
+})
+
+test('transcrever áudio de gasto fora do escopo do produtor é recusado', async () => {
+  const c = await comoProdutor()
+  const r = await c.transcreverAudioDeGasto('data:audio/mp4;base64,abc', 'audio/mp4', 'ev-3')
+  assert.ok('erro' in r && /disponível/i.test(r.erro))
+})
+
+test('transcrever áudio sem áudio nenhum é recusado', async () => {
+  const c = await comoProdutor()
+  const r = await c.transcreverAudioDeGasto('', 'audio/mp4', 'ev-1')
+  assert.ok('erro' in r && /áudio/i.test(r.erro))
+})
+
+test('transcrever áudio devolve os campos extraídos, com pelo menos um a confirmar', async () => {
+  const c = await comoProdutor()
+  const r = await c.transcreverAudioDeGasto('data:audio/mp4;base64,abc', 'audio/mp4', 'ev-1')
+  assert.ok(!('erro' in r))
+  if (!('erro' in r)) {
+    assert.ok(r.transcricao)
+    assert.ok(r.valor && r.valor > 0)
+    assert.ok(r.precisaConfirmar.length > 0)
+  }
+})
+
+test('painel de gastos soma os KPIs e monta as séries do gráfico do recorte', async () => {
+  const c = await comoProdutor()
+  const painel = await c.painelDeGastos({ eventoId: 'ev-1' })
+  const gastos = await c.listarGastos({ eventoId: 'ev-1' })
+
+  assert.equal(painel.kpis.quantidade, gastos.length)
+  assert.equal(painel.kpis.total, gastos.reduce((s, g) => s + g.valor, 0))
+  assert.ok(painel.graficos.porCategoria.length > 0)
+})
+
+test('exportar gastos exige o evento, e devolve um arquivo com nome e url', async () => {
+  const c = await comoProdutor()
+  const semEvento = await c.exportarGastosXlsx({})
+  assert.ok('erro' in semEvento)
+
+  const r = await c.exportarGastosXlsx({ eventoId: 'ev-1' })
+  assert.ok('nome' in r && r.nome.endsWith('.xlsx'))
+  assert.ok('url' in r && r.url)
+})
+
 // ─── Push ───────────────────────────────────────────────────────────────────
 
 test('registra o token de push de qualquer papel logado, sem exigir permissão nenhuma', async () => {

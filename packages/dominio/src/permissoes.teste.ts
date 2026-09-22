@@ -9,13 +9,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ehDePainel, ehMaster, ehSuporte, NOME_DO_PAPEL, podeAcompanhar, podeBloquearCpf,
+  ehDePainel, ehMaster, ehProdutor, ehSuporte, NOME_DO_PAPEL, podeAcompanhar, podeBloquearCpf,
   podeEscanear, podeExcluir, podeExcluirDaEquipe, podeGerenciarEventos, podeGerenciarOrganizacoes,
-  podeGerenciarUsuarios, podeGerenciarVeiculos, veTodosEventos, type Papel,
+  podeGerenciarUsuarios, podeGerenciarVeiculos, podeRegistrarGastos, veTodosEventos, type Papel,
 } from './permissoes.js'
 
 const TODOS: Papel[] = [
-  'master', 'admin', 'supervisor', 'operador_portao', 'suporte', 'gerente', 'cliente', 'colaborador',
+  'master', 'admin', 'supervisor', 'operador_portao', 'suporte', 'gerente', 'cliente', 'colaborador', 'produtor',
 ]
 
 const PODERES = [
@@ -111,6 +111,27 @@ test('o suporte acompanha, mas não escaneia nem administra', () => {
   assert.equal(podeGerenciarEventos('suporte'), false)
   assert.equal(podeGerenciarUsuarios('suporte'), false)
   assert.equal(ehDePainel('suporte'), true)
+})
+
+test('o produtor só usa Gastos — isolado do credenciamento', () => {
+  // Gastos é produto à parte: o produtor não escaneia, não acompanha, não
+  // gerencia evento nem usuário, não bloqueia CPF, não exclui da equipe.
+  // Só master e produtor entram no módulo — nenhum papel operacional.
+  assert.equal(ehProdutor('produtor'), true)
+  assert.equal(ehProdutor('master'), false)
+  assert.equal(podeRegistrarGastos('produtor'), true)
+  assert.equal(podeRegistrarGastos('master'), true)
+  for (const papel of TODOS) {
+    if (papel === 'produtor' || papel === 'master') continue
+    assert.equal(podeRegistrarGastos(papel), false, `podeRegistrarGastos(${papel})`)
+  }
+  assert.equal(podeEscanear('produtor'), false)
+  assert.equal(podeAcompanhar('produtor'), false)
+  assert.equal(podeGerenciarEventos('produtor'), false)
+  assert.equal(podeGerenciarUsuarios('produtor'), false)
+  assert.equal(podeBloquearCpf('produtor'), false)
+  assert.equal(podeExcluirDaEquipe('produtor'), false)
+  assert.equal(ehDePainel('produtor'), true)
 })
 
 test('veículos: master, admin e suporte gerenciam — o resto não', () => {

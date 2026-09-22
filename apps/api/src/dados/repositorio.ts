@@ -894,6 +894,30 @@ export interface Repositorio {
    */
   salvarPreferencias(pessoaId: string, todosOsTipos: string[], tiposLigados: string[]): Promise<void>
 
+  // ── Gastos (produto do Produtor) ─────────────────────────────────────────
+  //
+  // MESMA tabela que o site já usa (`gastos_evento`/`produtor_eventos`) —
+  // diferente de `pessoas`/`funcionarios`, este módulo nasceu depois da
+  // migração 001 e não carrega tradução de schema legado nenhuma. Produto à
+  // parte, isolado do credenciamento: só `produtor` (só os eventos ligados a
+  // ele) e `master` (dando suporte, vê tudo). Trazido do site em 22/09/2026.
+
+  /** Os ids de evento vinculados a este produtor, em `produtor_eventos`. */
+  eventosDoProdutor(perfilId: string): Promise<string[]>
+
+  listarGastos(filtro: FiltroDeGastosNoRepositorio): Promise<GastoNoRepositorio[]>
+
+  gastoPorId(id: string): Promise<GastoNoRepositorio | null>
+
+  criarGasto(dados: NovoGastoNoRepositorio, criadoPorId: string): Promise<{ id: string }>
+
+  editarGasto(id: string, dados: NovoGastoNoRepositorio): Promise<{ erro?: string }>
+
+  excluirGasto(id: string): Promise<{ erro?: string }>
+
+  /** URL assinada do comprovante — null se este gasto não tem anexo. */
+  urlComprovanteGasto(id: string): Promise<string | null>
+
   // ── Contestação de batida ────────────────────────────────────────────────
   //
   // O colaborador contesta a própria batida (errada ou que faltou) — recurso
@@ -929,6 +953,62 @@ export type Contestacao = {
   dataRef: string
   motivo: string
   criadoEm: string
+}
+
+/**
+ * `eventoId` chega como `EVENTO_INTERNO` (@credenciei/dominio) quando é
+ * gasto sem evento — a implementação real traduz isso pra `evento_id null`
+ * + `organizacaoId`, mesma régua do site (`lib/actions-gastos.ts`).
+ */
+export type NovoGastoNoRepositorio = {
+  eventoId: string
+  organizacaoIdSeInterno: string | null
+  descricao: string
+  valor: number
+  categoria: string
+  dataGasto: string
+  fornecedor: string | null
+  formaPagamento: string | null
+  pagador: string | null
+  pago: boolean
+  observacao: string | null
+  origem: 'manual' | 'audio' | 'whatsapp'
+  transcricao: string | null
+  comprovanteBase64: string | null
+}
+
+export type FiltroDeGastosNoRepositorio = {
+  /** `EVENTO_INTERNO` busca só os sem evento — escopados por `organizacaoIdSeInterno`. */
+  eventoId?: string
+  organizacaoIdSeInterno?: string | null
+  categoria?: string
+  fornecedor?: string
+  pago?: boolean
+  de?: string
+  ate?: string
+}
+
+export type GastoNoRepositorio = {
+  id: string
+  /** `EVENTO_INTERNO` quando o gasto não é de nenhum evento. */
+  eventoId: string
+  eventoNome: string | null
+  descricao: string
+  valor: number
+  fornecedor: string | null
+  formaPagamento: string | null
+  pagador: string | null
+  pago: boolean
+  categoria: string
+  dataGasto: string
+  registradoEm: string
+  origem: 'manual' | 'audio' | 'whatsapp'
+  status: 'confirmado' | 'rascunho'
+  observacao: string | null
+  transcricao: string | null
+  temComprovante: boolean
+  comprovanteNome: string | null
+  criadoPorNome: string | null
 }
 
 export type EstadoDaConferencia = {

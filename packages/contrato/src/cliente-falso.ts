@@ -23,11 +23,13 @@
 // falso e real não passa despercebida.
 
 import {
-  avaliarEntradaSaida, CAPACIDADES, chaveDaPermissao, conferirHorariosDoEvento, diaBRT, distanciaEntreCpfs, ehMaster,
-  faseAtualDoQR, faseConfere, faseDoDia, formatarBR, formatCpf, gerarCodigoQR,
-  inferirMomentoDoScanner, janelaMeio, lerCodigoDeEvento, lerCodigoQR, liberacaoDoQR, PAPEIS_CONFIGURAVEIS,
+  avaliarEntradaSaida, CAPACIDADES, categoriaValida, chaveDaPermissao, conferirHorariosDoEvento,
+  dadosDosGraficosDeGastos, diaBRT, distanciaEntreCpfs, ehMaster,
+  EVENTO_INTERNO, faseAtualDoQR, faseConfere, faseDoDia, formatarBR, formatCpf, gerarCodigoQR,
+  inferirMomentoDoScanner, janelaMeio, kpisDeGastos, lerCodigoDeEvento, lerCodigoQR, liberacaoDoQR, PAPEIS_CONFIGURAVEIS,
   podeAcompanhar, podeEscanear, podeGerenciarEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
-  podeGerenciarVeiculos, podeBloquearCpf, podeExcluir, podeExcluirDaEquipe, TOLERANCIA_DE_CPF, abreEm, conferenciaAberta,
+  podeGerenciarVeiculos, podeBloquearCpf, podeExcluir, podeExcluirDaEquipe, podeRegistrarGastos,
+  TOLERANCIA_DE_CPF, abreEm, conferenciaAberta,
   validarCpf,
   type RegistroParaInferencia,
 } from '@credenciei/dominio'
@@ -52,6 +54,7 @@ import type {
   DadosParaLancarPonto, BuscaDeColaboradores,
   DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte, SuporteAcesso, ConfiguracaoDoMeio,
   ConfiguracoesDePermissao, ExcecaoDePermissao, LinhaDeAuditoria, MinhasPermissoes,
+  EventoParaGasto, FiltroGastos, Gasto, DadosDoGasto, GastoExtraido, PainelDeGastos,
 } from './tipos.js'
 import { VISOES_DE_ATIVIDADE } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
@@ -515,6 +518,50 @@ const SUPORTES_DE_MENTIRA: {
     id: 'sup-2', nome: 'Fernanda Lacerda', cpf: '99988877766', telefone: '27997776655',
     ativo: true, acessoExpiraEm: null, criadoEm: '2026-08-20T14:30:00-03:00',
     escopoOrganizacaoIds: [], escopoEventoIds: ['ev-2'],
+  },
+]
+
+/**
+ * Os eventos que o produtor de mentira pode lançar gasto — cópia de
+ * `produtor_eventos`. Só ev-1 e ev-2: ev-3 prova que "Interno" continua
+ * disponível mesmo quando o produtor não tem NENHUM evento vinculado a ele,
+ * e que ev-3 fica de fora da lista dele.
+ */
+const EVENTOS_DO_PRODUTOR_DE_MENTIRA = ['ev-1', 'ev-2']
+
+/** Os lançamentos de Gastos de mentira — mutável, mesmo padrão de `SUPORTES_DE_MENTIRA`. */
+const GASTOS_DE_MENTIRA: Gasto[] = [
+  {
+    id: 'gasto-1', eventoId: 'ev-1', eventoNome: 'Henrique e Juliano - Kleber Andrade',
+    descricao: 'Aluguel de estrutura de palco', valor: 8500, fornecedor: 'Estrutura ES',
+    formaPagamento: 'Pix', pagador: null, pago: true, categoria: 'Estrutura',
+    dataGasto: '2026-09-03', registradoEm: '2026-09-03T14:00:00-03:00', origem: 'manual',
+    status: 'confirmado', observacao: null, transcricao: null, temComprovante: true,
+    comprovanteNome: 'nota-estrutura.pdf', criadoPorNome: 'Marina Alves',
+  },
+  {
+    id: 'gasto-2', eventoId: 'ev-1', eventoNome: 'Henrique e Juliano - Kleber Andrade',
+    descricao: 'Almoço da equipe no dia da montagem', valor: 420, fornecedor: 'Restaurante Sabor',
+    formaPagamento: 'Cartão de débito', pagador: 'Marina Alves', pago: true, categoria: 'Alimentação',
+    dataGasto: '2026-09-04', registradoEm: '2026-09-04T12:30:00-03:00', origem: 'audio',
+    status: 'confirmado', observacao: null, transcricao: 'gastei 420 reais no almoço da equipe hoje',
+    temComprovante: false, comprovanteNome: null, criadoPorNome: 'Marina Alves',
+  },
+  {
+    id: 'gasto-3', eventoId: 'ev-2', eventoNome: 'Manos da Vila',
+    descricao: 'Combustível da van de equipamento', valor: 250, fornecedor: 'Posto Vila',
+    formaPagamento: 'Dinheiro', pagador: null, pago: false, categoria: 'Transporte',
+    dataGasto: '2026-08-28', registradoEm: '2026-08-28T09:00:00-03:00', origem: 'manual',
+    status: 'confirmado', observacao: 'Nota fica com o motorista', transcricao: null,
+    temComprovante: false, comprovanteNome: null, criadoPorNome: 'Marina Alves',
+  },
+  {
+    id: 'gasto-4', eventoId: EVENTO_INTERNO, eventoNome: 'Interno — despesas da empresa',
+    descricao: 'Assinatura de ferramenta de design', valor: 89.9, fornecedor: 'Figma',
+    formaPagamento: 'Cartão de crédito', pagador: null, pago: true, categoria: 'Comunicação',
+    dataGasto: '2026-09-01', registradoEm: '2026-09-01T08:00:00-03:00', origem: 'manual',
+    status: 'confirmado', observacao: null, transcricao: null, temComprovante: false,
+    comprovanteNome: null, criadoPorNome: 'Marina Alves',
   },
 ]
 
@@ -4651,6 +4698,179 @@ export class ClienteFalso implements ClienteApi {
     alvo.ativo = false
     alvo.acessoExpiraEm = diaBRT(new Date(this.agora() - 24 * 60 * 60 * 1000))
     return {}
+  }
+
+  // ── Gastos (produto do Produtor) ─────────────────────────────────────────
+  //
+  // Produto à parte, isolado do credenciamento — só `produtor` e `master`
+  // (dando suporte) entram. Trazido do site em 22/09/2026.
+
+  private eventosDesteProdutor(): string[] {
+    const papel = this.sessao?.papel
+    if (ehMaster(papel)) return EVENTOS_DO_PAINEL.map(ev => ev.eventoId)
+    return EVENTOS_DO_PRODUTOR_DE_MENTIRA
+  }
+
+  async eventosParaGastos(): Promise<EventoParaGasto[]> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeRegistrarGastos, 'usar o módulo Gastos')
+
+    const ids = this.eventosDesteProdutor()
+    const eventos = EVENTOS_DO_PAINEL
+      .filter(ev => ids.includes(ev.eventoId))
+      .map(ev => ({ id: ev.eventoId, nome: ev.nome, ativo: true }))
+
+    // "Interno" sempre por último, sempre disponível.
+    return [...eventos, { id: EVENTO_INTERNO, nome: 'Interno — despesas da empresa', ativo: true }]
+  }
+
+  private gastosVisiveis(): Gasto[] {
+    const ids = new Set(this.eventosDesteProdutor())
+    return GASTOS_DE_MENTIRA.filter(g => g.eventoId === EVENTO_INTERNO || ids.has(g.eventoId))
+  }
+
+  async listarGastos(filtro: FiltroGastos = {}): Promise<Gasto[]> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeRegistrarGastos, 'usar o módulo Gastos')
+
+    let gastos = this.gastosVisiveis()
+    if (filtro.eventoId) gastos = gastos.filter(g => g.eventoId === filtro.eventoId)
+    if (filtro.categoria) gastos = gastos.filter(g => g.categoria === filtro.categoria)
+    if (filtro.fornecedor) gastos = gastos.filter(g => g.fornecedor === filtro.fornecedor)
+    if (filtro.pago) gastos = gastos.filter(g => g.pago === (filtro.pago === 'true'))
+    if (filtro.de) gastos = gastos.filter(g => g.dataGasto >= filtro.de!)
+    if (filtro.ate) gastos = gastos.filter(g => g.dataGasto <= filtro.ate!)
+
+    return [...gastos].sort((a, b) =>
+      b.dataGasto.localeCompare(a.dataGasto) || b.registradoEm.localeCompare(a.registradoEm))
+  }
+
+  async criarGasto(dados: DadosDoGasto): Promise<{ id?: string; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeRegistrarGastos, 'usar o módulo Gastos')
+
+    if (!this.eventosDesteProdutor().includes(dados.eventoId) && dados.eventoId !== EVENTO_INTERNO) {
+      return { erro: 'Esse evento não está disponível pra você.' }
+    }
+    const descricao = (dados.descricao ?? '').trim()
+    if (!descricao) return { erro: 'Diga o que foi o gasto.' }
+    if (!Number.isFinite(dados.valor) || dados.valor <= 0) {
+      return { erro: 'Informe um valor válido, maior que zero.' }
+    }
+
+    const categoria = categoriaValida(dados.categoria) ?? 'Outros'
+    const id = `gasto-${GASTOS_DE_MENTIRA.length + 1}`
+    const eventoNome = dados.eventoId === EVENTO_INTERNO
+      ? 'Interno — despesas da empresa'
+      : EVENTOS_DO_PAINEL.find(ev => ev.eventoId === dados.eventoId)?.nome ?? null
+
+    GASTOS_DE_MENTIRA.push({
+      id, eventoId: dados.eventoId, eventoNome, descricao, valor: dados.valor, categoria,
+      fornecedor: dados.fornecedor?.trim() || null, formaPagamento: dados.formaPagamento?.trim() || null,
+      pagador: dados.pagador?.trim() || null, pago: dados.pago, dataGasto: dados.dataGasto || diaBRT(new Date(this.agora())),
+      registradoEm: new Date(this.agora()).toISOString(), origem: dados.origem,
+      status: 'confirmado', observacao: dados.observacao?.trim() || null,
+      transcricao: dados.origem === 'audio' ? dados.transcricao : null,
+      temComprovante: !!dados.comprovanteBase64, comprovanteNome: dados.comprovanteBase64 ? 'comprovante.jpg' : null,
+      criadoPorNome: this.quemEntrou.nome,
+    })
+    return { id }
+  }
+
+  async editarGasto(id: string, dados: DadosDoGasto): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeRegistrarGastos, 'usar o módulo Gastos')
+
+    const alvo = GASTOS_DE_MENTIRA.find(g => g.id === id)
+    if (!alvo) return { erro: 'Este gasto não existe mais.' }
+
+    const descricao = (dados.descricao ?? '').trim()
+    if (!descricao) return { erro: 'Diga o que foi o gasto.' }
+    if (!Number.isFinite(dados.valor) || dados.valor <= 0) {
+      return { erro: 'Informe um valor válido, maior que zero.' }
+    }
+
+    alvo.descricao = descricao
+    alvo.valor = dados.valor
+    alvo.categoria = categoriaValida(dados.categoria) ?? 'Outros'
+    alvo.dataGasto = dados.dataGasto || alvo.dataGasto
+    alvo.fornecedor = dados.fornecedor?.trim() || null
+    alvo.formaPagamento = dados.formaPagamento?.trim() || null
+    alvo.pagador = dados.pagador?.trim() || null
+    alvo.pago = dados.pago
+    alvo.observacao = dados.observacao?.trim() || null
+    if (dados.comprovanteBase64) { alvo.temComprovante = true; alvo.comprovanteNome = 'comprovante.jpg' }
+    return {}
+  }
+
+  async excluirGasto(id: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeRegistrarGastos, 'usar o módulo Gastos')
+
+    const i = GASTOS_DE_MENTIRA.findIndex(g => g.id === id)
+    if (i === -1) return { erro: 'Este gasto já não existe.' }
+    GASTOS_DE_MENTIRA.splice(i, 1)
+    return {}
+  }
+
+  async urlComprovanteGasto(id: string): Promise<{ url: string | null; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeRegistrarGastos, 'usar o módulo Gastos')
+
+    const alvo = GASTOS_DE_MENTIRA.find(g => g.id === id)
+    if (!alvo) return { url: null, erro: 'Este gasto já não existe.' }
+    return { url: alvo.temComprovante ? `https://demonstracao.credenciei.app/comprovantes/${id}.jpg` : null }
+  }
+
+  async transcreverAudioDeGasto(
+    audioBase64: string, mime: string, eventoId: string,
+  ): Promise<GastoExtraido | { erro: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeRegistrarGastos, 'usar o módulo Gastos')
+    void mime
+
+    if (!this.eventosDesteProdutor().includes(eventoId) && eventoId !== EVENTO_INTERNO) {
+      return { erro: 'Esse evento não está disponível pra você.' }
+    }
+    if (!audioBase64) return { erro: 'Áudio não recebido. Grave de novo.' }
+
+    // Sem IA de verdade aqui — a demonstração devolve um resultado fixo, com
+    // um campo sempre incerto (fornecedor), pra tela de confirmação também
+    // ser exercitada em modo de demonstração.
+    return {
+      transcricao: '(demonstração) gastei 150 reais com material de escritório',
+      valor: 150, descricao: 'Material de escritório', fornecedor: null,
+      categoria: 'Outros', dataGasto: diaBRT(new Date(this.agora())),
+      precisaConfirmar: ['fornecedor'],
+    }
+  }
+
+  async painelDeGastos(filtro: FiltroGastos = {}): Promise<PainelDeGastos> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeRegistrarGastos, 'usar o módulo Gastos')
+
+    const gastos = await this.listarGastos(filtro)
+    return {
+      kpis: kpisDeGastos(gastos, diaBRT(new Date(this.agora()))),
+      graficos: dadosDosGraficosDeGastos(gastos),
+    }
+  }
+
+  async exportarGastosXlsx(filtro: FiltroGastos): Promise<ArquivoDePlanilha | { erro: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeRegistrarGastos, 'usar o módulo Gastos')
+
+    if (!filtro.eventoId) return { erro: 'Escolha o evento antes de exportar.' }
+    return { nome: `gastos-${filtro.eventoId}.xlsx`, url: 'https://demonstracao.credenciei.app/gastos-demo.xlsx' }
   }
 
   // ── Push ──────────────────────────────────────────────────────────────────

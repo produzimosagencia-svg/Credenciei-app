@@ -44,6 +44,7 @@ import type {
   DadosParaLancarPonto, BuscaDeColaboradores,
   DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte,
   ConfiguracoesDePermissao, LinhaDeAuditoria, MinhasPermissoes,
+  EventoParaGasto, FiltroGastos, Gasto, DadosDoGasto, GastoExtraido, PainelDeGastos,
 } from './tipos.js'
 import type { Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
@@ -1189,6 +1190,79 @@ export class ClienteHttp implements ClienteApi {
   async revogarSuporte(_id: string): Promise<{ erro?: string }> {
     void _id
     throw new AindaNaoNaApi('revogarSuporte')
+  }
+
+  // ─── Gastos (produto do Produtor) ─────────────────────────────────────────
+
+  async eventosParaGastos(): Promise<EventoParaGasto[]> {
+    const r = await this.pedir('/v1/gastos/eventos')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos carregar os eventos.'))
+    return r.corpo as unknown as EventoParaGasto[]
+  }
+
+  private filtroNaQuery(filtro?: FiltroGastos): string {
+    if (!filtro) return ''
+    const p = new URLSearchParams()
+    if (filtro.eventoId) p.set('eventoId', filtro.eventoId)
+    if (filtro.categoria) p.set('categoria', filtro.categoria)
+    if (filtro.fornecedor) p.set('fornecedor', filtro.fornecedor)
+    if (filtro.pago) p.set('pago', filtro.pago)
+    if (filtro.de) p.set('de', filtro.de)
+    if (filtro.ate) p.set('ate', filtro.ate)
+    const s = p.toString()
+    return s ? `?${s}` : ''
+  }
+
+  async listarGastos(filtro?: FiltroGastos): Promise<Gasto[]> {
+    const r = await this.pedir(`/v1/gastos${this.filtroNaQuery(filtro)}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos carregar os gastos.'))
+    return r.corpo as unknown as Gasto[]
+  }
+
+  async criarGasto(dados: DadosDoGasto): Promise<{ id?: string; erro?: string }> {
+    const r = await this.pedir('/v1/gastos', { metodo: 'POST', corpo: dados })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar este gasto.') }
+    return r.corpo as unknown as { id?: string }
+  }
+
+  async editarGasto(id: string, dados: DadosDoGasto): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/gastos/${encodeURIComponent(id)}/editar`, { metodo: 'POST', corpo: dados })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar este gasto.') }
+    return {}
+  }
+
+  async excluirGasto(id: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/gastos/${encodeURIComponent(id)}/excluir`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos excluir este gasto.') }
+    return {}
+  }
+
+  async urlComprovanteGasto(id: string): Promise<{ url: string | null; erro?: string }> {
+    const r = await this.pedir(`/v1/gastos/${encodeURIComponent(id)}/comprovante`)
+    if (r.status >= 400) return { url: null, erro: this.erroDe(r, 'Não conseguimos abrir o comprovante.') }
+    return r.corpo as unknown as { url: string | null }
+  }
+
+  async transcreverAudioDeGasto(
+    audioBase64: string, mime: string, eventoId: string,
+  ): Promise<GastoExtraido | { erro: string }> {
+    const r = await this.pedir('/v1/gastos/transcrever', {
+      metodo: 'POST', corpo: { audioBase64, mime, eventoId },
+    })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não consegui entender o áudio. Tente de novo.') }
+    return r.corpo as unknown as GastoExtraido
+  }
+
+  async painelDeGastos(filtro?: FiltroGastos): Promise<PainelDeGastos> {
+    const r = await this.pedir(`/v1/gastos/painel${this.filtroNaQuery(filtro)}`)
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos montar o painel.'))
+    return r.corpo as unknown as PainelDeGastos
+  }
+
+  async exportarGastosXlsx(filtro: FiltroGastos): Promise<ArquivoDePlanilha | { erro: string }> {
+    const r = await this.pedir(`/v1/gastos/exportar${this.filtroNaQuery(filtro)}`)
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos gerar a planilha.') }
+    return r.corpo as unknown as ArquivoDePlanilha
   }
 
   async registrarTokenDePush(token: string, plataforma: 'ios' | 'android'): Promise<{ erro?: string }> {

@@ -28,6 +28,7 @@ import { ArquivosNoSupabase } from './arquivos-supabase.js'
 import type { CodigoPendente, Dependencias as DepSessao, GuardaDeCodigos } from './rotas/sessao.js'
 import { enviarCodigoPeloWhatsapp } from './whatsapp.js'
 import { enviarPushDeVerdade } from './expo-push.js'
+import { interpretarAudioDeGastoDeVerdade } from './gastos-ia.js'
 
 function exigirVariavel(nome: string): string {
   const valor = process.env[nome]
@@ -141,6 +142,7 @@ const amb: Ambiente = {
   chavePublicaQrEd25519: chavePublicaQrEd25519(),
   segredoManutencao: process.env.SEGREDO_MANUTENCAO || null,
   enviarPush: enviarPushDeVerdade,
+  interpretarAudioDeGasto: interpretarAudioDeGastoDeVerdade,
   novoToken: () => randomBytes(16).toString('hex'),
   arquivos,
   siteUrl,

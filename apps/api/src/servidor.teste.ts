@@ -42,6 +42,10 @@ function montar(sobrepor: Partial<Ambiente> = {}) {
     chavePublicaQrEd25519: null,
     segredoManutencao: 'segredo-de-manutencao-teste',
     enviarPush: async () => {},
+    interpretarAudioDeGasto: async () => ({
+      transcricao: '(teste) sem IA de verdade', valor: null, descricao: null,
+      fornecedor: null, categoria: null, dataGasto: null, precisaConfirmar: ['valor'],
+    }),
     novoToken: () => `qr-${++n}`,
     arquivos: new ArquivosEmMemoria('http://api.local'),
     siteUrl: 'http://site.local',

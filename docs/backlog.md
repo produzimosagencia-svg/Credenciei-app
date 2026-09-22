@@ -1,6 +1,6 @@
 # Backlog
 
-**326 tasks · 200 no MVP · 212 concluídas (65%)**
+**326 tasks · 200 no MVP · 218 concluídas (67%)**
 
 **Só o MVP: 163 de 200 (82%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -154,7 +154,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 48 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09". Toda a epic fala com a API real agora: organizações, veículos, bloqueio de CPF, base de funcionários, encontrar colaborador, relatórios, cartaz da portaria, criar setor, equipe do setor, trocar senha, excluir acesso e criar acesso de admin — número não recontado por falta de lista tarefa a tarefa desta epic |
 | 18 | Configurar evento | 17 | 17 | ✓ | Completo: editar evento, dias de trabalho, batida do meio e criar evento, reais e ligados pelo `ClienteHttp` |
-| 19 | Gastos (produto do Produtor) | 0 | 6 | — | Produto novo e isolado do credenciamento — escopo a confirmar com o Juan |
+| 19 | Gastos (produto do Produtor) | 6 | 6 | — | Backend inteiro pronto e testado (22/09) — papel `produtor`, lançamento manual e por voz, lista+filtros, painel e exportação `.xlsx`. **Sem tela no app ainda** — ver "Bloqueado" |
 
 ---
 
@@ -1444,6 +1444,24 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 >
 > Não é escopo novo, não muda nenhum Feito/Total — é correção de
 > arquitetura interna sob funcionalidade que já existia.
+>
+> **22/09/2026 — Gastos (produto do Produtor, Epic 19) construído de ponta
+> a ponta no backend.** Escopo confirmado com o Juan: papel `produtor`
+> completo (login próprio, isolado do credenciamento, MESMA tabela que o
+> site já usa — `gastos_evento`/`produtor_eventos`, sem tradução de schema
+> nenhuma, ao contrário de pessoas/funcionarios), lançamento manual E por
+> voz (Gemini, `apps/api/src/gastos-ia.ts`, porta quase verbatim de
+> `lib/gastos-ia.ts` do site — a regra "nunca inventa" é a mesma: campo
+> incerto vira `null` e entra em `precisaConfirmar`), lista com filtro,
+> painel com KPIs e gráficos (`kpisDeGastos`/`dadosDosGraficosDeGastos`
+> portados pro domínio, mesmo cálculo que o site), e exportação `.xlsx`.
+> Master (dando suporte) vê todos os eventos e todos os "Interno"; produtor
+> só os vinculados a ele em `produtor_eventos`. 20 testes na rota, mais o
+> round-trip real (criar → listar → painel → exportar → editar → excluir,
+> logado como master, pela API de verdade). **Epic 19 sobe de 0/6 pra
+> 6/6** — mas **nenhuma tela existe ainda**: é backend puro, seguindo a
+> ordem que o Juan escolheu (backend primeiro, UI depois — ver "Bloqueado"
+> abaixo).
 
 ## Bloqueado, esperando o Juan
 
@@ -1476,4 +1494,5 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 - **Configurar um agendador externo** (cron-job.org, mesma ferramenta já cotada pra retenção de foto) batendo nas seis rotas de tempos em tempos (sugestão: a cada 15-30 min) — sem isso, os lembretes existem no código mas nunca disparam sozinhos: `POST /manutencao/lembrete-entrada`, `/lembrete-saida`, `/lembrete-meio`, `/alerta-supervisor-entrada`, `/alerta-supervisor-saida`, `/aviso-do-dia`.
 - **Decidir os três itens parados do push** (`confirmacao_escala`, `boas_vindas_funcionario`, `disparo_manual`) — ver o achado de 21/09 acima, cada um tem um motivo diferente pra não ter entrado ainda.
 - **Rodar a migração 010** (`app_notificacoes`/`app_preferencias_de_aviso`) — aditiva e segura, sem pressa, mesma régua das outras.
-- **Ainda falta a tela no app** pro mural "Avisos" (modal na credencial/painel) e pra Central de Avisos (histórico + preferências) — o backend dos dois está pronto e testado, mas ninguém vê nada ainda sem a interface.
+- **Ainda falta a tela no app** pro mural "Avisos" (modal na credencial/painel), pra Central de Avisos (histórico + preferências) e pro módulo Gastos inteiro (captura manual/voz, lista, painel) — backend pronto e testado nos três, mas ninguém vê nada ainda sem a interface.
+- **Configurar `GEMINI_API_KEY` no Render** (mesma variável que o site já usa pro Gastos por voz) — sem ela, `transcreverAudioDeGasto` responde com um erro amigável ("leitura de áudio ainda não foi configurada"), mas ninguém consegue lançar gasto falando até essa chave existir no ambiente da API do app.

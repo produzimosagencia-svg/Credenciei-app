@@ -82,6 +82,10 @@ import {
 import {
   eventosParaRelatorios, relatorioDoEvento, relatorioDoSetor, relatoriosPorSetorZip, resumoDeRelatorios,
 } from './rotas/relatorios.js'
+import {
+  criarGasto, editarGasto, eventosParaGastos, excluirGasto, exportarGastosXlsx, listarGastos,
+  painelDeGastos, transcreverAudioDeGasto, urlComprovanteGasto, type InterpretarAudioDeGasto,
+} from './rotas/gastos.js'
 import { ArquivosEmMemoria, type Arquivos } from './arquivos.js'
 import type { Periodo, QuemNoRelatorio } from '@credenciei/contrato'
 import {
@@ -119,6 +123,8 @@ export type Ambiente = {
   segredoManutencao: string | null
   /** Manda a notificação de verdade (Expo Push) — ver `expo-push.ts`. */
   enviarPush: EnviarPush
+  /** Transcreve o áudio de um gasto por IA (Gemini) — ver `gastos-ia.ts`. */
+  interpretarAudioDeGasto: InterpretarAudioDeGasto
 }
 
 type Variaveis = { pessoaId: string; papel: Papel }
@@ -767,6 +773,80 @@ export function criarServidor(amb: Ambiente) {
     const { token, plataforma } = await c.req.json<{ token?: string; plataforma?: string }>()
     return protegido(c, () => registrarTokenDePush(amb.repo, c.get('pessoaId'), token ?? '', plataforma ?? ''))
   })
+
+  // ── Gastos (produto do Produtor) ────────────────────────────────────────
+  const filtroGastosDaQuery = (c: { req: { query: (chave: string) => string | undefined } }) => ({
+    eventoId: c.req.query('eventoId'),
+    categoria: c.req.query('categoria'),
+    fornecedor: c.req.query('fornecedor'),
+    pago: c.req.query('pago') as 'true' | 'false' | undefined,
+    de: c.req.query('de'),
+    ate: c.req.query('ate'),
+  })
+
+  app.get('/v1/gastos/eventos', async c =>
+    protegido(c, () => eventosParaGastos(amb.repo, c.get('pessoaId'))))
+
+  app.get('/v1/gastos', async c =>
+    protegido(c, () => listarGastos(amb.repo, c.get('pessoaId'), filtroGastosDaQuery(c))))
+
+  app.get('/v1/gastos/painel', async c =>
+    protegido(c, () => painelDeGastos(amb.repo, c.get('pessoaId'), filtroGastosDaQuery(c))))
+
+  app.get('/v1/gastos/exportar', async c =>
+    protegido(c, () => exportarGastosXlsx(amb.repo, c.get('pessoaId'), filtroGastosDaQuery(c), amb.arquivos)))
+
+  app.post('/v1/gastos/transcrever', async c => {
+    const corpo = await c.req.json<{ audioBase64?: string; mime?: string; eventoId?: string }>()
+    return protegido(c, () => transcreverAudioDeGasto(
+      amb.repo, c.get('pessoaId'), amb.interpretarAudioDeGasto,
+      corpo.audioBase64 ?? '', corpo.mime ?? '', corpo.eventoId ?? '',
+    ))
+  })
+
+  app.post('/v1/gastos', async c => {
+    const corpo = await c.req.json<Record<string, unknown>>()
+    return protegido(c, () => criarGasto(amb.repo, c.get('pessoaId'), {
+      eventoId: String(corpo.eventoId ?? ''),
+      descricao: String(corpo.descricao ?? ''),
+      valor: Number(corpo.valor),
+      categoria: String(corpo.categoria ?? ''),
+      dataGasto: String(corpo.dataGasto ?? ''),
+      fornecedor: (corpo.fornecedor as string | null) ?? null,
+      formaPagamento: (corpo.formaPagamento as string | null) ?? null,
+      pagador: (corpo.pagador as string | null) ?? null,
+      pago: corpo.pago !== false,
+      observacao: (corpo.observacao as string | null) ?? null,
+      origem: (corpo.origem as 'manual' | 'audio') ?? 'manual',
+      transcricao: (corpo.transcricao as string | null) ?? null,
+      comprovanteBase64: (corpo.comprovanteBase64 as string | null) ?? null,
+    }))
+  })
+
+  app.post('/v1/gastos/:id/editar', async c => {
+    const corpo = await c.req.json<Record<string, unknown>>()
+    return protegido(c, () => editarGasto(amb.repo, c.get('pessoaId'), c.req.param('id'), {
+      eventoId: String(corpo.eventoId ?? ''),
+      descricao: String(corpo.descricao ?? ''),
+      valor: Number(corpo.valor),
+      categoria: String(corpo.categoria ?? ''),
+      dataGasto: String(corpo.dataGasto ?? ''),
+      fornecedor: (corpo.fornecedor as string | null) ?? null,
+      formaPagamento: (corpo.formaPagamento as string | null) ?? null,
+      pagador: (corpo.pagador as string | null) ?? null,
+      pago: corpo.pago !== false,
+      observacao: (corpo.observacao as string | null) ?? null,
+      origem: (corpo.origem as 'manual' | 'audio') ?? 'manual',
+      transcricao: (corpo.transcricao as string | null) ?? null,
+      comprovanteBase64: (corpo.comprovanteBase64 as string | null) ?? null,
+    }))
+  })
+
+  app.post('/v1/gastos/:id/excluir', async c =>
+    protegido(c, () => excluirGasto(amb.repo, c.get('pessoaId'), c.req.param('id'))))
+
+  app.get('/v1/gastos/:id/comprovante', async c =>
+    protegido(c, () => urlComprovanteGasto(amb.repo, c.get('pessoaId'), c.req.param('id'))))
 
   // ── Veículos ──────────────────────────────────────────────────────────────
   app.get('/v1/veiculos/eventos', async c =>

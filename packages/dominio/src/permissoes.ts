@@ -34,9 +34,10 @@
 // `gerente` e `cliente` são papéis legados: continuam no banco e continuam
 // valendo, mas não são mais oferecidos. `gerente` equivale a admin.
 //
-// `produtor` existe no site (cliente do produto Gastos, isolado do
-// credenciamento) mas não entra aqui: nenhuma capacidade deste arquivo o
-// envolve, e o app não tem o módulo Gastos — ver Epic 19 do backlog.
+// `produtor`  cliente do PRODUTO Gastos, isolado do credenciamento — login
+//                 próprio (e-mail+senha, como admin), só enxerga o módulo
+//                 Gastos, só os eventos vinculados em `produtor_eventos`.
+//                 Trazido do site em 22/09/2026 — ver Epic 19 do backlog.
 
 export type Papel =
   | 'master'
@@ -47,6 +48,7 @@ export type Papel =
   | 'gerente'
   | 'cliente'
   | 'colaborador'
+  | 'produtor'
 
 /**
  * O que se pergunta a uma função de capacidade: um papel, ou o acesso
@@ -118,6 +120,7 @@ export const NOME_DO_PAPEL: Record<Papel, string> = {
   gerente: 'Gerente',
   cliente: 'Cliente',
   colaborador: 'Colaborador',
+  produtor: 'Produtor',
 }
 
 /** Dono da plataforma: acesso irrestrito a todas as organizações. */
@@ -126,11 +129,14 @@ export const ehMaster = (papel?: string) => papel === 'master'
 /** Dono de um acesso de apoio contratado pro evento — nunca administra. */
 export const ehSuporte = (papel?: string) => papel === 'suporte'
 
+/** Cliente do produto Gastos — login próprio, só o módulo Gastos, só os eventos vinculados. */
+export const ehProdutor = (papel?: string) => papel === 'produtor'
+
 /** É gente de painel? O colaborador não é — ele só vê o que é dele. */
 export const ehDePainel = (papel?: string) =>
   papel === 'master' || papel === 'admin' || papel === 'gerente'
   || papel === 'cliente' || papel === 'supervisor'
-  || papel === 'operador_portao' || papel === 'suporte'
+  || papel === 'operador_portao' || papel === 'suporte' || papel === 'produtor'
 
 /** Enxerga todos os eventos do sistema, não só os da própria organização. */
 export const veTodosEventos = (papel?: string) => papel === 'master'
@@ -231,3 +237,17 @@ export const podeBloquearCpf = (papel?: string) =>
  */
 export const podeExcluirDaEquipe = (papel?: string) =>
   papel === 'master' || papel === 'admin' || papel === 'supervisor'
+
+/**
+ * Pode usar o módulo Gastos.
+ *
+ * Gastos é um PRODUTO à parte, com acesso próprio (`produtor`). Nenhum
+ * papel operacional do credenciamento (admin, supervisor, suporte) entra
+ * aqui — cópia de `podeRegistrarGastos` em `c:\Dev\credenciei\lib\permissions.ts`.
+ * `master` continua entrando só pra dar suporte a um produtor com
+ * problema. É uma `capacidade` (não um `papel?: string => boolean` cru)
+ * pela mesma razão de `podeEscanear`: entra no catálogo de "Funções
+ * ligadas", resolvendo as 3 camadas (usuário, organização, código).
+ */
+export const podeRegistrarGastos = capacidade('registrar_gastos', papel =>
+  papel === 'produtor' || papel === 'master')

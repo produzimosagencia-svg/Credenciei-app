@@ -7,14 +7,14 @@
 // Este arquivo não vai para produção. Ele existe para os testes e para o
 // desenvolvimento local antes de a implementação sobre o Supabase ficar pronta.
 
-import { chaveDaPermissao, diaBRT, faseDoDia, quandoAvisarDoDia, HORA_AVISO_DIA } from '@credenciei/dominio'
+import { chaveDaPermissao, diaBRT, EVENTO_INTERNO, faseDoDia, quandoAvisarDoDia, HORA_AVISO_DIA } from '@credenciei/dominio'
 import type { Papel } from '@credenciei/dominio'
 import type {
   AcessoCompleto, AtividadeBruta, BloqueioDeCpf, Contestacao, DiaDeTrabalho, EdicaoDeEventoNoRepositorio,
   EstadoDaConferencia, EstadoDaPortaria, Evento, EventoComContagens, ExcecaoDePermissao,
-  FiltroDeAuditoria, LinhaConferenciaNoRepositorio, LinhaDeAuditoria, LinhaDoDia,
+  FiltroDeAuditoria, FiltroDeGastosNoRepositorio, GastoNoRepositorio, LinhaConferenciaNoRepositorio, LinhaDeAuditoria, LinhaDoDia,
   NovaEntradaDeAuditoria, NovaOrganizacaoNoRepositorio, NovoAcessoNoRepositorio,
-  NovoBloqueioNoRepositorio,
+  NovoBloqueioNoRepositorio, NovoGastoNoRepositorio,
   NovoAdminNoRepositorio, NovoEventoNoRepositorio, NovoRegistro, NovoSetorNoRepositorio, NovoVeiculoNoRepositorio,
   Organizacao,
   OrganizacaoComContagens, Participacao, ParticipacaoParaLocalizar, Perfil, Pessoa, PessoaDaBase, Registro,
@@ -90,6 +90,10 @@ export class RepositorioEmMemoria implements Repositorio {
   }[] = []
   /** Chave `pessoaId|tipo` → ativo. Ausência = ligado (mesma tabela `app_preferencias_de_aviso`). */
   preferenciasDeAviso = new Map<string, boolean>()
+  /** Mesma tabela `produtor_eventos` do site. */
+  produtorEventos: { produtorId: string; eventoId: string }[] = []
+  /** Mesma tabela `gastos_evento` do site — `comprovantePath` só existe aqui pra simular o Storage. */
+  gastos: (GastoNoRepositorio & { organizacaoIdSeInterno: string | null; comprovantePath: string | null })[] = []
 
   // ── Identidade ────────────────────────────────────────────────────────────
 
@@ -1359,6 +1363,109 @@ export class RepositorioEmMemoria implements Repositorio {
   async resolverContestacao(id: string, _resolvidaPorPessoaId: string): Promise<void> {
     const c = this.contestacoes.find(x => x.id === id)
     if (c) c.resolvidaEm = new Date().toISOString()
+  }
+
+  // ── Gastos (produto do Produtor) ────────────────────────────────────────
+
+  async eventosDoProdutor(perfilId: string): Promise<string[]> {
+    return this.produtorEventos.filter(p => p.produtorId === perfilId).map(p => p.eventoId)
+  }
+
+  async listarGastos(filtro: FiltroDeGastosNoRepositorio): Promise<GastoNoRepositorio[]> {
+    const apenasInterno = filtro.eventoId === EVENTO_INTERNO
+    let gastos = this.gastos.filter(g => {
+      if (apenasInterno) {
+        if (g.eventoId !== EVENTO_INTERNO) return false
+        if (filtro.organizacaoIdSeInterno && g.organizacaoIdSeInterno !== filtro.organizacaoIdSeInterno) return false
+        return true
+      }
+      if (filtro.eventoId) return g.eventoId === filtro.eventoId
+      return true
+    })
+    if (filtro.categoria) gastos = gastos.filter(g => g.categoria === filtro.categoria)
+    if (filtro.fornecedor) gastos = gastos.filter(g => g.fornecedor === filtro.fornecedor)
+    if (filtro.pago !== undefined) gastos = gastos.filter(g => g.pago === filtro.pago)
+    if (filtro.de) gastos = gastos.filter(g => g.dataGasto >= filtro.de!)
+    if (filtro.ate) gastos = gastos.filter(g => g.dataGasto <= filtro.ate!)
+
+    return [...gastos]
+      .sort((a, b) => b.dataGasto.localeCompare(a.dataGasto) || b.registradoEm.localeCompare(a.registradoEm))
+      .map(({ organizacaoIdSeInterno: _o, comprovantePath: _c, ...g }) => g)
+  }
+
+  async gastoPorId(id: string): Promise<GastoNoRepositorio | null> {
+    const g = this.gastos.find(x => x.id === id)
+    if (!g) return null
+    const { organizacaoIdSeInterno: _o, comprovantePath: _c, ...resto } = g
+    return resto
+  }
+
+  async criarGasto(dados: NovoGastoNoRepositorio, criadoPorId: string): Promise<{ id: string }> {
+    const interno = dados.eventoId === EVENTO_INTERNO
+    const eventoNome = interno
+      ? 'Interno — despesas da empresa'
+      : this.eventos.find(e => e.id === dados.eventoId)?.nome ?? null
+    const criadoPor = this.perfis.find(p => p.id === criadoPorId)
+
+    const id = novoId('gasto')
+    this.gastos.push({
+      id,
+      eventoId: dados.eventoId,
+      eventoNome,
+      descricao: dados.descricao,
+      valor: dados.valor,
+      categoria: dados.categoria,
+      dataGasto: dados.dataGasto,
+      fornecedor: dados.fornecedor,
+      formaPagamento: dados.formaPagamento,
+      pagador: dados.pagador,
+      pago: dados.pago,
+      observacao: dados.observacao,
+      origem: dados.origem,
+      status: 'confirmado',
+      transcricao: dados.origem === 'audio' ? dados.transcricao : null,
+      registradoEm: new Date().toISOString(),
+      temComprovante: !!dados.comprovanteBase64,
+      comprovanteNome: dados.comprovanteBase64 ? 'comprovante.jpg' : null,
+      comprovantePath: dados.comprovanteBase64 ? `${id}.jpg` : null,
+      criadoPorNome: criadoPor?.nome ?? null,
+      organizacaoIdSeInterno: interno ? dados.organizacaoIdSeInterno : null,
+    })
+    return { id }
+  }
+
+  async editarGasto(id: string, dados: NovoGastoNoRepositorio): Promise<{ erro?: string }> {
+    const g = this.gastos.find(x => x.id === id)
+    if (!g) return { erro: 'Este gasto não existe mais.' }
+
+    g.descricao = dados.descricao
+    g.valor = dados.valor
+    g.categoria = dados.categoria
+    g.dataGasto = dados.dataGasto
+    g.fornecedor = dados.fornecedor
+    g.formaPagamento = dados.formaPagamento
+    g.pagador = dados.pagador
+    g.pago = dados.pago
+    g.observacao = dados.observacao
+    if (dados.comprovanteBase64) {
+      g.temComprovante = true
+      g.comprovanteNome = 'comprovante.jpg'
+      g.comprovantePath = `${id}.jpg`
+    }
+    return {}
+  }
+
+  async excluirGasto(id: string): Promise<{ erro?: string }> {
+    const i = this.gastos.findIndex(g => g.id === id)
+    if (i === -1) return { erro: 'Este gasto já não existe.' }
+    this.gastos.splice(i, 1)
+    return {}
+  }
+
+  async urlComprovanteGasto(id: string): Promise<string | null> {
+    const g = this.gastos.find(x => x.id === id)
+    if (!g?.comprovantePath) return null
+    return `https://exemplo-de-teste.invalido/${g.comprovantePath}`
   }
 }
 

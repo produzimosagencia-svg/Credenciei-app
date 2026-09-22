@@ -94,6 +94,10 @@ function montar(op: { aoPerderSessao?: () => void } = {}) {
     chavePublicaQrEd25519: null,
     segredoManutencao: null,
     enviarPush: async () => {},
+    interpretarAudioDeGasto: async () => ({
+      transcricao: '(teste) sem IA de verdade', valor: null, descricao: null,
+      fornecedor: null, categoria: null, dataGasto: null, precisaConfirmar: ['valor'],
+    }),
     novoToken: () => `qr-${++n}`,
     arquivos: new ArquivosEmMemoria(BASE),
     siteUrl: 'http://site.local',
@@ -213,6 +217,46 @@ test('a Central de Avisos (histórico + preferências) vai e volta pela API', as
   assert.deepEqual(semLembreteEntrada, {})
   const depois = await m.cliente.minhasNotificacoes()
   assert.equal(depois.preferencias.find(p => p.tipo === 'lembrete_entrada')!.ativo, false)
+})
+
+test('Gastos vai e volta pela API — criar, listar, painel e exportar, logado como master', async () => {
+  const m = montar()
+  const r = await m.cliente.entrarComSenha('juan@produzimos.com.br', 'segredo123')
+  assert.ok(r.sessao, r.erro)
+  m.guardarToken(r.sessao.token)
+
+  const eventos = await m.cliente.eventosParaGastos()
+  assert.ok(eventos.some(e => e.id === 'ev-hj'))
+  assert.equal(eventos.at(-1)!.id, 'interno')
+
+  const criado = await m.cliente.criarGasto({
+    eventoId: 'ev-hj', descricao: 'Aluguel de estrutura', valor: 850, categoria: 'Estrutura',
+    dataGasto: '2026-09-04', fornecedor: 'Estrutura ES', formaPagamento: 'Pix', pagador: null,
+    pago: true, observacao: null, origem: 'manual', transcricao: null, comprovanteBase64: null,
+  })
+  assert.ok(criado.id, criado.erro)
+
+  const gastos = await m.cliente.listarGastos({ eventoId: 'ev-hj' })
+  const novo = gastos.find(g => g.id === criado.id)!
+  assert.equal(novo.descricao, 'Aluguel de estrutura')
+  assert.equal(novo.valor, 850)
+
+  const painel = await m.cliente.painelDeGastos({ eventoId: 'ev-hj' })
+  assert.equal(painel.kpis.total, 850)
+
+  const excel = await m.cliente.exportarGastosXlsx({ eventoId: 'ev-hj' })
+  assert.ok('nome' in excel && excel.nome.endsWith('.xlsx'))
+
+  const editado = await m.cliente.editarGasto(criado.id!, {
+    eventoId: 'ev-hj', descricao: 'Aluguel de estrutura (corrigido)', valor: 900, categoria: 'Estrutura',
+    dataGasto: '2026-09-04', fornecedor: 'Estrutura ES', formaPagamento: 'Pix', pagador: null,
+    pago: true, observacao: null, origem: 'manual', transcricao: null, comprovanteBase64: null,
+  })
+  assert.deepEqual(editado, {})
+
+  const excluido = await m.cliente.excluirGasto(criado.id!)
+  assert.deepEqual(excluido, {})
+  assert.ok(!(await m.cliente.listarGastos({ eventoId: 'ev-hj' })).some(g => g.id === criado.id))
 })
 
 test('excluir minha conta vai e volta pela API — anonimiza e derruba a sessão', async () => {

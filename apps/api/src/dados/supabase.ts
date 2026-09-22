@@ -32,15 +32,15 @@
 
 import { createHash, randomBytes } from 'node:crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { chaveDaPermissao, diaBRT, faseDoDia, quandoAvisarDoDia, HORA_AVISO_DIA, type Papel } from '@credenciei/dominio'
+import { chaveDaPermissao, diaBRT, EVENTO_INTERNO, faseDoDia, quandoAvisarDoDia, HORA_AVISO_DIA, type Papel } from '@credenciei/dominio'
 import { cpfParaEmail } from '../identificador.js'
 import type {
   AcessoCompleto, AtividadeBruta, BatidaResumida, BloqueioDeCpf, Contestacao, DiaDeTrabalho, EdicaoDeEventoNoRepositorio,
   EstadoDaConferencia, EstadoDaPortaria, Evento, EventoComContagens, ExcecaoDePermissao,
-  FiltroDeAuditoria, LinhaConferenciaNoRepositorio, LinhaDeAuditoria, LinhaDoDia,
+  FiltroDeAuditoria, FiltroDeGastosNoRepositorio, GastoNoRepositorio, LinhaConferenciaNoRepositorio, LinhaDeAuditoria, LinhaDoDia,
   NovaEntradaDeAuditoria, NovaOrganizacaoNoRepositorio, NovoAcessoNoRepositorio,
   NovoAdminNoRepositorio,
-  NovoBloqueioNoRepositorio, NovoEventoNoRepositorio, NovoRegistro, NovoSetorNoRepositorio, NovoVeiculoNoRepositorio,
+  NovoBloqueioNoRepositorio, NovoEventoNoRepositorio, NovoGastoNoRepositorio, NovoRegistro, NovoSetorNoRepositorio, NovoVeiculoNoRepositorio,
   Organizacao, OrganizacaoComContagens, Participacao, ParticipacaoParaLocalizar, Perfil, Pessoa, PessoaDaBase,
   Registro, Repositorio, SetorComPessoas, SetorCriado, TrabalhoNaBase, Veiculo,
 } from './repositorio.js'
@@ -2281,6 +2281,215 @@ export class RepositorioSupabase implements Repositorio {
     await this.db.from('app_contestacoes')
       .update({ resolvida_em: new Date().toISOString(), resolvida_por: resolvidaPorPessoaId })
       .eq('id', id)
+  }
+
+  // ── Gastos (produto do Produtor) ────────────────────────────────────────
+
+  private static readonly BUCKET_DE_GASTOS = 'gastos'
+
+  private static readonly SELECT_GASTO =
+    'id, evento_id, organizacao_id, descricao, valor, fornecedor, forma_pagamento, pagador, pago, categoria, data_gasto, registrado_em, origem, status, observacao, transcricao, comprovante_path, comprovante_nome, criado_por' as const
+
+  /**
+   * Sem relação embutida (`tabela:coluna(campo)`) de propósito: sem um
+   * schema gerado (`createClient` não recebe tipo de banco), o supabase-js
+   * não consegue inferir o relacionamento e o `select` volta com um tipo de
+   * erro (`GenericStringError`) em vez dos dados — duas buscas simples,
+   * juntadas em JS, evitam a armadilha.
+   */
+  private async nomesDosEventos(ids: string[]): Promise<Map<string, string>> {
+    if (!ids.length) return new Map()
+    const { data } = await this.db.from('eventos').select('id, nome').in('id', [...new Set(ids)])
+    return new Map((data ?? []).map(e => [e.id as string, e.nome as string]))
+  }
+
+  private async nomesDosPerfis(ids: string[]): Promise<Map<string, string>> {
+    if (!ids.length) return new Map()
+    const { data } = await this.db.from('perfis').select('id, nome').in('id', [...new Set(ids)])
+    return new Map((data ?? []).map(p => [p.id as string, p.nome as string]))
+  }
+
+  private paraGasto(
+    l: Record<string, unknown>, nomeDoEvento: string | null, nomeDoCriador: string | null,
+  ): GastoNoRepositorio {
+    const temEvento = !!l.evento_id
+    return {
+      id: l.id as string,
+      eventoId: temEvento ? (l.evento_id as string) : EVENTO_INTERNO,
+      eventoNome: temEvento ? nomeDoEvento : 'Interno — despesas da empresa',
+      descricao: l.descricao as string,
+      valor: Number(l.valor) || 0,
+      fornecedor: (l.fornecedor as string | null) ?? null,
+      formaPagamento: (l.forma_pagamento as string | null) ?? null,
+      pagador: (l.pagador as string | null) ?? null,
+      pago: l.pago !== false,
+      categoria: l.categoria as string,
+      dataGasto: l.data_gasto as string,
+      registradoEm: l.registrado_em as string,
+      origem: (l.origem as GastoNoRepositorio['origem']) ?? 'manual',
+      status: (l.status as GastoNoRepositorio['status']) ?? 'confirmado',
+      observacao: (l.observacao as string | null) ?? null,
+      transcricao: (l.transcricao as string | null) ?? null,
+      temComprovante: !!l.comprovante_path,
+      comprovanteNome: (l.comprovante_nome as string | null) ?? null,
+      criadoPorNome: nomeDoCriador,
+    }
+  }
+
+  /** Junta as linhas cruas com o nome do evento e de quem criou, num só laço. */
+  private async montarGastos(linhas: Record<string, unknown>[]): Promise<GastoNoRepositorio[]> {
+    const [eventos, perfis] = await Promise.all([
+      this.nomesDosEventos(linhas.map(l => l.evento_id as string).filter(Boolean)),
+      this.nomesDosPerfis(linhas.map(l => l.criado_por as string).filter(Boolean)),
+    ])
+    return linhas.map(l => this.paraGasto(
+      l,
+      l.evento_id ? eventos.get(l.evento_id as string) ?? null : null,
+      l.criado_por ? perfis.get(l.criado_por as string) ?? null : null,
+    ))
+  }
+
+  async eventosDoProdutor(perfilId: string): Promise<string[]> {
+    const { data } = await this.db.from('produtor_eventos').select('evento_id').eq('produtor_id', perfilId)
+    return (data ?? []).map(r => r.evento_id as string)
+  }
+
+  async listarGastos(filtro: FiltroDeGastosNoRepositorio): Promise<GastoNoRepositorio[]> {
+    const apenasInterno = filtro.eventoId === EVENTO_INTERNO
+    const linhas = await buscarTudo<Record<string, unknown>>((de, ate) => {
+      let q = this.db.from('gastos_evento').select(RepositorioSupabase.SELECT_GASTO)
+        .order('data_gasto', { ascending: false }).order('registrado_em', { ascending: false })
+      if (apenasInterno) {
+        q = q.is('evento_id', null)
+        if (filtro.organizacaoIdSeInterno) q = q.eq('organizacao_id', filtro.organizacaoIdSeInterno)
+      } else if (filtro.eventoId) {
+        q = q.eq('evento_id', filtro.eventoId)
+      }
+      if (filtro.categoria) q = q.eq('categoria', filtro.categoria)
+      if (filtro.fornecedor) q = q.eq('fornecedor', filtro.fornecedor)
+      if (filtro.pago !== undefined) q = q.eq('pago', filtro.pago)
+      if (filtro.de) q = q.gte('data_gasto', filtro.de)
+      if (filtro.ate) q = q.lte('data_gasto', filtro.ate)
+      return q.range(de, ate)
+    })
+    return this.montarGastos(linhas)
+  }
+
+  async gastoPorId(id: string): Promise<GastoNoRepositorio | null> {
+    const { data } = await this.db.from('gastos_evento').select(RepositorioSupabase.SELECT_GASTO).eq('id', id).maybeSingle()
+    if (!data) return null
+    const [gasto] = await this.montarGastos([data as Record<string, unknown>])
+    return gasto ?? null
+  }
+
+  /**
+   * Sobe o comprovante (imagem OU PDF — mais solto que `subirFoto`, que só
+   * aceita imagem) pro bucket `gastos`, compartilhado com o site. Caminho
+   * por evento/timestamp: não há histórico de versão, só o mais recente
+   * sobrevive à troca (o antigo é removido por quem chama, se houver).
+   */
+  private async subirComprovante(eventoIdOuInterno: string, comprovanteBase64: string): Promise<{ path: string; nome: string }> {
+    const casada = /^data:([\w/+.-]+);base64,(.+)$/.exec(comprovanteBase64)
+    if (!casada) throw new Error('Comprovante em formato inválido.')
+    const tipoMime = casada[1]!
+    const base64 = casada[2]!
+    const extensao = tipoMime.split('/')[1]?.replace(/[^\w]/g, '') || 'bin'
+    const caminho = `${eventoIdOuInterno}/${Date.now()}.${extensao}`
+
+    const { error } = await this.db.storage
+      .from(RepositorioSupabase.BUCKET_DE_GASTOS)
+      .upload(caminho, Buffer.from(base64, 'base64'), { contentType: tipoMime })
+    if (error) throw new Error(`Falha ao subir o comprovante: ${error.message}`)
+    return { path: caminho, nome: `comprovante.${extensao}` }
+  }
+
+  async criarGasto(dados: NovoGastoNoRepositorio, criadoPorId: string): Promise<{ id: string }> {
+    const interno = dados.eventoId === EVENTO_INTERNO
+    const { data, error } = await this.db.from('gastos_evento').insert({
+      evento_id: interno ? null : dados.eventoId,
+      organizacao_id: interno ? dados.organizacaoIdSeInterno : null,
+      descricao: dados.descricao,
+      valor: dados.valor,
+      categoria: dados.categoria,
+      data_gasto: dados.dataGasto,
+      fornecedor: dados.fornecedor,
+      forma_pagamento: dados.formaPagamento,
+      pagador: dados.pagador,
+      pago: dados.pago,
+      observacao: dados.observacao,
+      origem: dados.origem,
+      status: 'confirmado',
+      transcricao: dados.origem === 'audio' ? dados.transcricao : null,
+      criado_por: criadoPorId,
+    }).select('id').single()
+    if (error || !data) throw new Error(`Não foi possível salvar este gasto: ${error?.message ?? 'sem dados'}`)
+
+    // Comprovante depois do insert: se o upload falhar, o gasto não some por
+    // causa da foto do recibo — mesma régua do site (`actions-gastos.ts`).
+    if (dados.comprovanteBase64) {
+      try {
+        const comp = await this.subirComprovante(dados.eventoId, dados.comprovanteBase64)
+        await this.db.from('gastos_evento')
+          .update({ comprovante_path: comp.path, comprovante_nome: comp.nome })
+          .eq('id', data.id)
+      } catch { /* comprovante é opcional — o gasto já está salvo */ }
+    }
+
+    return { id: data.id as string }
+  }
+
+  async editarGasto(id: string, dados: NovoGastoNoRepositorio): Promise<{ erro?: string }> {
+    const { data: atual } = await this.db.from('gastos_evento').select('comprovante_path').eq('id', id).maybeSingle()
+    if (!atual) return { erro: 'Este gasto não existe mais.' }
+
+    let novoComprovante: { path: string; nome: string } | null = null
+    if (dados.comprovanteBase64) {
+      try {
+        novoComprovante = await this.subirComprovante(dados.eventoId, dados.comprovanteBase64)
+      } catch { /* comprovante é opcional — segue sem trocar */ }
+    }
+
+    const { error } = await this.db.from('gastos_evento').update({
+      descricao: dados.descricao,
+      valor: dados.valor,
+      categoria: dados.categoria,
+      data_gasto: dados.dataGasto,
+      fornecedor: dados.fornecedor,
+      forma_pagamento: dados.formaPagamento,
+      pagador: dados.pagador,
+      pago: dados.pago,
+      observacao: dados.observacao,
+      atualizado_em: new Date().toISOString(),
+      ...(novoComprovante ? { comprovante_path: novoComprovante.path, comprovante_nome: novoComprovante.nome } : {}),
+    }).eq('id', id)
+    if (error) return { erro: `Não foi possível salvar: ${error.message}` }
+
+    if (novoComprovante && atual.comprovante_path) {
+      await this.db.storage.from(RepositorioSupabase.BUCKET_DE_GASTOS).remove([atual.comprovante_path as string])
+    }
+    return {}
+  }
+
+  async excluirGasto(id: string): Promise<{ erro?: string }> {
+    const { data: atual } = await this.db.from('gastos_evento').select('comprovante_path').eq('id', id).maybeSingle()
+    if (!atual) return { erro: 'Este gasto já não existe.' }
+
+    const { error } = await this.db.from('gastos_evento').delete().eq('id', id)
+    if (error) return { erro: `Não foi possível excluir: ${error.message}` }
+
+    if (atual.comprovante_path) {
+      await this.db.storage.from(RepositorioSupabase.BUCKET_DE_GASTOS).remove([atual.comprovante_path as string])
+    }
+    return {}
+  }
+
+  async urlComprovanteGasto(id: string): Promise<string | null> {
+    const { data } = await this.db.from('gastos_evento').select('comprovante_path').eq('id', id).maybeSingle()
+    if (!data?.comprovante_path) return null
+    const { data: assinada } = await this.db.storage
+      .from(RepositorioSupabase.BUCKET_DE_GASTOS)
+      .createSignedUrl(data.comprovante_path as string, 60 * 15)
+    return assinada?.signedUrl ?? null
   }
 }
 

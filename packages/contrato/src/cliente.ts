@@ -25,6 +25,7 @@ import type {
   DadosParaLancarPonto, BuscaDeColaboradores,
   DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte,
   ConfiguracoesDePermissao, LinhaDeAuditoria, MinhasPermissoes,
+  EventoParaGasto, FiltroGastos, Gasto, DadosDoGasto, GastoExtraido, PainelDeGastos,
 } from './tipos.js'
 import type { Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
@@ -780,6 +781,39 @@ export interface ClienteApi {
 
   /** Diferente de excluir: o histórico do que a pessoa fez continua na Auditoria. */
   revogarSuporte(id: string): Promise<{ erro?: string }>
+
+  // ── Gastos (produto do Produtor) ─────────────────────────────────────────
+  //
+  // Produto à parte, isolado do credenciamento — só `produtor` e `master`
+  // (dando suporte) entram. Trazido do site em 22/09/2026. `eventoId` pode
+  // vir como `EVENTO_INTERNO` (@credenciei/dominio) — gasto que não é de
+  // nenhum evento (assinatura, despesa de escritório).
+
+  /** Os eventos que ESTE produtor pode lançar gasto — sempre com "Interno" por último. */
+  eventosParaGastos(): Promise<EventoParaGasto[]>
+
+  listarGastos(filtro?: FiltroGastos): Promise<Gasto[]>
+
+  criarGasto(dados: DadosDoGasto): Promise<{ id?: string; erro?: string }>
+
+  editarGasto(id: string, dados: DadosDoGasto): Promise<{ erro?: string }>
+
+  excluirGasto(id: string): Promise<{ erro?: string }>
+
+  /** URL assinada do comprovante, 15 min de validade — null se não tem anexo. */
+  urlComprovanteGasto(id: string): Promise<{ url: string | null; erro?: string }>
+
+  /**
+   * Manda o áudio pra IA transcrever e extrair os campos. NÃO salva nada —
+   * quem salva é `criarGasto`, depois que o produtor confirma na tela.
+   */
+  transcreverAudioDeGasto(
+    audioBase64: string, mime: string, eventoId: string,
+  ): Promise<GastoExtraido | { erro: string }>
+
+  painelDeGastos(filtro?: FiltroGastos): Promise<PainelDeGastos>
+
+  exportarGastosXlsx(filtro: FiltroGastos): Promise<ArquivoDePlanilha | { erro: string }>
 
   // ── Push ───────────────────────────────────────────────────────────────
   //
