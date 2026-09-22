@@ -157,6 +157,35 @@ export type FinanceiroDaParticipacao = {
   chavePix: string | null
 }
 
+// ─── Meu histórico (entre eventos) ─────────────────────────────────────────
+//
+// A conta do colaborador é PERMANENTE — ao contrário do site, onde ela não
+// existe (a credencial chega por link e morre com o evento). Depois de
+// trabalhar em vários eventos ao longo do tempo, a pessoa não tinha como
+// ver os próprios eventos passados nem quanto já ganhou no total — só o
+// evento atual, um de cada vez. Escopo decidido com o Juan, 22/09/2026 (não
+// tem equivalente no site pra copiar).
+
+export type EventoDoHistorico = {
+  participacaoId: string
+  eventoId: string
+  eventoNome: string
+  local: string | null
+  dataInicio: string
+  situacao: 'aguardando_aprovacao' | 'credenciado' | 'descredenciado'
+  diasTrabalhados: number
+  /** Mesma régua de `FinanceiroDaParticipacao.valorPrevisto` — `null` quando o organizador não definiu valor. */
+  valorPrevisto: number | null
+  pagamentoSituacao: 'pendente' | 'em_processamento' | 'pago'
+}
+
+export type MeuHistorico = {
+  totalEventos: number
+  /** Soma de `valorPrevisto` de todas as participações — combinado, não necessariamente já pago. */
+  totalGanho: number
+  eventos: EventoDoHistorico[]
+}
+
 // ─── Bater ponto ────────────────────────────────────────────────────────────
 
 export type EnvioDeBatida = {

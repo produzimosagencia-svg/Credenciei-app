@@ -49,7 +49,7 @@ import {
 } from './rotas/acessos.js'
 import type { FuncaoDeAcesso, TipoDeAviso, VisaoDeAtividade } from '@credenciei/contrato'
 import {
-  consultarConvite, entrarNoEvento, meuFinanceiro, meuQr, meusDias,
+  consultarConvite, entrarNoEvento, meuFinanceiro, meuHistorico, meuQr, meusDias,
   minhasParticipacoes, type FonteDeCampos,
 } from './rotas/eventos.js'
 import {
@@ -336,6 +336,9 @@ export function criarServidor(amb: Ambiente) {
 
   app.get('/v1/participacoes/:id/qr', async c =>
     protegido(c, () => meuQr(amb.repo, amb.segredoQr, c.get('pessoaId'), c.req.param('id'))))
+
+  app.get('/v1/meu-historico', async c =>
+    protegido(c, () => meuHistorico(amb.repo, c.get('pessoaId'))))
 
   // ── Avisos (mural do admin) ──────────────────────────────────────────────
   app.get('/v1/eventos/:id/avisos-pendentes', async c =>

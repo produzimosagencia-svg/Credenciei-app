@@ -1,6 +1,6 @@
 # Backlog
 
-**326 tasks · 200 no MVP · 219 concluídas (67%)**
+**327 tasks · 200 no MVP · 220 concluídas (67%)**
 
 **Só o MVP: 163 de 200 (82%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -144,7 +144,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 6 | QR | 11 | 16 | ✓ | Falta Ed25519 e código giratório. Captura de tela trazida em 12/09: `expo-screen-capture` no crachá — bloqueia print/gravação no Android (`FLAG_SECURE`), só gravação no iOS (a plataforma não deixa impedir print, só avisar depois). Liberação do QR perto da hora de bater (`liberacaoDoQR`), 18/09: existia pronta e sem uso dos dois lados, ligada agora só no app |
 | 7 | Offline | 13 | 13 | ✓ | **Completa** — remapeada em 21/09 do mesmo jeito que a Epic 8: sem `NetInfo` nenhum (deliberado — a fila não precisa SABER que está offline, só tentar e tratar a falha como transporte, não como recusa), aviso "sem internet" já presente nas telas que dependem de dado fresco (`meus-eventos.tsx`, `painel.tsx`), esgotar as 30 tentativas já vira recusada com mensagem clara. Nenhuma lacuna concreta achada — não confirmado com o Juan ainda, diferente da Epic 8 (lá ele validou antes de eu recontar). Fila ligada ao app; a foto do meio sobe de verdade pro Storage (`subirFotoDoMeio`, desde 12/09) |
 | 8 | Ponto no app | 7 | 7 | ✓ | **Completa** — recontada em 18/09 depois de remapear e não achar tarefa concreta pendente (o "falta o resto do ciclo" era folga de estimativa antiga, não trabalho esquecido; Juan confirmou fechar assim, e aponta o que faltar se aparecer usando de verdade). O meio com selfie; `registrarEntradaLivre` (auto-atendimento) real na API; a credencial esconde o QR quando a participação não está credenciada, e avisa quando o dia foi cancelado; troca de evento quando a pessoa está em dois ao mesmo tempo; aviso de batida pendente na aba; contestar uma batida errada ou que faltou |
-| 9 | Histórico | 4 | 11 | — | Meus dias e Meu pagamento prontos |
+| 9 | Histórico | 5 | 12 | — | Meus dias, Meu pagamento e Meu histórico (entre eventos, 22/09) prontos — backend só, sem tela ainda |
 | 10 | Supervisor | 19 | 19 | — | Equipe, ficha da pessoa e histórico; tirar da equipe/excluir de vez/corrigir telefone são tasks novas, achadas em 14/09. Ativar/desativar sem tirar da equipe, foto/localização na presença de hoje, corrigir função, corrigir CPF e a aba de crachá (todos 21/09) — os 5 achados comparando com o site, todos fechados |
 | 11 | Push | 9 | 12 | — | Registro do token pronto. Firebase (Android/FCM) configurado de ponta a ponta em 21/09. `lembrete_entrada`, `lembrete_fim`, `lembrete_meio`, `alerta_supervisor_entrada`/`alerta_supervisor_fim` e `aviso_dia_evento`/`aviso_montagem`/`aviso_desmontagem` construídos no mesmo dia — motor próprio, cópia da regra que o site já manda por WhatsApp. Mural "Avisos" (leitura) e Central de Avisos (histórico + preferências) também construídos — ver as duas entradas no changelog. Faltam confirmação de escala (precisa de campo novo que o app não modela), boas-vindas (dispara na hora do cadastro, não por cron, valor questionável), disparo manual (parece redundante com o mural); o total desta epic (12) ainda não reflete esse tamanho. iOS (APNs) parado: precisa do Apple Developer Program pago, adiado por decisão do Juan |
 | 12 | Web | 0 | 16 | — | |
@@ -1549,6 +1549,27 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 >
 > 4 testes novos (`eventos.teste.ts`), 4 novos (`base-de-funcionarios.teste.ts`).
 > **Epic 14 sobe de 8/16 para 9/16.**
+>
+> **22/09/2026 — remapeando a Fase 3, achado real na Epic 9 (Histórico):
+> "meu histórico entre eventos" nunca tinha sido construído.** Investigando
+> os 7 restantes da epic (4/11, sem lista de tarefa detalhada e sem
+> equivalente no site — lá o colaborador não tem login, então nunca teve
+> "entre eventos" pra ver), perguntei direto ao Juan em vez de supor.
+> Confirmado: falta a pessoa ver os PRÓPRIOS eventos passados (não só o
+> atual) e quanto já ganhou no total — só existe porque a conta do
+> colaborador é PERMANENTE, diferença estrutural do site que nunca precisou
+> disso.
+>
+> Rota nova (`GET /v1/meu-historico`, `meuHistorico` em `rotas/eventos.ts`)
+> reaproveita `minhasParticipacoes` (já lista TODOS os eventos, passados e
+> atual) e `meuFinanceiro` por participação (já corrigido em 21/09) —
+> nenhuma consulta nova ao banco, só agregação do que já existia. Soma
+> `valorPrevisto` de todas as participações pro total ganho; participação
+> sem valor definido entra com `null` na lista, mas não quebra a soma.
+> 4 testes novos na rota, 2 no `cliente-falso`, 1 round-trip real.
+> **Epic 9 sobe de 4/11 para 5/12** (a tarefa é nova, escopo confirmado na
+> hora — o total da epic cresce junto, mesma régua de "excluir minha
+> conta" em 21/09). Sem tela ainda — backend primeiro, UI depois.
 
 ## Bloqueado, esperando o Juan
 
@@ -1581,7 +1602,7 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 - **Configurar um agendador externo** (cron-job.org, mesma ferramenta já cotada pra retenção de foto) batendo nas seis rotas de tempos em tempos (sugestão: a cada 15-30 min) — sem isso, os lembretes existem no código mas nunca disparam sozinhos: `POST /manutencao/lembrete-entrada`, `/lembrete-saida`, `/lembrete-meio`, `/alerta-supervisor-entrada`, `/alerta-supervisor-saida`, `/aviso-do-dia`.
 - **Decidir os três itens parados do push** (`confirmacao_escala`, `boas_vindas_funcionario`, `disparo_manual`) — ver o achado de 21/09 acima, cada um tem um motivo diferente pra não ter entrado ainda.
 - **Rodar a migração 010** (`app_notificacoes`/`app_preferencias_de_aviso`) — aditiva e segura, sem pressa, mesma régua das outras.
-- **Ainda falta a tela no app** pro mural "Avisos" (modal na credencial/painel), pra Central de Avisos (histórico + preferências) e pro módulo Gastos inteiro (captura manual/voz, lista, painel) — backend pronto e testado nos três, mas ninguém vê nada ainda sem a interface.
+- **Ainda falta a tela no app** pro mural "Avisos" (modal na credencial/painel), pra Central de Avisos (histórico + preferências), pro módulo Gastos inteiro (captura manual/voz, lista, painel) e pra Meu histórico (eventos passados + total ganho) — backend pronto e testado nos quatro, mas ninguém vê nada ainda sem a interface.
 - ~~Suporte de Sistema quebrado contra a API de verdade~~ → **construído em 22/09/2026, escopo fino igual ao site** — ver achado acima.
 - **Configurar `GEMINI_API_KEY` no Render** (mesma variável que o site já usa pro Gastos por voz) — sem ela, `transcreverAudioDeGasto` responde com um erro amigável ("leitura de áudio ainda não foi configurada"), mas ninguém consegue lançar gasto falando até essa chave existir no ambiente da API do app.
 - **Ligar o filtro de consentimento na busca regional** (`SO_QUEM_AUTORIZOU_APARECE_NA_BUSCA` em `apps/api/src/rotas/base-de-funcionarios.ts`) — está pronto e testado, só desligado. Requer que exista (ou já esteja em uso) uma tela de auto-cadastro perguntando o consentimento de verdade; senão a busca fica vazia pra quase todo mundo.

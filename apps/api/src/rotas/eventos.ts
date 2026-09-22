@@ -14,7 +14,7 @@ import {
   liberacaoDoQR, type EventoJanelas,
 } from '@credenciei/dominio'
 import type {
-  ConviteDoEvento, DiaDaParticipacao, FinanceiroDaParticipacao, ResumoParticipacao,
+  ConviteDoEvento, DiaDaParticipacao, EventoDoHistorico, FinanceiroDaParticipacao, MeuHistorico, ResumoParticipacao,
 } from '@credenciei/contrato'
 import type { LimiteDeTentativas } from '../limite.js'
 import type { Participacao, Repositorio } from '../dados/repositorio.js'
@@ -312,6 +312,40 @@ export async function meuFinanceiro(
     situacao: p.pago ? 'pago' : trabalhados > 0 ? 'em_processamento' : 'pendente',
     pagoEm: p.pagoEm,
     chavePix: p.chavePix ?? null,
+  }
+}
+
+/**
+ * Todo evento em que a pessoa já trabalhou — não só o atual — e quanto já
+ * ganhou no total. Só existe porque a conta do colaborador é PERMANENTE;
+ * escopo decidido com o Juan em 22/09/2026, sem equivalente no site (lá a
+ * credencial não sobrevive ao evento, não tem "entre eventos" para ver).
+ */
+export async function meuHistorico(
+  repo: Repositorio, pessoaId: string, agora = Date.now(),
+): Promise<MeuHistorico> {
+  const participacoes = await minhasParticipacoes(repo, pessoaId, agora)
+
+  const eventos: EventoDoHistorico[] = []
+  for (const p of participacoes) {
+    const financeiro = await meuFinanceiro(repo, pessoaId, p.participacaoId)
+    eventos.push({
+      participacaoId: p.participacaoId,
+      eventoId: p.eventoId,
+      eventoNome: p.eventoNome,
+      local: p.local,
+      dataInicio: p.dataInicio,
+      situacao: p.situacao,
+      diasTrabalhados: financeiro.diasTrabalhados,
+      valorPrevisto: financeiro.valorPrevisto,
+      pagamentoSituacao: financeiro.situacao,
+    })
+  }
+
+  return {
+    totalEventos: eventos.length,
+    totalGanho: eventos.reduce((soma, e) => soma + (e.valorPrevisto ?? 0), 0),
+    eventos,
   }
 }
 

@@ -312,6 +312,25 @@ test('valorPrevisto não muda com quantos dias a pessoa trabalhou — é o combi
   assert.equal(depois.valorPrevisto, antes)
 })
 
+test('meuHistorico traz o evento atual, com o mesmo valor do financeiro', async () => {
+  const c = await comParticipacao()
+  const financeiro = await c.meuFinanceiro('part-1')
+
+  const h = await c.meuHistorico()
+  assert.equal(h.totalEventos, 1)
+  assert.equal(h.totalGanho, financeiro.valorPrevisto)
+  assert.equal(h.eventos[0]?.participacaoId, 'part-1')
+})
+
+test('meuHistorico vem vazio pra quem nunca entrou em evento nenhum', async () => {
+  const c = new ClienteFalso()
+  await c.pedirCodigo('27999255959')
+  await c.entrar('27999255959', '123456')
+
+  const h = await c.meuHistorico()
+  assert.deepEqual(h, { totalEventos: 0, totalGanho: 0, eventos: [] })
+})
+
 // ─── Avisos (mural do admin) ────────────────────────────────────────────────
 
 test('mostra o aviso de demonstração, e some depois de marcado como visto', async () => {

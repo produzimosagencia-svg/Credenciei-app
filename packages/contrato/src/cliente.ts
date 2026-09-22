@@ -26,6 +26,7 @@ import type {
   DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte,
   ConfiguracoesDePermissao, LinhaDeAuditoria, MinhasPermissoes,
   EventoParaGasto, FiltroGastos, Gasto, DadosDoGasto, GastoExtraido, PainelDeGastos,
+  MeuHistorico,
 } from './tipos.js'
 import type { Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
@@ -72,6 +73,12 @@ export interface ClienteApi {
   minhasParticipacoes(): Promise<ResumoParticipacao[]>
   meusDias(participacaoId: string): Promise<DiaDaParticipacao[]>
   meuFinanceiro(participacaoId: string): Promise<FinanceiroDaParticipacao>
+  /**
+   * Todo evento em que já trabalhei — não só o atual — e quanto já ganhei
+   * no total. Só existe porque a conta do colaborador é PERMANENTE; o site
+   * não tem isto porque lá a credencial não sobrevive ao evento.
+   */
+  meuHistorico(): Promise<MeuHistorico>
   /**
    * "Excluir minha conta" — LGPD, direito ao esquecimento. Decidido com o
    * Juan em 21/09/2026: anonimiza nome, telefone e foto, mas NUNCA toca

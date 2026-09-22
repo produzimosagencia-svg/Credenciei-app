@@ -45,6 +45,7 @@ import type {
   DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte,
   ConfiguracoesDePermissao, LinhaDeAuditoria, MinhasPermissoes,
   EventoParaGasto, FiltroGastos, Gasto, DadosDoGasto, GastoExtraido, PainelDeGastos,
+  MeuHistorico,
 } from './tipos.js'
 import type { Papel } from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
@@ -318,6 +319,12 @@ export class ClienteHttp implements ClienteApi {
     const r = await this.pedir(`/v1/participacoes/${encodeURIComponent(participacaoId)}/financeiro`)
     if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar seu acerto.'))
     return r.corpo as unknown as FinanceiroDaParticipacao
+  }
+
+  async meuHistorico(): Promise<MeuHistorico> {
+    const r = await this.pedir('/v1/meu-historico')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos buscar seu histórico.'))
+    return r.corpo as unknown as MeuHistorico
   }
 
   async excluirMinhaConta(): Promise<{ erro?: string }> {

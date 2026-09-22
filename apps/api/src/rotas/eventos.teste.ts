@@ -11,7 +11,7 @@ import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import { LimiteEmMemoria } from '../limite.js'
 import { registrarBatida } from './batidas.js'
 import {
-  consultarConvite, entrarNoEvento, meuFinanceiro, meuQr, meusDias,
+  consultarConvite, entrarNoEvento, meuFinanceiro, meuHistorico, meuQr, meusDias,
   minhasParticipacoes, type CampoExtra,
 } from './eventos.js'
 
@@ -312,6 +312,56 @@ test('a chave PIX escrita no auto-cadastro aparece no financeiro, e falta vira n
   participacao.chavePix = 'joao@exemplo.com'
   const comChave = await meuFinanceiro(repo, 'pes-joao', 'part-joao')
   assert.equal(comChave.chavePix, 'joao@exemplo.com')
+})
+
+// ─── Meu histórico (entre eventos) ─────────────────────────────────────────
+//
+// Só existe porque a conta do colaborador é PERMANENTE — escopo decidido
+// com o Juan em 22/09/2026, sem equivalente no site.
+
+test('sem nenhuma participação, o histórico vem vazio, não quebra', async () => {
+  const { repo } = comDuasPessoas()
+  const h = await meuHistorico(repo, 'pes-maria')
+  assert.deepEqual(h, { totalEventos: 0, totalGanho: 0, eventos: [] })
+})
+
+test('com uma participação, o histórico traz o evento e soma o valor', async () => {
+  const { repo } = comDuasPessoas()
+  await registrarBatida(repo, 'pes-joao', {
+    id: 'e', participacaoId: 'part-joao', tipo: 'entrada', registradoEm: '2026-09-03T08:00:00-03:00',
+  })
+
+  const h = await meuHistorico(repo, 'pes-joao')
+  assert.equal(h.totalEventos, 1)
+  assert.equal(h.totalGanho, 150)
+  assert.equal(h.eventos[0]?.eventoNome, 'Henrique e Juliano — Kleber Andrade')
+  assert.equal(h.eventos[0]?.diasTrabalhados, 1)
+})
+
+test('com vários eventos, soma o valor de todos, mesmo sem valor definido em algum', async () => {
+  const { repo, evento } = comDuasPessoas()
+
+  repo.eventos.push({
+    ...evento, id: 'ev-2', nome: 'Manos da Vila', codigoConvite: 'MDV-2026-X1Y2', dataInicio: '2026-08-20T20:00:00-03:00',
+  })
+  repo.participacoes.push({
+    id: 'part-joao-2', pessoaId: 'pes-joao', eventoId: 'ev-2', equipeId: 'eq-1', equipeNome: 'Produção',
+    funcao: 'Bar', supervisorNome: null, ativo: true, descredenciadoEm: null, valorReceber: null,
+    pago: false, pagoEm: null, qrToken: 'tk-joao-2', cidade: null, criadoEm: '2026-08-15T10:00:00-03:00',
+  })
+
+  const h = await meuHistorico(repo, 'pes-joao')
+  assert.equal(h.totalEventos, 2)
+  // part-joao vale 150 (do cenário); part-joao-2 não tem valor definido — soma só o que existe.
+  assert.equal(h.totalGanho, 150)
+  assert.ok(h.eventos.some(e => e.eventoNome === 'Henrique e Juliano — Kleber Andrade'))
+  assert.ok(h.eventos.some(e => e.eventoNome === 'Manos da Vila' && e.valorPrevisto === null))
+})
+
+test('histórico de uma pessoa nunca mostra o de outra', async () => {
+  const { repo } = comDuasPessoas()
+  const h = await meuHistorico(repo, 'pes-maria')
+  assert.ok(!h.eventos.some(e => e.eventoNome === 'Henrique e Juliano — Kleber Andrade'))
 })
 
 // ─── QR ─────────────────────────────────────────────────────────────────────

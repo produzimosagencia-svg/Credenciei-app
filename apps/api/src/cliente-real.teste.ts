@@ -171,6 +171,19 @@ test('o financeiro é o da própria pessoa', async () => {
   assert.equal(typeof f.diasTrabalhados, 'number')
 })
 
+test('meu histórico vai e volta pela API, batendo com o financeiro da mesma participação', async () => {
+  const m = montar()
+  await entrar(m)
+  const p = (await m.cliente.minhasParticipacoes())[0]!
+  const f = await m.cliente.meuFinanceiro(p.participacaoId)
+
+  const h = await m.cliente.meuHistorico()
+  assert.equal(h.totalEventos, 1)
+  assert.equal(h.totalGanho, f.valorPrevisto ?? 0)
+  assert.equal(h.eventos[0]?.participacaoId, p.participacaoId)
+  assert.equal(h.eventos[0]?.eventoNome, p.eventoNome)
+})
+
 test('o mural de avisos vai e volta pela API', async () => {
   const m = montar()
   await entrar(m)

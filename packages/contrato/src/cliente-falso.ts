@@ -55,6 +55,7 @@ import type {
   DadosDeSuporte, DadosDeNovoSuporte, EdicaoDeSuporte, SuporteAcesso, ConfiguracaoDoMeio,
   ConfiguracoesDePermissao, ExcecaoDePermissao, LinhaDeAuditoria, MinhasPermissoes,
   EventoParaGasto, FiltroGastos, Gasto, DadosDoGasto, GastoExtraido, PainelDeGastos,
+  MeuHistorico,
 } from './tipos.js'
 import { VISOES_DE_ATIVIDADE } from './tipos.js'
 import type { FaseDoDia, Papel } from '@credenciei/dominio'
@@ -1417,6 +1418,28 @@ export class ClienteFalso implements ClienteApi {
       pagoEm: null,
       chavePix: null,
     }
+  }
+
+  async meuHistorico(): Promise<MeuHistorico> {
+    await this.rede()
+    this.exigirSessao()
+    // O cenário de mentira só modela UMA participação por vez — o histórico
+    // aqui é essa única, ou vazio, nunca vários eventos passados de verdade.
+    if (!this.participacao) return { totalEventos: 0, totalGanho: 0, eventos: [] }
+
+    const financeiro = await this.meuFinanceiro(this.participacao.participacaoId)
+    const evento = {
+      participacaoId: this.participacao.participacaoId,
+      eventoId: this.participacao.eventoId,
+      eventoNome: this.participacao.eventoNome,
+      local: this.participacao.local,
+      dataInicio: this.participacao.dataInicio,
+      situacao: this.participacao.situacao,
+      diasTrabalhados: financeiro.diasTrabalhados,
+      valorPrevisto: financeiro.valorPrevisto,
+      pagamentoSituacao: financeiro.situacao,
+    }
+    return { totalEventos: 1, totalGanho: evento.valorPrevisto ?? 0, eventos: [evento] }
   }
 
   async excluirMinhaConta(): Promise<{ erro?: string }> {
