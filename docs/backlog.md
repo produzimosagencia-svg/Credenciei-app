@@ -1,8 +1,8 @@
 # Backlog
 
-**327 tasks · 200 no MVP · 220 concluídas (67%)**
+**315 tasks · 188 no MVP · 217 concluídas (69%)**
 
-**Só o MVP: 163 de 200 (82%).** É o número que responde "quando dá para usar" —
+**Só o MVP: 160 de 188 (85%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
 
 > Os dois números saem de `npm run backlog`, que soma a tabela abaixo e recusa
@@ -122,7 +122,7 @@ cada uma.
 |---|---|---|---|
 | 1 — Fechar o mapeamento | 17 | 3 | Restam só as três telas de WhatsApp (conversas, disparo, fluxos) — deliberadamente adiadas |
 | 2 — Ligar a API de verdade | 3, 17, 18 | 0 | **Completa.** Epic 3, Epic 18 e a Epic 17 inteira — organizações, veículos, bloqueio de CPF, base de funcionários, encontrar colaborador, relatórios (com planilha `.xlsx`/`.zip` de verdade), cartaz da portaria, criar setor e equipe do setor |
-| 3 — Fechar os ciclos pela metade | 2, 4, 6, 7, 8, 9, 10 | 33 | Sincronização com o site, QR (Ed25519, código giratório), histórico e polimento do supervisor. **Epic 8 fechou em 18/09** (7/7) e **Epic 7 fechou em 21/09** (13/13) — as duas remapeadas sem tarefa concreta sobrando |
+| 3 — Fechar os ciclos pela metade | 2, 4, 6, 7, 8, 9, 10 | 17 | Sincronização com o site, QR (Ed25519, código giratório), histórico. **Epic 8 fechou em 18/09** (7/7), **Epic 7 em 21/09** (13/13), **Epic 4 em 22/09** (6/6) e **Epic 10 já estava fechada** (19/19) — todas remapeadas sem tarefa concreta sobrando. Resta Epic 2 (5, nota desatualizada — `produtor` já construído em 22/09), Epic 6 (5, Ed25519/código giratório) e Epic 9 (7, ainda sem lista detalhada) |
 | 4 — Aguentar 20 mil pessoas | 13, 14 | 22 | Teste de carga, resto do LGPD. **Retenção de foto (90 dias) construída em 21/09** |
 | 5 — Publicar | 11, 16 | 30 | Push e as duas lojas — **bloqueado na conta Apple Developer** |
 | 6 — O banco de verdade | 1 | ~10 | **Não é mais bloqueio** — decisão de rodar direto em produção, com cuidado, tomada há semanas. Das 8 migrações escritas (001-008, 010), TODAS já rodaram; falta recontar a epic tarefa a tarefa (número antigo, não confiar) |
@@ -141,7 +141,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 1 | Modelo de dados | 3 | 16 | ✓ | Número desatualizado — só contava "SQL escrito" pras 3 migrações originais (pessoas, código de convite, dois relógios). Na real: 8 migrações escritas (001-008, 010) e TODAS já rodaram em produção (última confirmação: 010, 22/09) — falta remapear a epic tarefa a tarefa pra um Feito/Total confiável, mesma régua que fechou Epic 7/8 |
 | 2 | Fundação | 8 | 13 | ✓ | `operador_portao` e `suporte` no domínio; falta só `produtor` (módulo Gastos) |
 | 3 | API v1 | 32 | 32 | ✓ | Completo: login, painel, escanear, ponto assistido, atividades e acessos, todos reais e ligados pelo `ClienteHttp` |
-| 4 | Conta do colaborador | 9 | 18 | ✓ | Login e entrada no evento, com tela |
+| 4 | Conta do colaborador | 6 | 6 | ✓ | **Completa** — remapeada em 22/09, mesmo método que fechou Epic 7/8: o fluxo inteiro (pedir código → entrar → guardar sessão → consultar convite → completar formulário → entrar no evento) está construído e testado de ponta a ponta (`apps/app/src/fluxo.teste.ts`). O número antigo (9/18) não tinha histórico nem checklist que o justificasse |
 | 5 | App base | 15 | 15 | ✓ | Navegação com voltar, campos, data/hora e o redesign "Arena" (laranja/escuro) |
 | 6 | QR | 11 | 16 | ✓ | Falta Ed25519 e código giratório. Captura de tela trazida em 12/09: `expo-screen-capture` no crachá — bloqueia print/gravação no Android (`FLAG_SECURE`), só gravação no iOS (a plataforma não deixa impedir print, só avisar depois). Liberação do QR perto da hora de bater (`liberacaoDoQR`), 18/09: existia pronta e sem uso dos dois lados, ligada agora só no app |
 | 7 | Offline | 13 | 13 | ✓ | **Completa** — remapeada em 21/09 do mesmo jeito que a Epic 8: sem `NetInfo` nenhum (deliberado — a fila não precisa SABER que está offline, só tentar e tratar a falha como transporte, não como recusa), aviso "sem internet" já presente nas telas que dependem de dado fresco (`meus-eventos.tsx`, `painel.tsx`), esgotar as 30 tentativas já vira recusada com mensagem clara. Nenhuma lacuna concreta achada — não confirmado com o Juan ainda, diferente da Epic 8 (lá ele validou antes de eu recontar). Fila ligada ao app; a foto do meio sobe de verdade pro Storage (`subirFotoDoMeio`, desde 12/09) |
@@ -1572,6 +1572,19 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > **Epic 9 sobe de 4/11 para 5/12** (a tarefa é nova, escopo confirmado na
 > hora — o total da epic cresce junto, mesma régua de "excluir minha
 > conta" em 21/09). Sem tela ainda — backend primeiro, UI depois.
+>
+> **22/09/2026 — Epic 4 (Conta do colaborador) remapeada e fechada em
+> 6/6.** Continuando a Fase 3 (próxima prioridade real do backlog),
+> investiguei os 9/18 sem histórico nem checklist que os justificasse —
+> mesmo padrão vago de Epic 1, 7, 8 e 9 antes de remapear. O fluxo inteiro
+> (pedir código → entrar → guardar sessão no aparelho → consultar convite
+> → completar o formulário do evento → entrar) está construído e testado
+> de ponta a ponta, com um teste dedicado a provar a LIGAÇÃO entre as
+> peças, não só cada uma isolada (`apps/app/src/fluxo.teste.ts`). Nenhuma
+> lacuna concreta achada — confirmado com o Juan antes de recontar, mesma
+> régua que fechou Epic 8 (e diferente de Epic 7, que foi remapeada sem
+> essa confirmação). **327 tasks vira 315** (188 no MVP, era 200) — o
+> número antigo superestimava, não o trabalho que faltava.
 
 ## Bloqueado, esperando o Juan
 
