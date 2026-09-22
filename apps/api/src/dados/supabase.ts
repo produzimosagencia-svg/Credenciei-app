@@ -136,38 +136,47 @@ export class RepositorioSupabase implements Repositorio {
 
   // ── Identidade ────────────────────────────────────────────────────────────
 
+  /*
+   * ─── A TABELA `pessoas` JÁ EXISTE (migração 001, rodada em 22/09/2026) ────
+   *
+   * Os quatro métodos abaixo agora leem/escrevem na tabela `pessoas` — a
+   * fonte canônica de identidade — em vez de derivar nome/telefone/foto de
+   * QUALQUER linha de `funcionarios` que bater o CPF (o que podia trazer
+   * dado velho de um evento antigo, se aquele fosse o `created_at` mais
+   * recente por acaso da consulta errada).
+   *
+   * O `id` que sai daqui pra fora CONTINUA sendo `cpf:XXXXX`
+   * (`idDaPessoa`/`cpfDoId`) — não o `pessoas.id` (uuid) de verdade. Trocar
+   * o formato quebraria sessão, token de push e histórico de notificação
+   * de quem já está usando o app hoje; decisão explícita do Juan
+   * (22/09/2026) de não fazer esse corte agora. `pessoas` entra como fonte
+   * de dado mais correta, sem mudar a forma da identidade externa.
+   */
+
   async pessoaPorTelefone(telefone: string): Promise<Pessoa | null> {
     const d = soDigitos(telefone)
     if (d.length < 10) return null
 
-    /*
-     * Compara pelos ÚLTIMOS OITO dígitos.
-     *
-     * O mesmo número aparece no banco de várias formas: com e sem o 55 do
-     * país, com e sem o 9 na frente do celular, com e sem máscara. Comparar o
-     * texto inteiro faria a pessoa não conseguir entrar por causa de como
-     * alguém digitou o número dela meses atrás.
-     *
-     * Oito dígitos são o número sem DDD — específico o bastante para não
-     * colidir dentro de um estado, e tolerante às variações que importam.
-     */
+    // Mesmo raciocínio de sempre: compara pelos ÚLTIMOS OITO dígitos, porque
+    // o mesmo número aparece com e sem 55/9/máscara. Ver o índice
+    // `pessoas_telefone_final` na migração 001, pensado pra esta consulta.
     const finais = d.slice(-8)
     const { data } = await this.db
-      .from('funcionarios')
-      .select('cpf, nome, telefone, foto_perfil_path')
+      .from('pessoas')
+      .select('cpf, nome, telefone, foto_path')
       .like('telefone', `%${finais}`)
-      .order('created_at', { ascending: false })
+      .order('atualizado_em', { ascending: false })
       .limit(1)
 
-    const f = data?.[0]
-    if (!f?.cpf) return null
+    const p = data?.[0]
+    if (!p?.cpf) return null
 
     return {
-      id: idDaPessoa(f.cpf as string),
-      nome: f.nome as string,
-      cpf: f.cpf as string,
-      telefone: (f.telefone as string | null) ?? null,
-      fotoPath: (f.foto_perfil_path as string | null) ?? null,
+      id: idDaPessoa(p.cpf as string),
+      nome: p.nome as string,
+      cpf: p.cpf as string,
+      telefone: (p.telefone as string | null) ?? null,
+      fotoPath: (p.foto_path as string | null) ?? null,
     }
   }
 
@@ -179,23 +188,16 @@ export class RepositorioSupabase implements Repositorio {
     const cpf = cpfDoId(id)
     if (!cpf) return null
 
-    // O cadastro mais recente manda: é o que tem o nome e a foto atualizados.
-    const { data } = await this.db
-      .from('funcionarios')
-      .select('cpf, nome, telefone, foto_perfil_path')
-      .eq('cpf', cpf)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    const f = data?.[0]
-    if (!f) return null
+    const { data: p } = await this.db
+      .from('pessoas').select('cpf, nome, telefone, foto_path').eq('cpf', cpf).maybeSingle()
+    if (!p) return null
 
     return {
       id,
-      nome: f.nome as string,
+      nome: p.nome as string,
       cpf,
-      telefone: (f.telefone as string | null) ?? null,
-      fotoPath: (f.foto_perfil_path as string | null) ?? null,
+      telefone: (p.telefone as string | null) ?? null,
+      fotoPath: (p.foto_path as string | null) ?? null,
     }
   }
 
@@ -204,30 +206,43 @@ export class RepositorioSupabase implements Repositorio {
     if (!cpf) return
 
     /*
-     * `foto_perfil_path` é escrito pelo SITE (este app nunca sobe essa
-     * foto — só a selfie do meio, num bucket e esquema de caminho
-     * diferentes). Por isso aqui só o CAMPO é limpo, sem tentar apagar
-     * nada do Storage: não temos como confirmar o bucket/caminho de algo
-     * que nunca escrevemos, e arriscar apagar o arquivo errado é pior do
-     * que deixar um arquivo órfão sem nome nenhum apontando pra ele.
+     * `foto_perfil_path`/`foto_path` são escritos pelo SITE (este app nunca
+     * sobe essa foto — só a selfie do meio, num bucket e esquema de caminho
+     * diferentes). Por isso aqui só o CAMPO é limpo, sem tentar apagar nada
+     * do Storage: não temos como confirmar o bucket/caminho de algo que
+     * nunca escrevemos, e arriscar apagar o arquivo errado é pior do que
+     * deixar um arquivo órfão sem nome nenhum apontando pra ele.
+     *
+     * Os DOIS lados: `funcionarios` (o que o site e o resto do app ainda
+     * leem) e `pessoas` (o que `pessoaPorId` lê agora) — sem os dois, a
+     * exclusão pareceria funcionar mas a leitura por `pessoas` continuaria
+     * mostrando o nome antigo.
      */
-    await this.db.from('funcionarios')
-      .update({ nome: 'Pessoa excluída', telefone: null, foto_perfil_path: null })
-      .eq('cpf', cpf)
+    await Promise.all([
+      this.db.from('funcionarios')
+        .update({ nome: 'Pessoa excluída', telefone: null, foto_perfil_path: null })
+        .eq('cpf', cpf),
+      this.db.from('pessoas')
+        .update({ nome: 'Pessoa excluída', telefone: null, foto_path: null, atualizado_em: new Date().toISOString() })
+        .eq('cpf', cpf),
+    ])
   }
 
-  async criarPessoa(): Promise<Pessoa> {
-    /*
-     * Não dá para criar pessoa sem evento no modelo antigo.
-     *
-     * `funcionarios` exige `fornecedor_id` — não existe cadastro solto. Criar
-     * conta antes de entrar num evento só passa a ser possível depois da
-     * migração, e falhar aqui em voz alta é melhor do que inventar uma linha
-     * órfã que ninguém depois entende de onde veio.
-     */
-    throw new Error(
-      'Criar pessoa sem vínculo com evento exige a tabela `pessoas`. Ver docs/decisoes/006-migracao-pessoas.md',
-    )
+  async criarPessoa(p: Omit<Pessoa, 'id'>): Promise<Pessoa> {
+    const { data, error } = await this.db
+      .from('pessoas')
+      .insert({ cpf: p.cpf, nome: p.nome, telefone: p.telefone, foto_path: p.fotoPath })
+      .select('cpf, nome, telefone, foto_path')
+      .single()
+    if (error || !data) throw new Error('Não foi possível criar esta pessoa.')
+
+    return {
+      id: idDaPessoa(data.cpf as string),
+      nome: data.nome as string,
+      cpf: data.cpf as string,
+      telefone: (data.telefone as string | null) ?? null,
+      fotoPath: (data.foto_path as string | null) ?? null,
+    }
   }
 
   /*
@@ -813,9 +828,11 @@ export class RepositorioSupabase implements Repositorio {
   }
 
   async corrigirTelefoneDaParticipacao(participacaoId: string, telefone: string): Promise<void> {
-    const { error } = await this.db.from('funcionarios')
+    const { data: func, error } = await this.db.from('funcionarios')
       .update({ telefone })
       .eq('id', participacaoId)
+      .select('pessoa_id')
+      .single()
     if (error) throw new Error('Não foi possível corrigir o telefone.')
 
     /*
@@ -829,6 +846,14 @@ export class RepositorioSupabase implements Repositorio {
       .update({ telefone })
       .eq('funcionario_id', participacaoId)
       .eq('status', 'pendente')
+
+    // A canônica também — sem isto, `pessoaPorId`/`pessoaPorTelefone`
+    // continuariam achando o número antigo depois da correção.
+    if (func?.pessoa_id) {
+      await this.db.from('pessoas')
+        .update({ telefone, atualizado_em: new Date().toISOString() })
+        .eq('id', func.pessoa_id as string)
+    }
   }
 
   async excluirParticipacaoDeVez(participacaoId: string): Promise<void> {
@@ -836,6 +861,19 @@ export class RepositorioSupabase implements Repositorio {
     if (error) throw new Error('Não foi possível excluir esta pessoa.')
   }
 
+  /*
+   * PENDÊNCIA CONHECIDA (22/09/2026): não religa `pessoa_id` pra apontar pra
+   * outra linha de `pessoas`. Corrigir o CPF muda QUAL PESSOA esta
+   * participação é — pode significar religar pra uma `pessoas` já
+   * existente com o CPF novo, ou criar uma linha nova, e as duas exigem
+   * decidir o que fazer com o histórico da `pessoas` antiga (ela pode ter
+   * outras participações, de outros eventos, que continuam corretas).
+   * Fora do escopo de "aproveitar a tabela sem trocar a identidade" —
+   * mexer nisso decide identidade, não só lê. Até resolver, `pessoaPorId`
+   * de quem teve o CPF corrigido pode mostrar dado desatualizado. Não
+   * bloqueia a correção em si (o site tem a mesma limitação hoje: não
+   * conhece `pessoas`).
+   */
   async corrigirCpfDaParticipacao(participacaoId: string, cpf: string): Promise<void> {
     const { error } = await this.db.from('funcionarios')
       .update({ cpf })

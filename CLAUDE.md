@@ -165,14 +165,31 @@ Juan Muzy · CPF 154.321.447-94
   linha 2   Manos da Vila / Produção           qr_token B   histórico B
 ```
 
-Nenhuma linha diz "Juan Muzy, a pessoa". Conta permanente exige separar
-`pessoas` (permanente) de `participacoes` (do evento). A coluna
-`funcionarios.pessoa_id` **já existe, vazia e sem tabela do outro lado** —
-alguém começou isto antes e parou.
+Nenhuma linha diz "Juan Muzy, a pessoa" — **era assim até 22/09/2026.**
 
-`apps/api/src/dados/supabase.ts` traduz entre os dois modelos e é o único
-arquivo que conhece o schema antigo. Quando o banco migrar, a tradução some
-dali e nenhum endpoint muda.
+**A migração 001 rodou.** A tabela `pessoas` existe de verdade (2.029
+linhas), e `funcionarios.pessoa_id` está 100% preenchido — não há mais
+cadastro órfão. `apps/api/src/dados/supabase.ts` já lê/escreve `pessoas`
+como fonte canônica de identidade (`pessoaPorId`, `pessoaPorCpf`,
+`pessoaPorTelefone`, `criarPessoa`, `excluirMinhaConta`,
+`corrigirTelefoneDaParticipacao` — todos com dual-write pra `funcionarios`
+continuar correto pro site, que ainda não conhece `pessoas`).
+
+**O que NÃO mudou, de propósito, por decisão do Juan (22/09/2026)**: o
+`pessoaId` que a API expõe pra fora continua sendo `cpf:XXXXX`
+(`idDaPessoa`/`cpfDoId`), não o `pessoas.id` (uuid) de verdade. Trocar o
+formato quebraria sessão, token de push, histórico de notificação e
+preferências de quem já usa o app — é um corte de identidade que precisa
+de plano próprio, não uma leitura a mais. `pessoas` entrou como dado mais
+correto, sem mudar a FORMA da identidade externa ainda.
+
+**Pendência conhecida, não resolvida ainda**: `corrigirCpfDaParticipacao`
+(ficha da pessoa) NÃO religa `pessoa_id` pra outra linha de `pessoas` —
+corrigir o CPF muda qual PESSOA aquela participação é, e decidir se isso
+religa pra uma `pessoas` existente ou cria uma nova (e o que fazer com o
+histórico da `pessoas` antiga) é mexer em identidade, não só ler. Até
+resolver, `pessoaPorId` de quem teve o CPF corrigido pode mostrar dado
+desatualizado — mesma limitação que o site já tem hoje, não é regressão.
 
 ---
 
@@ -319,6 +336,21 @@ docs/contexto.md                    a história completa: como chegamos aqui
 docs/decisoes/                      uma decisão por arquivo, com o motivo
 docs/credenciei-web-estado-atual.md o site em 11/09/2026 — leia antes de assumir
                                      que uma tela ou regra antiga ainda vale
+docs/credenciei-web-notas-operacionais.md
+                                     infra/operação do site (domínio, contas,
+                                     deploy) — atualizado por fora deste repo
+docs/credenciei-web-regras-de-negocio.md
+                                     janelas/fases, QR, presença híbrida, bugs
+                                     históricos já corrigidos — leia antes de
+                                     reimplementar qualquer lógica de ponto
+docs/credenciei-web-permissoes-autenticacao.md
+                                     papéis, capacidades, RLS, login por CPF —
+                                     por que o app não pode falar com o Supabase direto
+docs/credenciei-web-modulos.md      Gastos, Financeiro, Auditoria, Avisos,
+                                     Conferência, Suporte, Backlog etc.
+docs/credenciei-web-funcoes-integracoes.md
+                                     inventário de Server Actions + WhatsApp/
+                                     e-mail/Sheets/IA/cron
 db/migracoes/                       maioria escrita, não executada — leia o cabeçalho antes
                                      de rodar qualquer uma (002, 004, 005 e 007 já rodaram)
 ```
