@@ -431,6 +431,16 @@ export interface Repositorio {
    */
   registrarConsentimentoDeBase(participacaoId: string, quando: string): Promise<void>
 
+  /**
+   * Desfaz o consentimento — em TODOS os cadastros com o mesmo CPF, não
+   * só a participação que autorizou (a busca regional agrupa por pessoa,
+   * então autorizar ou revogar precisa valer pra ela inteira, não por
+   * evento). Revogar é tão fácil quanto autorizar — mesma régua da LGPD
+   * pro consentimento em si. Diferente de `excluirMinhaConta`: a pessoa
+   * continua com a conta e o histórico, só para de aparecer na busca.
+   */
+  revogarConsentimentoDeBase(pessoaId: string): Promise<void>
+
   /** "Mover de setor" — muda a equipe (fornecedor) desta participação, dentro do mesmo evento. */
   moverParticipacao(participacaoId: string, novoEquipeId: string): Promise<void>
   /** Marca/desmarca o pagamento — `pago: true` carimba agora; `false` limpa a data. */

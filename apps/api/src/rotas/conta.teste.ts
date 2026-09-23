@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import { ArquivosEmMemoria } from '../arquivos.js'
 import { registrarBatida } from './batidas.js'
-import { meusDados } from './conta.js'
+import { meusDados, revogarConsentimentoDeBase } from './conta.js'
 
 const URL_BASE = 'http://api.local'
 
@@ -97,4 +97,50 @@ test('os dados de uma pessoa não vazam pra outra', async () => {
   assert.equal(dadosDaMaria.pessoa.nome, 'Maria Souza')
   assert.equal(dadosDaMaria.participacoes.length, 1)
   assert.equal(dadosDaMaria.participacoes[0].registros.length, 0, 'a batida do João não pode aparecer pra Maria')
+})
+
+// ─── Revogar consentimento da busca regional ───────────────────────────────
+
+test('revogar limpa o consentimento de TODAS as participações da pessoa, não só uma', async () => {
+  const { repo, pessoa, participacao } = cenarioHenriqueEJuliano()
+  repo.eventos.push({
+    ...(await repo.eventoPorId(participacao.eventoId))!, id: 'ev-2', nome: 'Manos da Vila', codigoConvite: 'MDV-2026-X1Y2',
+  })
+  repo.participacoes.push({
+    id: 'part-joao-2', pessoaId: pessoa.id, eventoId: 'ev-2', equipeId: 'eq-1', equipeNome: 'Produção',
+    funcao: 'Bar', supervisorNome: null, ativo: true, descredenciadoEm: null, valorReceber: 100,
+    pago: false, pagoEm: null, qrToken: 'tk-joao-2', cidade: null, criadoEm: '2026-08-20T10:00:00-03:00',
+  })
+  await repo.registrarConsentimentoDeBase(participacao.id, '2026-09-01T10:00:00-03:00')
+  await repo.registrarConsentimentoDeBase('part-joao-2', '2026-08-25T10:00:00-03:00')
+
+  const antes = (await repo.todasAsPessoasDaBase()).find(p => p.cpf === pessoa.cpf)!
+  assert.equal(antes.autorizouBaseRegional, true)
+
+  await revogarConsentimentoDeBase(repo, pessoa.id)
+
+  const depois = (await repo.todasAsPessoasDaBase()).find(p => p.cpf === pessoa.cpf)!
+  assert.equal(depois.autorizouBaseRegional, false)
+})
+
+test('revogar quem nunca autorizou nada não dá erro', async () => {
+  const { repo, pessoa } = cenarioHenriqueEJuliano()
+  const r = await revogarConsentimentoDeBase(repo, pessoa.id)
+  assert.deepEqual(r, {})
+})
+
+test('revogar não afeta o consentimento de OUTRA pessoa', async () => {
+  const { repo, pessoa, participacao } = cenarioHenriqueEJuliano()
+  repo.pessoas.push({ id: 'pes-maria', nome: 'Maria Souza', cpf: '98765432100', telefone: null, fotoPath: null })
+  repo.participacoes.push({
+    id: 'part-maria', pessoaId: 'pes-maria', eventoId: participacao.eventoId, equipeId: 'eq-1', equipeNome: 'Produção',
+    funcao: 'Bar', supervisorNome: null, ativo: true, descredenciadoEm: null, valorReceber: 100,
+    pago: false, pagoEm: null, qrToken: 'tk-maria', cidade: null, criadoEm: '2026-08-20T10:00:00-03:00',
+  })
+  await repo.registrarConsentimentoDeBase('part-maria', '2026-09-01T10:00:00-03:00')
+
+  await revogarConsentimentoDeBase(repo, pessoa.id)
+
+  const maria = (await repo.todasAsPessoasDaBase()).find(p => p.cpf === '98765432100')!
+  assert.equal(maria.autorizouBaseRegional, true, 'revogar do João não pode afetar a Maria')
 })

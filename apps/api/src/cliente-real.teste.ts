@@ -368,6 +368,22 @@ test('meus dados é só para conta de colaborador', async () => {
   await assert.rejects(m.cliente.meusDados(), /só para conta de colaborador/)
 })
 
+test('revogar consentimento vai e volta pela API — some da base regional', async () => {
+  const m = montar()
+  await entrar(m)
+  const p = (await m.cliente.minhasParticipacoes())[0]!
+
+  await m.repo.registrarConsentimentoDeBase(p.participacaoId, '2026-09-01T10:00:00-03:00')
+  const antes = (await m.repo.todasAsPessoasDaBase()).find(x => x.cpf)!
+  assert.equal(antes.autorizouBaseRegional, true)
+
+  const r = await m.cliente.revogarConsentimentoDeBase()
+  assert.deepEqual(r, {})
+
+  const depois = (await m.repo.todasAsPessoasDaBase()).find(x => x.cpf === antes.cpf)!
+  assert.equal(depois.autorizouBaseRegional, false)
+})
+
 test('excluir minha conta vai e volta pela API — anonimiza e derruba a sessão', async () => {
   const m = montar()
   await entrar(m)

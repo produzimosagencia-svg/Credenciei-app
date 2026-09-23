@@ -379,6 +379,12 @@ test('conta de painel não usa meus dados', async () => {
   await assert.rejects(() => c.meusDados(), /só para conta de colaborador/)
 })
 
+test('revogar consentimento é idempotente — funciona mesmo sem ter autorizado antes', async () => {
+  const c = await logado()
+  assert.deepEqual(await c.revogarConsentimentoDeBase(), {})
+  assert.deepEqual(await c.revogarConsentimentoDeBase(), {})
+})
+
 // ─── QR ─────────────────────────────────────────────────────────────────────
 
 test('o QR muda de etapa junto com o dia', async () => {

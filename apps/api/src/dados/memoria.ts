@@ -877,6 +877,12 @@ export class RepositorioEmMemoria implements Repositorio {
     this.consentimentosDeBase.set(participacaoId, quando)
   }
 
+  async revogarConsentimentoDeBase(pessoaId: string): Promise<void> {
+    for (const p of this.participacoes) {
+      if (p.pessoaId === pessoaId) this.consentimentosDeBase.delete(p.id)
+    }
+  }
+
   async trabalhosDaPessoa(cpf: string): Promise<TrabalhoNaBase[]> {
     const pessoa = await this.pessoaPorCpf(cpf)
     if (!pessoa) return []

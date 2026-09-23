@@ -37,7 +37,7 @@ import { avisosPendentes, marcarAvisoVisto } from './rotas/avisos.js'
 import {
   marcarNotificacaoComoLida, marcarTodasComoLidas, minhasNotificacoes, salvarPreferenciasDeAvisos,
 } from './rotas/notificacoes.js'
-import { excluirMinhaConta, meusDados } from './rotas/conta.js'
+import { excluirMinhaConta, meusDados, revogarConsentimentoDeBase } from './rotas/conta.js'
 import { painelDaEquipe } from './rotas/equipe.js'
 import { painel } from './rotas/painel.js'
 import { conferirPorCpf, eventosParaEscanear, registrarPorQr } from './rotas/escanear.js'
@@ -315,6 +315,13 @@ export function criarServidor(amb: Ambiente) {
       return c.json({ erro: 'Esta ação é só para conta de colaborador.' }, 400)
     }
     return protegido(c, () => meusDados(amb.repo, amb.arquivos, c.get('pessoaId')))
+  })
+
+  app.post('/v1/minha-conta/revogar-consentimento', async c => {
+    if (c.get('papel') !== 'colaborador') {
+      return c.json({ erro: 'Esta ação é só para conta de colaborador.' }, 400)
+    }
+    return c.json(await revogarConsentimentoDeBase(amb.repo, c.get('pessoaId')))
   })
 
   // ── Entrar num evento ───────────────────────────────────────────────────

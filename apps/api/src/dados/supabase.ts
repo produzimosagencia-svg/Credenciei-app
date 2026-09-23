@@ -1664,6 +1664,14 @@ export class RepositorioSupabase implements Repositorio {
       .eq('id', participacaoId)
   }
 
+  async revogarConsentimentoDeBase(pessoaId: string): Promise<void> {
+    const cpf = cpfDoId(pessoaId)
+    if (!cpf) return
+    await this.db.from('funcionarios')
+      .update({ consentimento_base: false, consentimento_em: new Date().toISOString() })
+      .eq('cpf', cpf)
+  }
+
   async trabalhosDaPessoa(cpf: string): Promise<TrabalhoNaBase[]> {
     const { data } = await this.db
       .from('funcionarios')

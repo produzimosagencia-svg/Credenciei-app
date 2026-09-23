@@ -1463,6 +1463,14 @@ export class ClienteFalso implements ClienteApi {
     return { nome: `meus-dados-${hoje}.json`, url: `${ENDERECO_DE_ARQUIVOS}/meus-dados` }
   }
 
+  async revogarConsentimentoDeBase(): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    // O cenário de mentira não modela consentimento_base — nada a desfazer,
+    // mas a chamada precisa continuar segura de fazer (idempotente).
+    return {}
+  }
+
   async meuQr(participacaoId: string) {
     await this.rede()
     this.exigirParticipacao(participacaoId)

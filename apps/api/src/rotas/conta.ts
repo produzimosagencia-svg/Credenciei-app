@@ -27,6 +27,21 @@ export async function excluirMinhaConta(
 }
 
 /**
+ * Revoga o consentimento de aparecer na busca regional — LGPD, revogar
+ * tem que ser tão fácil quanto autorizar. Diferente de `excluirMinhaConta`:
+ * a pessoa continua com a conta e o histórico inteiros, só para de
+ * aparecer como opção de recrutamento futuro. Pode autorizar nunca (a
+ * tela de auto-cadastro ainda nem pergunta isso — ver `entrarNoEvento`) e
+ * mesmo assim chamar isto: não tem erro, só não muda nada.
+ */
+export async function revogarConsentimentoDeBase(
+  repo: Repositorio, pessoaId: string,
+): Promise<{ erro?: string }> {
+  await repo.revogarConsentimentoDeBase(pessoaId)
+  return {}
+}
+
+/**
  * "Baixar meus dados" — LGPD, direito de acesso/portabilidade. Decidido
  * com o Juan em 22/09/2026: um arquivo com tudo que o sistema sabe sobre
  * a pessoa, em formato estruturado (JSON) — o que a lei pede pra

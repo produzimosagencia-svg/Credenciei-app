@@ -1,6 +1,6 @@
 # Backlog
 
-**311 tasks · 184 no MVP · 220 concluídas (71%)**
+**311 tasks · 184 no MVP · 221 concluídas (71%)**
 
 **Só o MVP: 161 de 184 (88%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -151,7 +151,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 11 | Push | 9 | 12 | — | Registro do token pronto. Firebase (Android/FCM) configurado de ponta a ponta em 21/09. `lembrete_entrada`, `lembrete_fim`, `lembrete_meio`, `alerta_supervisor_entrada`/`alerta_supervisor_fim` e `aviso_dia_evento`/`aviso_montagem`/`aviso_desmontagem` construídos no mesmo dia — motor próprio, cópia da regra que o site já manda por WhatsApp. Mural "Avisos" (leitura) e Central de Avisos (histórico + preferências) também construídos — ver as duas entradas no changelog. Faltam confirmação de escala (precisa de campo novo que o app não modela), boas-vindas (dispara na hora do cadastro, não por cron, valor questionável), disparo manual (parece redundante com o mural); o total desta epic (12) ainda não reflete esse tamanho. iOS (APNs) parado: precisa do Apple Developer Program pago, adiado por decisão do Juan |
 | 12 | Web | 0 | 16 | — | |
 | 13 | Escala | 1 | 14 | — | Auditoria de código (22/09) achou e corrigiu consulta-por-pessoa em 2 telas de acesso frequente (equipe do setor, painel da equipe). Falta o teste de carga de verdade — não feito ainda, precisa alinhar approach (script vs. execução) antes de rodar contra qualquer ambiente real |
-| 14 | Segurança | 10 | 16 | — | Isolamento, limite e a trilha de auditoria feitos. Retenção de foto (21/09), "excluir minha conta" (21/09), consentimento de busca regional (22/09) e "baixar meus dados"/portabilidade (22/09) construídos — falta o resto do LGPD, ainda sem lista fechada de itens |
+| 14 | Segurança | 11 | 16 | — | Isolamento, limite e a trilha de auditoria feitos. Retenção de foto (21/09), "excluir minha conta" (21/09), consentimento + revogação da busca regional e "baixar meus dados"/portabilidade (22/09) construídos — falta o resto do LGPD, ainda sem lista fechada de itens |
 | 15 | Testes | 9 | 14 | — | 605 testes rodando |
 | 16 | Publicação | 0 | 18 | — | |
 | 17 | Painel no app | 48 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09". Toda a epic fala com a API real agora: organizações, veículos, bloqueio de CPF, base de funcionários, encontrar colaborador, relatórios, cartaz da portaria, criar setor, equipe do setor, trocar senha, excluir acesso e criar acesso de admin — número não recontado por falta de lista tarefa a tarefa desta epic |
@@ -1670,6 +1670,22 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 >
 > 6 testes novos na rota, 2 no `cliente-falso`, 2 round-trips reais.
 > **Epic 14 sobe de 9/16 para 10/16.**
+>
+> **22/09/2026 — revogar o consentimento da busca regional, sem excluir a
+> conta.** Revisando o que tinha acabado de construir, achei que só dava
+> pra AUTORIZAR aparecer na busca regional — não tinha caminho de volta
+> sem apagar a conta inteira (`excluirMinhaConta`). LGPD pede que revogar
+> consentimento seja tão fácil quanto dá-lo; confirmado com o Juan antes
+> de construir.
+>
+> `POST /v1/minha-conta/revogar-consentimento`
+> (`revogarConsentimentoDeBase`) limpa `consentimento_base` em TODOS os
+> cadastros com o mesmo CPF, não só a participação que autorizou — a
+> busca regional agrupa por pessoa (`todasAsPessoasDaBase`), então
+> autorizar ou revogar precisa valer pra ela inteira. Idempotente: revogar
+> quem nunca autorizou nada não dá erro. 5 testes novos, 1 no
+> `cliente-falso`, 1 round-trip real. **Epic 14 sobe de 10/16 para
+> 11/16.**
 
 ## Bloqueado, esperando o Juan
 
@@ -1702,7 +1718,7 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 - **Configurar um agendador externo** (cron-job.org, mesma ferramenta já cotada pra retenção de foto) batendo nas seis rotas de tempos em tempos (sugestão: a cada 15-30 min) — sem isso, os lembretes existem no código mas nunca disparam sozinhos: `POST /manutencao/lembrete-entrada`, `/lembrete-saida`, `/lembrete-meio`, `/alerta-supervisor-entrada`, `/alerta-supervisor-saida`, `/aviso-do-dia`.
 - **Decidir os três itens parados do push** (`confirmacao_escala`, `boas_vindas_funcionario`, `disparo_manual`) — ver o achado de 21/09 acima, cada um tem um motivo diferente pra não ter entrado ainda.
 - ~~Rodar a migração 010~~ → **feito pelo Juan, confirmado em 22/09/2026** (tabelas existem em produção, ainda vazias — ninguém disparou um lembrete de verdade ainda).
-- **Ainda falta a tela no app** pro mural "Avisos" (modal na credencial/painel), pra Central de Avisos (histórico + preferências), pro módulo Gastos inteiro (captura manual/voz, lista, painel), pra Meu histórico (eventos passados + total ganho) e pro botão "Baixar meus dados" (LGPD) — backend pronto e testado nos cinco, mas ninguém vê nada ainda sem a interface.
+- **Ainda falta a tela no app** pro mural "Avisos" (modal na credencial/painel), pra Central de Avisos (histórico + preferências), pro módulo Gastos inteiro (captura manual/voz, lista, painel), pra Meu histórico (eventos passados + total ganho) e pra "Zona de risco" ampliada (LGPD: baixar meus dados + revogar consentimento, ao lado do "excluir minha conta" que já tem tela) — backend pronto e testado em todos, mas ninguém vê nada ainda sem a interface.
 - ~~Suporte de Sistema quebrado contra a API de verdade~~ → **construído em 22/09/2026, escopo fino igual ao site** — ver achado acima.
 - **Configurar `GEMINI_API_KEY` no Render** (mesma variável que o site já usa pro Gastos por voz) — sem ela, `transcreverAudioDeGasto` responde com um erro amigável ("leitura de áudio ainda não foi configurada"), mas ninguém consegue lançar gasto falando até essa chave existir no ambiente da API do app.
 - **Ligar o filtro de consentimento na busca regional** (`SO_QUEM_AUTORIZOU_APARECE_NA_BUSCA` em `apps/api/src/rotas/base-de-funcionarios.ts`) — está pronto e testado, só desligado. Requer que exista (ou já esteja em uso) uma tela de auto-cadastro perguntando o consentimento de verdade; senão a busca fica vazia pra quase todo mundo.

@@ -96,6 +96,12 @@ export interface ClienteApi {
    */
   meusDados(): Promise<ArquivoDePlanilha>
   /**
+   * Revoga o consentimento de aparecer na busca regional — LGPD, revogar
+   * tem que ser tão fácil quanto autorizar. Não apaga a conta nem o
+   * histórico, só para de valer como autorização de recrutamento futuro.
+   */
+  revogarConsentimentoDeBase(): Promise<{ erro?: string }>
+  /**
    * O código do QR para a etapa de hoje daquele evento.
    *
    * `liberado` decide se a tela mostra o QR ou o embaça — decisão do Juan,
