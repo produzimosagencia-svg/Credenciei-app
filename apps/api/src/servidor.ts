@@ -132,12 +132,30 @@ export type Ambiente = {
 
 type Variaveis = { pessoaId: string; papel: Papel }
 
+/** Quando este processo subiu. Lido uma vez, na carga do módulo. */
+const SUBIU_EM = new Date().toISOString()
+
 export function criarServidor(amb: Ambiente) {
   const app = new Hono<{ Variables: Variaveis }>()
 
   app.use('*', cors())
 
-  app.get('/saude', c => c.json({ ok: true, em: new Date().toISOString() }))
+  /*
+   * `desdeQuando` é quando ESTE processo subiu — não a hora atual.
+   *
+   * Existe porque sem ele não há como saber, de fora, se um deploy já entrou:
+   * a instância velha responde `ok: true` igualzinho à nova. Em 23/09/2026
+   * isso custou uma rodada inteira de diagnóstico errado — procuramos bug no
+   * código enquanto o que estava no ar era a versão anterior.
+   *
+   * Um `desdeQuando` de segundos atrás significa que o deploy acabou de
+   * rolar; de horas atrás, que o que responde é o de antes.
+   */
+  app.get('/saude', c => c.json({
+    ok: true,
+    em: new Date().toISOString(),
+    desdeQuando: SUBIU_EM,
+  }))
 
   /*
    * Manutenção — fora de `/v1` de propósito, mesmo motivo do relatório
