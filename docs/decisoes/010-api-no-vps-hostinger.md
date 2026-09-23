@@ -196,9 +196,11 @@ diferente de zero.
 
 ## Pendente
 
-- **Rotacionar os segredos**: `SUPABASE_SERVICE_ROLE_KEY`, `WHATSAPP_TOKEN`,
-  `GEMINI_API_KEY`, `SEGREDO_MANUTENCAO` foram expostos num chat durante a
-  configuração. `SEGREDO_QR` fica por último e com data marcada — trocá-lo
+- **Rotacionar os segredos** expostos num chat durante a configuração.
+  `SEGREDO_MANUTENCAO` **já foi rotacionado** (23/09, depois que o impasse do
+  Swarm destravou os deploys — a primeira tentativa não valeu porque o
+  processo no ar não trocava). Faltam `SUPABASE_SERVICE_ROLE_KEY`,
+  `WHATSAPP_TOKEN` e `GEMINI_API_KEY`. `SEGREDO_QR` fica por último e com data marcada — trocá-lo
   invalida todo crachá em circulação. Antes de trocar a chave do Supabase,
   conferir se `CREDENCIAL_SEGREDO` existe na Vercel: sem ela, o site assina o
   QR com a própria chave do Supabase, e a troca derrubaria as credenciais.
