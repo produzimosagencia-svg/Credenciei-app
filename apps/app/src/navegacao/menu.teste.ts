@@ -15,7 +15,7 @@ const rotulos = (papel: string) =>
 test('o colaborador só vê o que é dele', () => {
   const dele = rotulos('colaborador')
   assert.deepEqual(dele, [
-    'Meus eventos', 'Minha credencial', 'Meus dias', 'Meu pagamento', 'Meu histórico',
+    'Meus eventos', 'Minha credencial', 'Meus dias', 'Meu pagamento', 'Meu histórico', 'Avisos',
   ])
 
   // Nenhum item de operação. Este é o teste que impede vinte mil contas de um

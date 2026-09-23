@@ -113,6 +113,11 @@ export function menuDoPainel(alvo: AlvoPermissao): GrupoDoMenu[] {
     principal.push({ rota: '/auditoria', rotulo: 'Trilha de auditoria', icone: 'History', pronta: true })
   }
 
+  // Todo mundo que tem conta recebe aviso — o supervisor leva alerta de
+  // pendência da equipe, quem gerencia leva o do dia do evento. Por isso a
+  // Central fica fora de qualquer gate de papel, igual no menu do colaborador.
+  principal.push({ rota: '/avisos', rotulo: 'Avisos', icone: 'Megaphone', pronta: true })
+
   grupos.push({ itens: principal })
 
   // "Plataforma" continua rotulado: é o que só o dono da plataforma enxerga, e
@@ -167,6 +172,9 @@ export function menuDoColaborador(): GrupoDoMenu[] {
       // é o "por onde já passei". Quem abre o app no dia do evento procura o
       // primeiro.
       { rota: '/meu-historico', rotulo: 'Meu histórico', icone: 'History', pronta: true },
+      // O histórico do que já foi avisado, e as chaves de o que receber. Push
+      // some; aqui fica. Ver `app/(dentro)/avisos.tsx`.
+      { rota: '/avisos', rotulo: 'Avisos', icone: 'Megaphone', pronta: true },
     ],
   }]
 }
