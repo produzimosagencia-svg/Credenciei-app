@@ -195,7 +195,17 @@ export type EnvioDeBatida = {
    */
   id: string
   participacaoId: string
-  tipo: TipoBatida
+  /**
+   * SÓ O MEIO passa pela fila — decidido com o Juan em 22/09/2026, copiando a
+   * forma do site.
+   *
+   * Cada etapa tem uma porta, e cada porta tem a sua trava: a entrada é
+   * `registrarEntradaLivre` (que exige `checkinAutonomo` no dia principal) e
+   * a saída é só o QR lido por um operador. Aceitar as três aqui abria
+   * caminho em volta dessas travas — bastava chamar a rota direto, com o
+   * próprio token, para marcar a própria presença de qualquer lugar.
+   */
+  tipo: 'meio'
   /** O relógio do APARELHO. O servidor grava também o próprio, para conferir. */
   registradoEm: string
   fotoBase64?: string

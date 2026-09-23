@@ -4,9 +4,8 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
+import { batidaDeTeste, cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import { ArquivosEmMemoria } from '../arquivos.js'
-import { registrarBatida } from './batidas.js'
 import { meusDados, revogarConsentimentoDeBase } from './conta.js'
 
 const URL_BASE = 'http://api.local'
@@ -34,9 +33,7 @@ async function conteudo(arquivos: ArquivosEmMemoria, url: string) {
 
 test('traz a identidade, o evento, e a batida já registrada', async () => {
   const { repo, pessoa, participacao } = cenarioHenriqueEJuliano()
-  await registrarBatida(repo, pessoa.id, {
-    id: 'e1', participacaoId: participacao.id, tipo: 'entrada', registradoEm: '2026-09-05T08:00:00-03:00',
-  })
+  repo.registros.push(batidaDeTeste(participacao.id, 'entrada', '2026-09-05T08:00:00-03:00'))
 
   const arquivos = new ArquivosEmMemoria(URL_BASE)
   const r = await meusDados(repo, arquivos, pessoa.id)
@@ -87,9 +84,7 @@ test('os dados de uma pessoa não vazam pra outra', async () => {
     funcao: 'Bar', supervisorNome: null, ativo: true, descredenciadoEm: null, valorReceber: 200,
     pago: false, pagoEm: null, qrToken: 'tk-maria', cidade: null, criadoEm: '2026-08-20T10:00:00-03:00',
   })
-  await registrarBatida(repo, pessoa.id, {
-    id: 'e1', participacaoId: participacao.id, tipo: 'entrada', registradoEm: '2026-09-05T08:00:00-03:00',
-  })
+  repo.registros.push(batidaDeTeste(participacao.id, 'entrada', '2026-09-05T08:00:00-03:00'))
 
   const arquivos = new ArquivosEmMemoria(URL_BASE)
   const dadosDaMaria = await conteudo(arquivos, (await meusDados(repo, arquivos, 'pes-maria')).url)

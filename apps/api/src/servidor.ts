@@ -386,8 +386,13 @@ export function criarServidor(amb: Ambiente) {
     if (!corpo.id || !corpo.participacaoId || !corpo.registradoEm) {
       return c.json({ erro: 'Pedido incompleto.' }, 400)
     }
-    if (corpo.tipo !== 'entrada' && corpo.tipo !== 'meio' && corpo.tipo !== 'fim') {
-      return c.json({ erro: 'Etapa inválida.' }, 400)
+    /*
+     * SÓ o meio. Entrada e saída têm portas próprias, cada uma com a sua
+     * trava — aceitar as três aqui era o caminho em volta delas. Ver o tipo
+     * de `PedidoDeBatida`.
+     */
+    if (corpo.tipo !== 'meio') {
+      return c.json({ erro: 'Esta rota registra só o meio. A entrada é pela credencial e a saída, pelo QR no credenciamento.' }, 400)
     }
 
     const r = await registrarBatida(amb.repo, c.get('pessoaId'), {

@@ -25,6 +25,20 @@ import type { Transporte } from '@credenciei/offline'
 
 export function transporteDe(cliente: ClienteApi): Transporte {
   return async (batida) => {
+    /*
+     * A fila é um transporte genérico — quem só aceita o MEIO é a rota do
+     * outro lado (ver `EnvioDeBatida`, no contrato). Entrada tem porta
+     * própria, com a trava do `checkinAutonomo`, e saída é só o QR lido por
+     * um operador; nenhuma das duas passa pela fila.
+     *
+     * Se uma delas cair aqui, é RECUSA e não falha de rede: reenviar não
+     * mudaria nada, e insistir para sempre é exatamente o que a distinção no
+     * topo deste arquivo existe para evitar.
+     */
+    if (batida.tipo !== 'meio') {
+      return { ok: false, definitivo: true, motivo: 'Só a selfie do meio é enviada pela fila.' }
+    }
+
     try {
       const resposta = await cliente.registrarBatida({
         id: batida.id,

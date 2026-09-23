@@ -29,7 +29,26 @@ import type {
   ConferenciaPorCpf, EventoEscaneavel, PessoaLida, ResultadoDaLeitura,
 } from '@credenciei/contrato'
 import type { Repositorio } from '../dados/repositorio.js'
-import { JUSTIFICATIVA_SEM_MEIO } from './batidas.js'
+
+/**
+ * O que fica gravado na saída de quem não bateu o meio.
+ *
+ * ─── A SAÍDA NÃO EXIGE O MEIO, MAS A FALTA FICA ESCRITA ─────────────────────
+ *
+ * Existiu uma trava exigindo o meio, e o site a removeu em 11/09/2026: ela
+ * prendia justamente quem perdeu o meio de verdade, que ficava sem conseguir
+ * registrar a saída até alguém destravar pelo ponto assistido.
+ *
+ * O que ficou no lugar é isto: a ausência não IMPEDE nada, mas continua
+ * escrita na batida, para quem acerta o pagamento ver. Texto igual ao do site
+ * (`JUSTIFICATIVA_SEM_MEIO`, em `lib/actions.ts`) — é o mesmo banco, e o
+ * relatório não pode ter duas frases para o mesmo fato.
+ *
+ * Mora aqui porque este virou o único caminho que grava saída no app: a
+ * credencial só manda o meio, e a entrada tem porta própria. Ver o tipo de
+ * `PedidoDeBatida`, em `batidas.ts`.
+ */
+export const JUSTIFICATIVA_SEM_MEIO = 'Saída registrada sem registro de meio.'
 
 async function exigirPodeEscanear(repo: Repositorio, pessoaId: string) {
   const perfil = await repo.perfilPorId(pessoaId)

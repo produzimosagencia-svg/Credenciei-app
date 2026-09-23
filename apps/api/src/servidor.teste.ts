@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cenarioHenriqueEJuliano } from './dados/memoria.js'
+import { batidaDeTeste, cenarioHenriqueEJuliano } from './dados/memoria.js'
 import { SessoesEmMemoria } from './sessoes.js'
 import { LimiteEmMemoria } from './limite.js'
 import { ArquivosEmMemoria } from './arquivos.js'
@@ -309,19 +309,49 @@ test('cada um vê só as próprias participações', async () => {
 
 // ─── Bater ponto ────────────────────────────────────────────────────────────
 
+/** A entrada do dia, que o meio precisa ter para ser contado a partir dela. */
+function comEntrada(repo: ReturnType<typeof montar>['repo'], em = '2026-09-03T08:00:00-03:00') {
+  repo.registros.push(batidaDeTeste('part-joao', 'entrada', em))
+}
+
 test('a batida aceita devolve 200', async () => {
-  const { app } = montar()
+  const { app, repo } = montar()
   const cab = await autenticado(app)
+  comEntrada(repo)
 
   const r = await app.request('/v1/batidas', {
     method: 'POST', headers: { ...cab, 'content-type': 'application/json' },
     body: JSON.stringify({
-      id: 'b1', participacaoId: 'part-joao', tipo: 'entrada',
-      registradoEm: '2026-09-03T08:00:00-03:00',
+      id: 'b1', participacaoId: 'part-joao', tipo: 'meio',
+      registradoEm: '2026-09-03T13:00:00-03:00',
     }),
   })
   assert.equal(r.status, 200)
   assert.equal((await r.json() as { situacao: string }).situacao, 'registrado')
+})
+
+test('entrada e saída não passam por esta rota — cada uma tem a sua porta', async () => {
+  /*
+   * A trava fica AQUI, e não só na tela que não oferece o botão: quem chama a
+   * rota direto, com o próprio token, marcaria a própria presença de
+   * qualquer lugar, em volta do `checkinAutonomo` e do QR do portão. É a
+   * mesma porta que o site fechou na action.
+   */
+  const { app, repo } = montar()
+  const cab = await autenticado(app)
+  comEntrada(repo)
+
+  for (const tipo of ['entrada', 'fim']) {
+    const r = await app.request('/v1/batidas', {
+      method: 'POST', headers: { ...cab, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: `b-${tipo}`, participacaoId: 'part-joao', tipo,
+        registradoEm: '2026-09-03T18:00:00-03:00',
+      }),
+    })
+    assert.equal(r.status, 400, `${tipo} deveria ser recusada nesta rota`)
+  }
+  assert.equal(repo.registros.filter(r => r.tipo === 'fim').length, 0, 'nada foi gravado')
 })
 
 test('a batida recusada devolve 422, não 500', async () => {
@@ -336,8 +366,8 @@ test('a batida recusada devolve 422, não 500', async () => {
   const r = await app.request('/v1/batidas', {
     method: 'POST', headers: { ...cab, 'content-type': 'application/json' },
     body: JSON.stringify({
-      id: 'b1', participacaoId: 'part-joao', tipo: 'entrada',
-      registradoEm: '2026-08-20T08:00:00-03:00', // dia fora da escala
+      id: 'b1', participacaoId: 'part-joao', tipo: 'meio',
+      registradoEm: '2026-09-03T13:00:00-03:00', // sem a entrada do dia gravada
     }),
   })
   assert.equal(r.status, 422)
@@ -349,7 +379,7 @@ test('pedido incompleto devolve 400', async () => {
 
   const r = await app.request('/v1/batidas', {
     method: 'POST', headers: { ...cab, 'content-type': 'application/json' },
-    body: JSON.stringify({ participacaoId: 'part-joao', tipo: 'entrada' }),
+    body: JSON.stringify({ participacaoId: 'part-joao', tipo: 'meio' }),
   })
   assert.equal(r.status, 400)
 })
@@ -375,8 +405,8 @@ test('a batida de outra pessoa não passa nem com token válido', async () => {
   const r = await app.request('/v1/batidas', {
     method: 'POST', headers: { ...cab, 'content-type': 'application/json' },
     body: JSON.stringify({
-      id: 'b1', participacaoId: 'part-joao', tipo: 'entrada',
-      registradoEm: '2026-09-03T08:00:00-03:00',
+      id: 'b1', participacaoId: 'part-joao', tipo: 'meio',
+      registradoEm: '2026-09-03T13:00:00-03:00',
     }),
   })
   assert.equal(r.status, 422)

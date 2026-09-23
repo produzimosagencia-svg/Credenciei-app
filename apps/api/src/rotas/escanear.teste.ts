@@ -10,8 +10,9 @@ import assert from 'node:assert/strict'
 import { ed25519 } from '@noble/curves/ed25519'
 import { gerarCodigoQR, gerarCodigoQREd25519 } from '@credenciei/dominio'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
-import { conferirPorCpf, eventosParaEscanear, registrarPorQr } from './escanear.js'
-import { JUSTIFICATIVA_SEM_MEIO } from './batidas.js'
+import {
+  conferirPorCpf, eventosParaEscanear, registrarPorQr, JUSTIFICATIVA_SEM_MEIO,
+} from './escanear.js'
 import type { Evento } from '../dados/repositorio.js'
 
 const SEGREDO = 'segredo-de-teste'
@@ -133,6 +134,20 @@ test('o crachá certo registra a entrada, e a saída não exige mais o meio', as
   // Não impede, mas fica escrito: é o que o acerto de pagamento lê depois.
   const gravada = repo.registros.find(r => r.tipo === 'fim')
   assert.equal(gravada?.justificativa, JUSTIFICATIVA_SEM_MEIO)
+})
+
+test('com o meio batido, a saída não ganha observação nenhuma', async () => {
+  const { repo, admin, participacao } = cenarioHenriqueEJuliano()
+  await registrarPorQr(repo, SEGREDO, null, admin.id, 'ev-hj', cracha('evento'), new Date('2026-09-05T19:00:00-03:00'))
+  repo.registros.push({
+    id: 'meio-do-dia', participacaoId: participacao.id, tipo: 'meio', dataRef: '2026-09-05',
+    registradoEm: '2026-09-05T23:10:00-03:00', recebidoEm: '2026-09-05T23:10:00-03:00',
+    origem: 'app', fotoPath: 'f.jpg', lat: null, lng: null, manual: false, justificativa: null,
+  })
+
+  await registrarPorQr(repo, SEGREDO, null, admin.id, 'ev-hj', cracha('evento'), new Date('2026-09-06T02:00:00-03:00'))
+
+  assert.equal(repo.registros.find(r => r.tipo === 'fim')?.justificativa, null)
 })
 
 test('o registro gravado pelo scanner tem origem "app" — os dois relógios ficam rastreáveis', async () => {

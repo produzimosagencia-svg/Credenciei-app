@@ -3,27 +3,40 @@
  *
  * É o que mais precisa estar certo: um erro aqui vira pessoa sem registro no
  * fechamento, ou batida contada duas vezes na folha de pagamento.
+ *
+ * SÓ O MEIO passa por aqui — ver o tipo de `PedidoDeBatida`. As outras duas
+ * etapas têm portas próprias, cada uma com a sua trava, e são testadas lá:
+ * entrada em `registrarEntradaLivre`, no fim deste arquivo; saída em
+ * `escanear.teste.ts`.
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
+import { batidaDeTeste, cenarioHenriqueEJuliano, type RepositorioEmMemoria } from '../dados/memoria.js'
 import {
-  contestarBatida, registrarBatida, registrarEntradaLivre,
-  DIVERGENCIA_TOLERADA_MS, JUSTIFICATIVA_SEM_MEIO,
+  contestarBatida, registrarBatida, registrarEntradaLivre, DIVERGENCIA_TOLERADA_MS,
 } from './batidas.js'
 
 const bate = (
-  tipo: 'entrada' | 'meio' | 'fim',
   registradoEm: string,
   id = `b-${Math.random()}`,
   participacaoId = 'part-joao',
-) => ({ id, participacaoId, tipo, registradoEm })
+) => ({ id, participacaoId, tipo: 'meio' as const, registradoEm })
+
+/**
+ * A entrada do dia, posta direto no repositório.
+ *
+ * O meio é contado a partir dela, então quase todo teste daqui precisa de uma
+ * — e ela não pode mais ser criada por esta rota.
+ */
+function comEntrada(repo: RepositorioEmMemoria, em: string, participacaoId = 'part-joao') {
+  repo.registros.push(batidaDeTeste(participacaoId, 'entrada', em))
+}
 
 // ─── Segurança, que vem antes de tudo ───────────────────────────────────────
 
 test('participação de outra pessoa é recusada', async () => {
   const { repo } = cenarioHenriqueEJuliano()
-  const r = await registrarBatida(repo, 'pes-outra-pessoa', bate('entrada', '2026-09-03T08:00:00-03:00'))
+  const r = await registrarBatida(repo, 'pes-outra-pessoa', bate('2026-09-03T13:00:00-03:00'))
   assert.equal(r.situacao, 'recusado')
 })
 
@@ -31,8 +44,8 @@ test('a recusa não revela se a participação existe', async () => {
   // Responder diferente para "não existe" e "não é sua" entregaria um jeito de
   // varrer ids até descobrir quais existem.
   const { repo } = cenarioHenriqueEJuliano()
-  const naoExiste = await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-03T08:00:00-03:00', 'x', 'part-inexistente'))
-  const deOutra = await registrarBatida(repo, 'pes-outra', bate('entrada', '2026-09-03T08:00:00-03:00'))
+  const naoExiste = await registrarBatida(repo, 'pes-joao', bate('2026-09-03T13:00:00-03:00', 'x', 'part-inexistente'))
+  const deOutra = await registrarBatida(repo, 'pes-outra', bate('2026-09-03T13:00:00-03:00'))
 
   assert.equal(naoExiste.situacao, 'recusado')
   assert.equal(deOutra.situacao, 'recusado')
@@ -47,7 +60,7 @@ test('quem foi descredenciado não bate mais', async () => {
   const { repo, participacao } = cenarioHenriqueEJuliano()
   participacao.descredenciadoEm = '2026-09-06T05:00:00-03:00'
 
-  const r = await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-03T08:00:00-03:00'))
+  const r = await registrarBatida(repo, 'pes-joao', bate('2026-09-03T13:00:00-03:00'))
   assert.match(r.situacao === 'recusado' ? r.motivo : '', /vínculo com este evento já foi encerrado/)
 })
 
@@ -55,7 +68,7 @@ test('cadastro não ativado não bate', async () => {
   const { repo, participacao } = cenarioHenriqueEJuliano()
   participacao.ativo = false
 
-  const r = await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-03T08:00:00-03:00'))
+  const r = await registrarBatida(repo, 'pes-joao', bate('2026-09-03T13:00:00-03:00'))
   assert.match(r.situacao === 'recusado' ? r.motivo : '', /não foi ativado/)
 })
 
@@ -63,113 +76,84 @@ test('cadastro não ativado não bate', async () => {
 
 test('o mesmo id volta como duplicado, sem gravar de novo', async () => {
   const { repo } = cenarioHenriqueEJuliano()
-  const b = bate('entrada', '2026-09-03T08:00:00-03:00', 'sempre-o-mesmo')
+  comEntrada(repo, '2026-09-03T08:00:00-03:00')
+  const b = bate('2026-09-03T13:00:00-03:00', 'sempre-o-mesmo')
 
   const um = await registrarBatida(repo, 'pes-joao', b)
   const dois = await registrarBatida(repo, 'pes-joao', b)
 
   assert.equal(um.situacao, 'registrado')
   assert.equal(dois.situacao, 'duplicado')
-  assert.equal(repo.registros.length, 1, 'uma linha só no banco')
+  assert.equal(repo.registros.filter(r => r.tipo === 'meio').length, 1, 'uma linha só no banco')
 })
 
-test('reenvio depois de a janela fechar ainda é aceito', async () => {
+test('reenvio ainda é aceito depois de a regra deixar de valer', async () => {
   /*
    * O caso que a ordem das verificações protege.
    *
-   * A pessoa bateu a entrada às 20:00, dentro da janela. A resposta se perdeu.
-   * O celular reenvia às 23:58 — depois de a janela fechar às 23:55. Se a
-   * idempotência viesse DEPOIS das regras, ela seria recusada: a pessoa bateu
-   * no horário e perderia o registro por causa da rede dela.
+   * A pessoa bateu o meio às 13:00, com a entrada das 08:00 gravada. A
+   * resposta se perdeu. Antes de o celular reenviar, um supervisor corrigiu a
+   * entrada pelo ponto assistido — que APAGA a linha antes de reinserir. Se a
+   * idempotência viesse DEPOIS das regras, o reenvio bateria em "registre
+   * primeiro a sua entrada", e a pessoa perderia o meio por causa de algo que
+   * nem dependia dela.
    */
   const { repo } = cenarioHenriqueEJuliano()
-  const b = bate('entrada', '2026-09-05T20:00:00-03:00', 'perdida-no-caminho')
+  comEntrada(repo, '2026-09-03T08:00:00-03:00')
+  const b = bate('2026-09-03T13:00:00-03:00', 'perdida-no-caminho')
 
-  await registrarBatida(repo, 'pes-joao', b, new Date('2026-09-05T20:00:01-03:00'))
-  const reenvio = await registrarBatida(repo, 'pes-joao', b, new Date('2026-09-05T23:58:00-03:00'))
+  await registrarBatida(repo, 'pes-joao', b, new Date('2026-09-03T13:00:01-03:00'))
+  repo.registros = repo.registros.filter(r => r.tipo !== 'entrada')
 
+  const reenvio = await registrarBatida(repo, 'pes-joao', b, new Date('2026-09-03T15:30:00-03:00'))
   assert.equal(reenvio.situacao, 'duplicado')
 })
 
-// ─── As regras, vindas do domínio ───────────────────────────────────────────
+// ─── As regras do meio, vindas do domínio ───────────────────────────────────
 
-test('montagem aceita entrada e saída a qualquer hora', async () => {
+test('sem entrada gravada, o meio é recusado', async () => {
+  // O meio é contado a partir da entrada — sem ela não há de onde contar.
   const { repo } = cenarioHenriqueEJuliano()
-
-  const e = await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-03T06:30:00-03:00'))
-  assert.equal(e.situacao, 'registrado')
-
-  await registrarBatida(repo, 'pes-joao', bate('meio', '2026-09-03T11:00:00-03:00'))
-  const s = await registrarBatida(repo, 'pes-joao', bate('fim', '2026-09-03T22:40:00-03:00'))
-  assert.equal(s.situacao, 'registrado')
-})
-
-test('o dia do evento respeita a janela configurada', async () => {
-  const { repo } = cenarioHenriqueEJuliano()
-
-  const cedo = await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-05T05:00:00-03:00'))
-  assert.equal(cedo.situacao, 'recusado', 'a entrada abre 07:00')
-
-  const certo = await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-05T10:00:00-03:00'))
-  assert.equal(certo.situacao, 'registrado')
+  const r = await registrarBatida(repo, 'pes-joao', bate('2026-09-03T13:00:00-03:00'))
+  assert.match(r.situacao === 'recusado' ? r.motivo : '', /Registre primeiro a sua entrada/)
 })
 
 test('o meio é entrada + 4h, individual', async () => {
   const { repo } = cenarioHenriqueEJuliano()
-  await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-03T08:30:00-03:00'))
+  comEntrada(repo, '2026-09-03T08:30:00-03:00')
 
-  const cedo = await registrarBatida(repo, 'pes-joao', bate('meio', '2026-09-03T12:00:00-03:00'))
+  const cedo = await registrarBatida(repo, 'pes-joao', bate('2026-09-03T12:00:00-03:00'))
   assert.equal(cedo.situacao, 'recusado', 'abre 12:30 para quem entrou 08:30')
 
-  const certo = await registrarBatida(repo, 'pes-joao', bate('meio', '2026-09-03T12:35:00-03:00'))
+  const certo = await registrarBatida(repo, 'pes-joao', bate('2026-09-03T12:35:00-03:00'))
   assert.equal(certo.situacao, 'registrado')
+})
+
+test('o meio ABRE num horário, mas não FECHA', async () => {
+  /*
+   * Igual ao site. O ponto do meio é o horário ficar gravado, para conferir a
+   * jornada com a pessoa depois; fechar a janela faria quem passou da hora
+   * perder o registro de vez, sem ganho nenhum. O atraso não some do
+   * relatório — as pendências comparam o feito com o esperado.
+   */
+  const { repo } = cenarioHenriqueEJuliano()
+  comEntrada(repo, '2026-09-03T08:00:00-03:00')
+
+  const tarde = await registrarBatida(repo, 'pes-joao', bate('2026-09-03T22:00:00-03:00'))
+  assert.equal(tarde.situacao, 'registrado')
 })
 
 test('a recusa do meio não conta a fórmula', async () => {
   // Dizer "abre 4h depois da entrada" ensina a burlar: bastaria bater a
   // entrada, ir embora e voltar no minuto certo.
   const { repo } = cenarioHenriqueEJuliano()
-  await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-03T08:00:00-03:00'))
+  comEntrada(repo, '2026-09-03T08:00:00-03:00')
 
-  const r = await registrarBatida(repo, 'pes-joao', bate('meio', '2026-09-03T09:00:00-03:00'))
+  const r = await registrarBatida(repo, 'pes-joao', bate('2026-09-03T09:00:00-03:00'))
   const motivo = r.situacao === 'recusado' ? r.motivo : ''
   // Procura a CONTA, não a palavra "hora" — a mensagem diz "quando chegar a
   // hora" de propósito, e isso não entrega nada.
   assert.ok(!/4|quatro\s+horas|4h/i.test(motivo), `vazou a regra: "${motivo}"`)
-})
-
-/*
- * A trava que existia aqui prendia quem perdeu o meio de verdade: sem ela no
- * portão (`escanear.ts`) e com ela na credencial, a mesma pessoa saía por um
- * caminho e era recusada pelo outro. O site tirou a trava em 11/09/2026 — o
- * que ficou é a observação, para o acerto de pagamento não perder o fato.
- */
-test('a saída sem o meio passa, mas fica escrita na batida', async () => {
-  const { repo } = cenarioHenriqueEJuliano()
-  await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-03T08:00:00-03:00'))
-
-  const semMeio = await registrarBatida(repo, 'pes-joao', bate('fim', '2026-09-03T18:00:00-03:00'))
-  assert.equal(semMeio.situacao, 'registrado')
-
-  const doDia = await repo.registrosDoDia('part-joao', '2026-09-03')
-  assert.equal(doDia.find(r => r.tipo === 'fim')?.justificativa, JUSTIFICATIVA_SEM_MEIO)
-})
-
-test('com o meio batido, a saída não ganha observação nenhuma', async () => {
-  const { repo } = cenarioHenriqueEJuliano()
-  await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-03T08:00:00-03:00'))
-  await registrarBatida(repo, 'pes-joao', bate('meio', '2026-09-03T12:30:00-03:00'))
-
-  await registrarBatida(repo, 'pes-joao', bate('fim', '2026-09-03T18:00:00-03:00'))
-
-  const doDia = await repo.registrosDoDia('part-joao', '2026-09-03')
-  assert.equal(doDia.find(r => r.tipo === 'fim')?.justificativa, null)
-})
-
-test('dia que não é de trabalho recusa', async () => {
-  const { repo } = cenarioHenriqueEJuliano()
-  const r = await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-08-20T08:00:00-03:00'))
-  assert.match(r.situacao === 'recusado' ? r.motivo : '', /não está marcado como dia de trabalho/)
 })
 
 // ─── Offline e os dois relógios ─────────────────────────────────────────────
@@ -181,24 +165,26 @@ test('o dia sai do relógio do aparelho, não do servidor', async () => {
    * dela pertence ao dia 3. O turno da pessoa ficaria partido em dois.
    */
   const { repo } = cenarioHenriqueEJuliano()
+  comEntrada(repo, '2026-09-03T19:00:00-03:00')
   await registrarBatida(
     repo, 'pes-joao',
-    bate('entrada', '2026-09-03T23:50:00-03:00'),
+    bate('2026-09-03T23:50:00-03:00'),
     new Date('2026-09-04T00:10:00-03:00'),
   )
-  assert.equal(repo.registros[0]!.dataRef, '2026-09-03')
+  assert.equal(repo.registros.find(r => r.tipo === 'meio')!.dataRef, '2026-09-03')
 })
 
 test('os dois horários são gravados', async () => {
   const { repo } = cenarioHenriqueEJuliano()
+  comEntrada(repo, '2026-09-03T08:00:00-03:00')
   await registrarBatida(
     repo, 'pes-joao',
-    bate('entrada', '2026-09-03T08:00:00-03:00'),
-    new Date('2026-09-03T11:00:00-03:00'), // subiu três horas depois
+    bate('2026-09-03T12:30:00-03:00'),
+    new Date('2026-09-03T15:30:00-03:00'), // subiu três horas depois
   )
 
-  const r = repo.registros[0]!
-  assert.equal(r.registradoEm, '2026-09-03T08:00:00-03:00', 'o que vale na folha')
+  const r = repo.registros.find(x => x.tipo === 'meio')!
+  assert.equal(r.registradoEm, '2026-09-03T12:30:00-03:00', 'o que vale na folha')
   assert.ok(r.recebidoEm > r.registradoEm, 'e o que o servidor viu')
 })
 
@@ -208,9 +194,10 @@ test('relógio no futuro é marcado, não barrado', async () => {
    * deixaria a pessoa sem registro. A defesa é tornar visível.
    */
   const { repo } = cenarioHenriqueEJuliano()
+  comEntrada(repo, '2026-09-03T03:00:00-03:00')
   const r = await registrarBatida(
     repo, 'pes-joao',
-    bate('entrada', '2026-09-03T20:00:00-03:00'),
+    bate('2026-09-03T20:00:00-03:00'),
     new Date('2026-09-03T08:00:00-03:00'),
   )
 
@@ -220,26 +207,14 @@ test('relógio no futuro é marcado, não barrado', async () => {
 
 test('atraso normal de sincronização não é marcado como suspeito', async () => {
   const { repo } = cenarioHenriqueEJuliano()
+  comEntrada(repo, '2026-09-03T08:00:00-03:00')
   const r = await registrarBatida(
     repo, 'pes-joao',
-    bate('entrada', '2026-09-03T08:00:00-03:00'),
-    new Date('2026-09-03T13:00:00-03:00'), // cinco horas sem sinal
+    bate('2026-09-03T12:30:00-03:00'),
+    new Date('2026-09-03T17:30:00-03:00'), // cinco horas sem sinal
   )
   assert.equal(r.relogioSuspeito, undefined)
   assert.ok(5 * 3600e3 < DIVERGENCIA_TOLERADA_MS)
-})
-
-// ─── Um dia inteiro ─────────────────────────────────────────────────────────
-
-test('o ciclo completo de um dia de montagem', async () => {
-  const { repo } = cenarioHenriqueEJuliano()
-
-  assert.equal((await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-03T12:00:00-03:00'))).situacao, 'registrado')
-  assert.equal((await registrarBatida(repo, 'pes-joao', bate('meio', '2026-09-03T16:05:00-03:00'))).situacao, 'registrado')
-  assert.equal((await registrarBatida(repo, 'pes-joao', bate('fim', '2026-09-03T18:37:00-03:00'))).situacao, 'registrado')
-
-  const doDia = await repo.registrosDoDia('part-joao', '2026-09-03')
-  assert.deepEqual(doDia.map(r => r.tipo), ['entrada', 'meio', 'fim'])
 })
 
 // ─── Batida livre no dia do evento ──────────────────────────────────────────
@@ -248,6 +223,9 @@ test('o ciclo completo de um dia de montagem', async () => {
 // Estes testes existem porque ela precisa valer também AQUI: se a API recusasse
 // o que o site aceita, a pessoa levaria "fora do horário" no celular e passaria
 // pela portaria do computador — no mesmo evento, no mesmo minuto.
+//
+// Eles entram pela entrada livre porque é lá que a janela é avaliada: a rota
+// do meio não decide mais nada sobre entrada.
 
 /*
  * Cinco da manhã do DIA DO EVENTO: a janela de entrada abre às 07:00.
@@ -258,17 +236,20 @@ test('o ciclo completo de um dia de montagem', async () => {
 const ANTES_DA_JANELA = '2026-09-05T05:00:00-03:00'
 
 test('sem batida livre, entrada fora da janela é recusada', async () => {
-  const { repo } = cenarioHenriqueEJuliano()
-  const r = await registrarBatida(repo, 'pes-joao', bate('entrada', ANTES_DA_JANELA))
+  const { repo, evento } = cenarioHenriqueEJuliano()
+  evento.checkin_autonomo = true // para a recusa ser a da JANELA, não a do dia principal
+
+  const r = await registrarEntradaLivre(repo, 'pes-joao', 'part-joao', {}, new Date(ANTES_DA_JANELA))
   assert.equal(r.situacao, 'recusado')
 })
 
 test('com batida livre, a mesma entrada passa', async () => {
   // É o show com escala rotativa: a equipe entra a noite inteira, em turnos.
   const { repo, evento } = cenarioHenriqueEJuliano()
+  evento.checkin_autonomo = true
   evento.batida_livre = true
 
-  const r = await registrarBatida(repo, 'pes-joao', bate('entrada', ANTES_DA_JANELA))
+  const r = await registrarEntradaLivre(repo, 'pes-joao', 'part-joao', {}, new Date(ANTES_DA_JANELA))
   assert.equal(r.situacao, 'registrado')
 })
 
@@ -276,12 +257,13 @@ test('batida livre não libera dia cancelado', async () => {
   // Ela solta o horário, não o calendário. Um dia cancelado que aceitasse
   // presença entraria no cálculo do pagamento.
   const { repo, evento } = cenarioHenriqueEJuliano()
+  evento.checkin_autonomo = true
   evento.batida_livre = true
   const dia = (repo.dias.get(evento.id) ?? []).find(d => d.data === '2026-09-05')
   assert.ok(dia, 'o cenário precisa ter o dia do evento')
   dia.cancelado = true
 
-  const r = await registrarBatida(repo, 'pes-joao', bate('entrada', ANTES_DA_JANELA))
+  const r = await registrarEntradaLivre(repo, 'pes-joao', 'part-joao', {}, new Date(ANTES_DA_JANELA))
   assert.equal(r.situacao, 'recusado')
 })
 

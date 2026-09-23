@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
+import { batidaDeTeste, cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import { LimiteEmMemoria } from '../limite.js'
 import { registrarBatida } from './batidas.js'
 import {
@@ -107,7 +107,7 @@ test('evento que exige aprovação deixa a pessoa aguardando', async () => {
   // E aguardando não bate ponto — reusa `ativo`, que toda a API já respeita.
   const b = await registrarBatida(repo, 'pes-maria', {
     id: 'b1', participacaoId: r.participacao!.participacaoId,
-    tipo: 'entrada', registradoEm: '2026-09-03T08:00:00-03:00',
+    tipo: 'meio', registradoEm: '2026-09-03T13:00:00-03:00',
   })
   assert.equal(b.situacao, 'recusado')
 })
@@ -179,10 +179,7 @@ test('minhas participações trazem só as minhas', async () => {
 
 test('o histórico mostra os dias sem batida também', async () => {
   const { repo } = comDuasPessoas()
-  await registrarBatida(repo, 'pes-joao', {
-    id: 'b1', participacaoId: 'part-joao', tipo: 'entrada',
-    registradoEm: '2026-09-03T08:00:00-03:00',
-  })
+  repo.registros.push(batidaDeTeste('part-joao', 'entrada', '2026-09-03T08:00:00-03:00'))
 
   const dias = await meusDias(repo, 'pes-joao', 'part-joao')
   assert.equal(dias.length, 4)
@@ -250,9 +247,7 @@ test('batida assistida (feita pelo supervisor em nome da pessoa) fica marcada', 
 
 test('o meio atrasado é medido, não escondido', async () => {
   const { repo } = comDuasPessoas()
-  await registrarBatida(repo, 'pes-joao', {
-    id: 'e', participacaoId: 'part-joao', tipo: 'entrada', registradoEm: '2026-09-03T08:00:00-03:00',
-  })
+  repo.registros.push(batidaDeTeste('part-joao', 'entrada', '2026-09-03T08:00:00-03:00'))
   // Janela: abre 12:00, prazo até 14:00. Registrou 14:40.
   await registrarBatida(repo, 'pes-joao', {
     id: 'm', participacaoId: 'part-joao', tipo: 'meio', registradoEm: '2026-09-03T14:40:00-03:00',
@@ -266,9 +261,7 @@ test('o meio atrasado é medido, não escondido', async () => {
 
 test('o financeiro conta só os dias trabalhados', async () => {
   const { repo } = comDuasPessoas()
-  await registrarBatida(repo, 'pes-joao', {
-    id: 'e', participacaoId: 'part-joao', tipo: 'entrada', registradoEm: '2026-09-03T08:00:00-03:00',
-  })
+  repo.registros.push(batidaDeTeste('part-joao', 'entrada', '2026-09-03T08:00:00-03:00'))
 
   const f = await meuFinanceiro(repo, 'pes-joao', 'part-joao')
   assert.equal(f.diasTrabalhados, 1)
@@ -281,12 +274,8 @@ test('valorPrevisto é o total combinado, não multiplica por dia trabalhado', a
   // — o site nunca multiplica por dia (Financeiro, planilha, edição de
   // colaborador). Trabalhar 2 dias não pode dobrar o valor.
   const { repo } = comDuasPessoas()
-  await registrarBatida(repo, 'pes-joao', {
-    id: 'e1', participacaoId: 'part-joao', tipo: 'entrada', registradoEm: '2026-09-03T08:00:00-03:00',
-  })
-  await registrarBatida(repo, 'pes-joao', {
-    id: 'e2', participacaoId: 'part-joao', tipo: 'entrada', registradoEm: '2026-09-04T08:00:00-03:00',
-  })
+  repo.registros.push(batidaDeTeste('part-joao', 'entrada', '2026-09-03T08:00:00-03:00'))
+  repo.registros.push(batidaDeTeste('part-joao', 'entrada', '2026-09-04T08:00:00-03:00'))
 
   const f = await meuFinanceiro(repo, 'pes-joao', 'part-joao')
   assert.equal(f.diasTrabalhados, 2)
@@ -327,9 +316,7 @@ test('sem nenhuma participação, o histórico vem vazio, não quebra', async ()
 
 test('com uma participação, o histórico traz o evento e soma o valor', async () => {
   const { repo } = comDuasPessoas()
-  await registrarBatida(repo, 'pes-joao', {
-    id: 'e', participacaoId: 'part-joao', tipo: 'entrada', registradoEm: '2026-09-03T08:00:00-03:00',
-  })
+  repo.registros.push(batidaDeTeste('part-joao', 'entrada', '2026-09-03T08:00:00-03:00'))
 
   const h = await meuHistorico(repo, 'pes-joao')
   assert.equal(h.totalEventos, 1)

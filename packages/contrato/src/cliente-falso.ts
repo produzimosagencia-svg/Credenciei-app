@@ -1520,29 +1520,19 @@ export class ClienteFalso implements ClienteApi {
     const data = diaBRT(envio.registradoEm)
     const dia = DIAS.find(d => d.data === data) ?? null
     const doDia = this.batidas.filter(b => b.data === data)
+    void dia // só o meio passa por aqui, e o meio não olha o tipo do dia
 
-    if (envio.tipo === 'meio') {
-      const entrada = doDia.find(b => b.tipo === 'entrada')
-      if (!entrada) {
-        return { situacao: 'recusado', motivo: 'Registre primeiro a sua entrada. O horário do meio é contado a partir dela.' }
-      }
-      if (Date.parse(envio.registradoEm) < Date.parse(janelaMeio(entrada.em).inicio)) {
-        return { situacao: 'recusado', motivo: 'O registro do meio ainda não abriu. Você será avisado no WhatsApp quando chegar a hora.' }
-      }
-    } else {
-      // A mesma função que o sistema web usa — não uma regra reescrita aqui.
-      const v = avaliarEntradaSaida(
-        EVENTO,
-        dia ? { tipo: dia.tipo, cancelado: false } : null,
-        envio.tipo,
-        data,
-        new Date(envio.registradoEm),
-      )
-      if (!v.ok) return { situacao: 'recusado', motivo: v.erro }
-      // A saída NÃO exige mais o meio — o site tirou a trava em 11/09/2026
-      // porque ela prendia quem perdeu o meio de verdade. A ausência vira
-      // observação na batida, não recusa; ver `JUSTIFICATIVA_SEM_MEIO`, na
-      // API.
+    /*
+     * Só o MEIO — mesma régua da API (ver `EnvioDeBatida`, no contrato). A
+     * entrada é `registrarEntradaLivre`, logo abaixo, e a saída é só o QR
+     * lido por um operador.
+     */
+    const entrada = doDia.find(b => b.tipo === 'entrada')
+    if (!entrada) {
+      return { situacao: 'recusado', motivo: 'Registre primeiro a sua entrada. O horário do meio é contado a partir dela.' }
+    }
+    if (Date.parse(envio.registradoEm) < Date.parse(janelaMeio(entrada.em).inicio)) {
+      return { situacao: 'recusado', motivo: 'O registro do meio ainda não abriu. Você será avisado no WhatsApp quando chegar a hora.' }
     }
 
     if (doDia.some(b => b.tipo === envio.tipo)) {

@@ -21,13 +21,29 @@ import type { NovoRegistro, Repositorio } from '../dados/repositorio.js'
 export type PedidoDeBatida = {
   id: string
   participacaoId: string
-  tipo: 'entrada' | 'meio' | 'fim'
+  /*
+   * SÓ O MEIO passa por aqui — decidido com o Juan em 22/09/2026, copiando a
+   * forma do site, onde a selfie do meio tem uma action própria
+   * (`registrarPresencaFoto`) e as outras duas etapas nem chegam nela.
+   *
+   * Cada etapa tem uma porta, e cada porta tem a sua trava:
+   *   meio     esta rota — a única que passa pela fila offline
+   *   entrada  `registrarEntradaLivre`, que exige `checkinAutonomo` no dia
+   *            principal
+   *   saída    só o QR lido por um operador (`escanear.ts`)
+   *
+   * Aceitar as três aqui abria caminho em volta dessas travas: bastava
+   * chamar a rota direto, com o próprio token, para marcar a própria
+   * presença de qualquer lugar. É a mesma porta que o site fechou na action,
+   * e não só escondendo o botão na tela — "uma recusa só na tela não impede
+   * quem chama esta action direto".
+   */
+  tipo: 'meio'
   registradoEm: string
   /**
-   * A selfie do "meio", como data URL (`data:image/jpeg;base64,...`) — só faz
-   * sentido para `tipo: 'meio'`. Sobe para o Storage aqui dentro; só o
-   * CAMINHO resultante é que vira `foto_url` no registro. Ver
-   * `Repositorio.subirFotoDoMeio`.
+   * A selfie, como data URL (`data:image/jpeg;base64,...`). Sobe para o
+   * Storage aqui dentro; só o CAMINHO resultante é que vira `foto_url` no
+   * registro. Ver `Repositorio.subirFotoDoMeio`.
    */
   fotoBase64?: string | null
   lat?: number | null
@@ -43,24 +59,6 @@ export type PedidoDeBatida = {
  * FUTURO, ou muito antes do que qualquer fila explicaria.
  */
 export const DIVERGENCIA_TOLERADA_MS = 18 * 60 * 60 * 1000
-
-/**
- * O que fica gravado na saída de quem não bateu o meio.
- *
- * ─── A SAÍDA NÃO EXIGE MAIS O MEIO ──────────────────────────────────────────
- *
- * Havia uma trava aqui, e o site a removeu em 11/09/2026: ela prendia
- * justamente quem mais precisava sair — quem perdeu o meio de verdade ficava
- * sem conseguir registrar a saída até alguém destravar pelo ponto assistido.
- * Enquanto a trava existiu só nesta rota, a mesma pessoa saía pelo portão
- * (`escanear.ts` já não exigia) e era recusada pela própria credencial.
- *
- * O que substituiu a trava é isto: a ausência não IMPEDE mais nada, mas
- * continua escrita na batida, para quem acerta o pagamento ver. Texto igual
- * ao do site (`JUSTIFICATIVA_SEM_MEIO`, em `lib/actions.ts`) — é o mesmo
- * banco, e o relatório não pode ter duas frases para o mesmo fato.
- */
-export const JUSTIFICATIVA_SEM_MEIO = 'Saída registrada sem registro de meio.'
 
 export type ResultadoInterno = RespostaDeBatida & {
   /** Marcado quando o relógio do aparelho não é plausível. */
@@ -109,35 +107,30 @@ export async function registrarBatida(
    * provavelmente não há dia de trabalho — e ela seria recusada.
    */
   const dataRef = diaBRT(pedido.registradoEm)
-  const dias = await repo.diasDoEvento(evento.id)
-  const dia = dias.find(d => d.data === dataRef) ?? null
   const doDia = await repo.registrosDoDia(part.id, dataRef)
 
-  // ── 3. As regras, importadas do domínio ─────────────────────────────────
-  if (pedido.tipo === 'meio') {
-    const entrada = doDia.find(r => r.tipo === 'entrada')
-    if (!entrada) {
-      return { situacao: 'recusado', motivo: 'Registre primeiro a sua entrada. O horário do meio é contado a partir dela.' }
-    }
-    if (Date.parse(pedido.registradoEm) < Date.parse(janelaMeio(entrada.registradoEm).inicio)) {
-      /*
-       * A recusa não conta a fórmula.
-       *
-       * "Abre 4h depois da entrada" ensina a burlar: bastaria bater a entrada,
-       * sair e voltar no minuto certo. O horário exato aparece só para quem
-       * administra.
-       */
-      return { situacao: 'recusado', motivo: 'O registro do meio ainda não abriu. Você será avisado quando chegar a hora.' }
-    }
-  } else {
-    const v = avaliarEntradaSaida(
-      evento as EventoJanelas,
-      dia ? { tipo: dia.tipo, cancelado: dia.cancelado } : null,
-      pedido.tipo,
-      dataRef,
-      new Date(pedido.registradoEm),
-    )
-    if (!v.ok) return { situacao: 'recusado', motivo: v.erro }
+  /*
+   * ── 3. As regras do meio ────────────────────────────────────────────────
+   *
+   * O meio ABRE num horário e não FECHA — igual ao site. O ponto dele é o
+   * horário ficar gravado, para conferir a jornada com a pessoa depois;
+   * fechar a janela faria quem passou da hora perder o registro de vez, sem
+   * ganho nenhum. Chegar atrasado não some do relatório: as pendências
+   * comparam o feito com o esperado.
+   */
+  const entrada = doDia.find(r => r.tipo === 'entrada')
+  if (!entrada) {
+    return { situacao: 'recusado', motivo: 'Registre primeiro a sua entrada. O horário do meio é contado a partir dela.' }
+  }
+  if (Date.parse(pedido.registradoEm) < Date.parse(janelaMeio(entrada.registradoEm).inicio)) {
+    /*
+     * A recusa não conta a fórmula.
+     *
+     * "Abre 4h depois da entrada" ensina a burlar: bastaria bater a entrada,
+     * sair e voltar no minuto certo. O horário exato aparece só para quem
+     * administra.
+     */
+    return { situacao: 'recusado', motivo: 'O registro do meio ainda não abriu. Você será avisado quando chegar a hora.' }
   }
 
   // Etapa já registrada hoje por OUTRO envio: sucesso, não erro. Do ponto de
@@ -150,7 +143,7 @@ export async function registrarBatida(
    * que é a única etapa com selfie hoje. Subir antes gastaria o Storage com
    * uma imagem de uma batida que ia ser recusada de qualquer jeito.
    */
-  const fotoPath = pedido.tipo === 'meio' && pedido.fotoBase64
+  const fotoPath = pedido.fotoBase64
     ? await repo.subirFotoDoMeio(evento.id, part.id, dataRef, pedido.fotoBase64)
     : null
 
@@ -171,9 +164,7 @@ export async function registrarBatida(
     lat: pedido.lat ?? null,
     lng: pedido.lng ?? null,
     manual: false,
-    ...(pedido.tipo === 'fim' && !doDia.some(r => r.tipo === 'meio')
-      ? { justificativa: JUSTIFICATIVA_SEM_MEIO }
-      : {}),
+    justificativa: null,
   }
 
   const gravado = await repo.gravarRegistro(novo)

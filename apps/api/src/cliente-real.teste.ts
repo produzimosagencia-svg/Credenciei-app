@@ -26,7 +26,7 @@ import {
   ClienteFalso, ClienteHttp, FalhaDeTransporte,
   type ClienteApi,
 } from '@credenciei/contrato'
-import { cenarioHenriqueEJuliano } from './dados/memoria.js'
+import { batidaDeTeste, cenarioHenriqueEJuliano } from './dados/memoria.js'
 import { SessoesEmMemoria } from './sessoes.js'
 import { LimiteEmMemoria } from './limite.js'
 import { ArquivosEmMemoria } from './arquivos.js'
@@ -410,12 +410,13 @@ test('batida aceita volta como registrada', async () => {
   const m = montar()
   await entrar(m)
   const p = (await m.cliente.minhasParticipacoes())[0]!
+  m.repo.registros.push(batidaDeTeste(p.participacaoId, 'entrada', '2026-09-03T08:00:00-03:00'))
 
   const r = await m.cliente.registrarBatida({
     id: 'b-1',
     participacaoId: p.participacaoId,
-    tipo: 'entrada',
-    registradoEm: '2026-09-03T08:00:00-03:00',
+    tipo: 'meio',
+    registradoEm: '2026-09-03T13:00:00-03:00',
   })
   assert.equal(r.situacao, 'registrado')
 })
@@ -433,9 +434,9 @@ test('batida recusada volta como RESPOSTA, e não como exceção', async () => {
   const r = await m.cliente.registrarBatida({
     id: 'b-2',
     participacaoId: p.participacaoId,
-    tipo: 'entrada',
-    // Cinco da manhã do dia do evento: a janela de entrada abre às 07:00.
-    registradoEm: '2026-09-05T05:00:00-03:00',
+    tipo: 'meio',
+    // Sem a entrada do dia gravada, o meio não tem de onde ser contado.
+    registradoEm: '2026-09-05T13:00:00-03:00',
   })
 
   assert.equal(r.situacao, 'recusado')

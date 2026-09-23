@@ -6,8 +6,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
-import { registrarBatida } from './batidas.js'
+import { batidaDeTeste, cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import { calcularPendencia, painelDaEquipe } from './equipe.js'
 
 /** Uma equipe com três pessoas e um supervisor. */
@@ -37,9 +36,7 @@ function comEquipe() {
 
 const NA_MONTAGEM = new Date('2026-09-03T14:00:00-03:00')
 
-const bate = (participacaoId: string, tipo: 'entrada' | 'meio' | 'fim', em: string) => ({
-  id: `${participacaoId}-${tipo}`, participacaoId, tipo, registradoEm: em,
-})
+
 
 // ─── Escopo ─────────────────────────────────────────────────────────────────
 
@@ -74,14 +71,14 @@ test('presentes conta quem bateu entrada hoje', async () => {
   const antes = await painelDaEquipe(repo, 'pes-carlos', NA_MONTAGEM)
   assert.equal(antes.presentes, 0)
 
-  await registrarBatida(repo, 'pes-joao', bate('part-joao', 'entrada', '2026-09-03T08:00:00-03:00'))
+  repo.registros.push(batidaDeTeste('part-joao', 'entrada', '2026-09-03T08:00:00-03:00'))
   const depois = await painelDaEquipe(repo, 'pes-carlos', NA_MONTAGEM)
   assert.equal(depois.presentes, 1)
 })
 
 test('batida de ontem não conta como presença de hoje', async () => {
   const { repo } = comEquipe()
-  await registrarBatida(repo, 'pes-joao', bate('part-joao', 'entrada', '2026-09-03T08:00:00-03:00'))
+  repo.registros.push(batidaDeTeste('part-joao', 'entrada', '2026-09-03T08:00:00-03:00'))
 
   const noDiaSeguinte = await painelDaEquipe(repo, 'pes-carlos', new Date('2026-09-04T10:00:00-03:00'))
   assert.equal(noDiaSeguinte.presentes, 0, 'cada dia tem o seu ciclo')
@@ -147,10 +144,10 @@ test('quem tem pendência aparece primeiro', async () => {
   const { repo } = comEquipe()
 
   // João completou o ciclo; Maria entrou e deve o meio; Ana não apareceu.
-  await registrarBatida(repo, 'pes-joao', bate('part-joao', 'entrada', '2026-09-03T08:00:00-03:00'))
-  await registrarBatida(repo, 'pes-joao', bate('part-joao', 'meio', '2026-09-03T12:10:00-03:00'))
-  await registrarBatida(repo, 'pes-joao', bate('part-joao', 'fim', '2026-09-03T13:00:00-03:00'))
-  await registrarBatida(repo, 'pes-maria', bate('part-maria', 'entrada', '2026-09-03T08:00:00-03:00'))
+  repo.registros.push(batidaDeTeste('part-joao', 'entrada', '2026-09-03T08:00:00-03:00'))
+  repo.registros.push(batidaDeTeste('part-joao', 'meio', '2026-09-03T12:10:00-03:00'))
+  repo.registros.push(batidaDeTeste('part-joao', 'fim', '2026-09-03T13:00:00-03:00'))
+  repo.registros.push(batidaDeTeste('part-maria', 'entrada', '2026-09-03T08:00:00-03:00'))
 
   const p = await painelDaEquipe(repo, 'pes-carlos', NA_MONTAGEM)
 

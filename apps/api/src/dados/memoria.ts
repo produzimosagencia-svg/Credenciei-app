@@ -1583,6 +1583,35 @@ export class RepositorioEmMemoria implements Repositorio {
 }
 
 /**
+ * Uma batida pronta para os testes, para pôr direto no repositório.
+ *
+ * Existe porque a rota de bater ponto passou a aceitar só o MEIO (ver
+ * `PedidoDeBatida`, em `rotas/batidas.ts`): quem precisa de uma entrada ou de
+ * uma saída montada no cenário põe a linha por aqui, em vez de fabricá-la
+ * chamando uma rota que não é a dela.
+ */
+export function batidaDeTeste(
+  participacaoId: string,
+  tipo: 'entrada' | 'meio' | 'fim',
+  registradoEm: string,
+): Registro {
+  return {
+    id: `${tipo}-${participacaoId}-${registradoEm}`,
+    participacaoId,
+    tipo,
+    dataRef: registradoEm.slice(0, 10),
+    registradoEm,
+    recebidoEm: registradoEm,
+    origem: 'app',
+    fotoPath: null,
+    lat: null,
+    lng: null,
+    manual: false,
+    justificativa: null,
+  }
+}
+
+/**
  * Um cenário pronto: o Henrique e Juliano, com montagem, dia do evento e
  * desmontagem — os mesmos horários que estão no banco de verdade.
  *

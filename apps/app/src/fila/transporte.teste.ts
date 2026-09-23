@@ -106,12 +106,28 @@ test('sem foto nem posição, os campos nem são enviados', async () => {
    * e gravaria nulo onde não havia nada.
    */
   const cliente = clienteQue({ situacao: 'registrado', em: 'x' })
-  await transporteDe(cliente)(batida({ tipo: 'entrada' }))
+  await transporteDe(cliente)(batida())
 
   const enviado = cliente.recebeu[0] as Record<string, unknown>
   assert.equal('fotoBase64' in enviado, false)
   assert.equal('lat' in enviado, false)
   assert.equal('lng' in enviado, false)
+})
+
+test('entrada e saída na fila são RECUSA, não falha de rede', async () => {
+  /*
+   * A fila é transporte genérico, mas só o meio tem porta do outro lado.
+   * Se uma entrada ou saída caísse aqui, tratá-la como falha de rede faria o
+   * aparelho reenviar para sempre algo que nunca vai passar — o erro que a
+   * distinção no topo de `transporte.ts` existe para evitar.
+   */
+  const cliente = clienteQue({ situacao: 'registrado', em: 'x' })
+
+  const r = await transporteDe(cliente)(batida({ tipo: 'fim' }))
+
+  assert.equal(r.ok, false)
+  assert.equal(r.ok === false && r.definitivo, true, 'a fila descarta e explica')
+  assert.equal(cliente.recebeu.length, 0, 'nem chegou a bater no servidor')
 })
 
 test('o id do aparelho é o que vai — é ele que impede a duplicata', async () => {

@@ -5,9 +5,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import ExcelJS from 'exceljs'
-import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
+import { batidaDeTeste, cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import { ArquivosEmMemoria } from '../arquivos.js'
-import { registrarBatida } from './batidas.js'
 import { baixarModelo, equipeDoSetor, exportarEquipe, importarPlanilha } from './setor.js'
 
 const URL_BASE = 'http://api.local'
@@ -31,9 +30,7 @@ async function planilhaDeImportacao(linhas: Record<string, string | number>[]): 
   return bytes.toString('base64')
 }
 
-const bate = (participacaoId: string, tipo: 'entrada' | 'meio' | 'fim', em: string) => ({
-  id: `${participacaoId}-${tipo}`, participacaoId, tipo, registradoEm: em,
-})
+
 
 // ─── Escopo ─────────────────────────────────────────────────────────────────
 
@@ -104,7 +101,7 @@ test('depois da janela fechar sem registro, a entrada é "fechado" — a pendên
 
 test('quem já bateu entrada aparece "feito", e a janela do meio é a entrada + 4h', async () => {
   const { repo, admin } = cenarioHenriqueEJuliano()
-  await registrarBatida(repo, 'pes-joao', bate('part-joao', 'entrada', '2026-09-05T08:00:00-03:00'))
+  repo.registros.push(batidaDeTeste('part-joao', 'entrada', '2026-09-05T08:00:00-03:00'))
 
   const antesDoMeio = await equipeDoSetor(repo, admin.id, 'eq-1', new Date('2026-09-05T10:00:00-03:00'))
   assert.equal(antesDoMeio.pessoas[0]?.statusEntrada, 'feito')
@@ -167,7 +164,7 @@ test('registro e contestação de uma pessoa não vazam pra outra — consulta e
     pago: false, pagoEm: null, qrToken: 'tk-maria', cidade: null, criadoEm: '2026-08-20T10:00:00-03:00',
   })
 
-  await registrarBatida(repo, 'pes-joao', bate(participacao.id, 'entrada', '2026-09-05T08:00:00-03:00'))
+  repo.registros.push(batidaDeTeste(participacao.id, 'entrada', '2026-09-05T08:00:00-03:00'))
   await repo.criarContestacao({
     participacaoId: participacao.id, tipo: 'meio', dataRef: '2026-09-05', motivo: 'não gravou o meio',
   })

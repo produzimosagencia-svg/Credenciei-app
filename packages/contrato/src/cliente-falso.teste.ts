@@ -119,68 +119,56 @@ test('participação de outra pessoa é recusada', async () => {
 
 // ─── Bater ponto ────────────────────────────────────────────────────────────
 
-const bater = (tipo: 'entrada' | 'meio' | 'fim', em: string, id = `b-${Math.random()}`) => ({
-  id, participacaoId: 'part-1', tipo, registradoEm: em,
+const bater = (em: string, id = `b-${Math.random()}`) => ({
+  id, participacaoId: 'part-1', tipo: 'meio' as const, registradoEm: em,
 })
 
-test('o ciclo do dia funciona na ordem certa', async () => {
-  const c = await comParticipacao()
+/**
+ * Entra no evento com a ENTRADA do dia já batida, pela porta dela.
+ *
+ * `registrarBatida` passou a aceitar só o meio (ver `EnvioDeBatida`), e a
+ * entrada é `registrarEntradaLivre` — que usa o relógio do servidor, daí o
+ * relógio injetado aqui. O relógio fica mutável para o teste poder bater a
+ * entrada de mais de um dia.
+ */
+async function comEntradaEm(...dias: string[]) {
+  let agora = Date.parse(dias[0]!)
+  const c = await comParticipacao({ agora: () => agora })
+  for (const dia of dias) {
+    agora = Date.parse(dia)
+    await c.registrarEntradaLivre('part-1', {})
+  }
+  return c
+}
 
-  const e = await c.registrarBatida(bater('entrada', '2026-09-03T08:00:00-03:00'))
-  assert.equal(e.situacao, 'registrado')
+test('a entrada abre o dia e o meio vem depois dela, cada um pela sua porta', async () => {
+  // A saída não tem porta no colaborador: é só o QR lido por um operador.
+  const c = await comEntradaEm('2026-09-03T08:00:00-03:00')
 
-  const m = await c.registrarBatida(bater('meio', '2026-09-03T12:05:00-03:00'))
+  const m = await c.registrarBatida(bater('2026-09-03T12:05:00-03:00'))
   assert.equal(m.situacao, 'registrado')
 
-  const s = await c.registrarBatida(bater('fim', '2026-09-03T18:40:00-03:00'))
-  assert.equal(s.situacao, 'registrado')
+  const dia = (await c.meusDias('part-1')).find(d => d.data === '2026-09-03')!
+  assert.ok(dia.entrada, 'a entrada existe')
 })
 
 test('o meio antes das quatro horas é recusado', async () => {
-  const c = await comParticipacao()
-  await c.registrarBatida(bater('entrada', '2026-09-03T08:00:00-03:00'))
+  const c = await comEntradaEm('2026-09-03T08:00:00-03:00')
 
-  const r = await c.registrarBatida(bater('meio', '2026-09-03T10:00:00-03:00'))
+  const r = await c.registrarBatida(bater('2026-09-03T10:00:00-03:00'))
   assert.equal(r.situacao, 'recusado')
   assert.match(r.situacao === 'recusado' ? r.motivo : '', /ainda não abriu/)
 })
 
 test('o meio sem entrada é recusado', async () => {
   const c = await comParticipacao()
-  const r = await c.registrarBatida(bater('meio', '2026-09-03T12:00:00-03:00'))
+  const r = await c.registrarBatida(bater('2026-09-03T12:00:00-03:00'))
   assert.match(r.situacao === 'recusado' ? r.motivo : '', /Registre primeiro a sua entrada/)
 })
 
-test('a saída sem o meio passa — a trava saiu do site em 11/09/2026', async () => {
-  // Ela prendia justamente quem perdeu o meio de verdade, que ficava sem
-  // conseguir registrar a saída. A ausência continua visível no histórico; só
-  // deixou de IMPEDIR.
-  const c = await comParticipacao()
-  await c.registrarBatida(bater('entrada', '2026-09-03T08:00:00-03:00'))
-
-  const r = await c.registrarBatida(bater('fim', '2026-09-03T18:00:00-03:00'))
-  assert.equal(r.situacao, 'registrado')
-})
-
-test('dia que não é de trabalho recusa a batida', async () => {
-  const c = await comParticipacao()
-  const r = await c.registrarBatida(bater('entrada', '2026-08-20T08:00:00-03:00'))
-  assert.match(r.situacao === 'recusado' ? r.motivo : '', /não está marcado como dia de trabalho/)
-})
-
-test('o dia do evento respeita a janela configurada', async () => {
-  const c = await comParticipacao()
-  // Entrada abre 07:00 no dia 05. Às 05:00 ainda não vale.
-  const cedo = await c.registrarBatida(bater('entrada', '2026-09-05T05:00:00-03:00'))
-  assert.equal(cedo.situacao, 'recusado')
-
-  const certo = await c.registrarBatida(bater('entrada', '2026-09-05T10:00:00-03:00'))
-  assert.equal(certo.situacao, 'registrado')
-})
-
 test('o mesmo id volta como duplicado, sem gravar de novo', async () => {
-  const c = await comParticipacao()
-  const b = bater('entrada', '2026-09-03T08:00:00-03:00', 'sempre-o-mesmo')
+  const c = await comEntradaEm('2026-09-03T08:00:00-03:00')
+  const b = bater('2026-09-03T12:05:00-03:00', 'sempre-o-mesmo')
 
   const um = await c.registrarBatida(b)
   const dois = await c.registrarBatida(b)
@@ -258,8 +246,7 @@ test('participação de outra pessoa não registra entrada livre', async () => {
 // ─── Histórico ──────────────────────────────────────────────────────────────
 
 test('o histórico mostra todos os dias, inclusive os sem batida', async () => {
-  const c = await comParticipacao()
-  await c.registrarBatida(bater('entrada', '2026-09-03T08:00:00-03:00'))
+  const c = await comEntradaEm('2026-09-03T08:00:00-03:00')
 
   const dias = await c.meusDias('part-1')
   assert.equal(dias.length, 4, 'quatro dias de trabalho configurados')
@@ -276,8 +263,7 @@ test('o histórico mostra todos os dias, inclusive os sem batida', async () => {
 })
 
 test('o meio esperado é calculado a partir da entrada real', async () => {
-  const c = await comParticipacao()
-  await c.registrarBatida(bater('entrada', '2026-09-03T08:30:00-03:00'))
+  const c = await comEntradaEm('2026-09-03T08:30:00-03:00')
 
   const dia = (await c.meusDias('part-1')).find(d => d.data === '2026-09-03')!
   const hhmm = new Date(Date.parse(dia.meioEsperado!) - 3 * 3600e3).toISOString().slice(11, 16)
@@ -285,18 +271,16 @@ test('o meio esperado é calculado a partir da entrada real', async () => {
 })
 
 test('o meio atrasado é medido, não escondido', async () => {
-  const c = await comParticipacao()
-  await c.registrarBatida(bater('entrada', '2026-09-03T08:00:00-03:00'))
+  const c = await comEntradaEm('2026-09-03T08:00:00-03:00')
   // Janela do meio: abre 12:00, prazo até 14:00. Registrou 14:40.
-  await c.registrarBatida(bater('meio', '2026-09-03T14:40:00-03:00'))
+  await c.registrarBatida(bater('2026-09-03T14:40:00-03:00'))
 
   const dia = (await c.meusDias('part-1')).find(d => d.data === '2026-09-03')!
   assert.equal(dia.meioAtrasoMin, 40)
 })
 
 test('o financeiro é só sobre os dias que a pessoa trabalhou', async () => {
-  const c = await comParticipacao()
-  await c.registrarBatida(bater('entrada', '2026-09-03T08:00:00-03:00'))
+  const c = await comEntradaEm('2026-09-03T08:00:00-03:00')
 
   const f = await c.meuFinanceiro('part-1')
   assert.equal(f.diasTrabalhados, 1)
@@ -304,10 +288,8 @@ test('o financeiro é só sobre os dias que a pessoa trabalhou', async () => {
 })
 
 test('valorPrevisto não muda com quantos dias a pessoa trabalhou — é o combinado, não uma diária', async () => {
-  const c = await comParticipacao()
+  const c = await comEntradaEm('2026-09-03T08:00:00-03:00', '2026-09-04T08:00:00-03:00')
   const antes = (await c.meuFinanceiro('part-1')).valorPrevisto
-  await c.registrarBatida(bater('entrada', '2026-09-03T08:00:00-03:00'))
-  await c.registrarBatida(bater('entrada', '2026-09-04T08:00:00-03:00'))
   const depois = await c.meuFinanceiro('part-1')
   assert.equal(depois.diasTrabalhados, 2)
   assert.equal(depois.valorPrevisto, antes)
@@ -446,7 +428,7 @@ test('o painel da equipe aponta a pendência atual', async () => {
   assert.equal(antes.presentes, 0)
   assert.equal(antes.pessoas[0]!.pendencia, 'entrada')
 
-  await c.registrarBatida(bater('entrada', '2026-09-03T08:00:00-03:00'))
+  await c.registrarEntradaLivre('part-1', {})
   const depois = await c.painelDaEquipe('ev-1')
   assert.equal(depois.presentes, 1)
   assert.equal(depois.pessoas[0]!.pendencia, 'meio')
