@@ -108,7 +108,12 @@ hospedagem.
 - **GitHub**: `https://github.com/produzimosagencia-svg/Credenciei-app` —
   repositório **privado**. Um `git push origin main` sobe o código.
 - **VPS Hostinger** (KVM 2, IP `187.77.251.119`, Campinas, pago até
-  julho/2028), com **EasyPanel** publicando a cada `git push`. O caminho do
+  julho/2028), com **EasyPanel** publicando a cada `git push` — isso depende
+  de um webhook configurado nos Settings do repositório no GitHub, apontando
+  pro "Gatilho de Implantação" do serviço. **Sem ele o EasyPanel NÃO sabe que
+  houve push**, e só publica quando alguém aperta "Implantar". Foi o que
+  aconteceu em 23/09/2026: quatro commits ficaram fora do ar enquanto eu
+  diagnosticava bug no código que já estava corrigido. O caminho do
   pedido é `nginx (host) → 127.0.0.1:3001 → contêiner:3000` — o EasyPanel
   desta instalação **não tem Traefik**, e quem roteia é o nginx. Variáveis de
   ambiente no painel do EasyPanel, nunca commitadas.
