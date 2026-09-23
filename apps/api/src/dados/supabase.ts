@@ -174,9 +174,14 @@ export class RepositorioSupabase implements Repositorio {
    * história, e quem tem linha em `pessoas` continua sendo lido de lá — que
    * é o dado mais correto quando existe.
    *
-   * Isto é remendo de LEITURA, não a correção de fundo. O certo é a escrita
-   * povoar `pessoas` (de preferência por gatilho no banco, que pega os dois
-   * sistemas) — ver `docs/decisoes/010`.
+   * Descobriu-se depois que o problema é maior: `pessoas` não é só
+   * incompleta para quem chegou depois, é DESATUALIZADA para todo mundo —
+   * ver `pessoaPorId`, logo abaixo. Por isso esta função deixou de ser
+   * exceção e virou a fonte preferida.
+   *
+   * Nada disto é a correção de fundo. O certo é a escrita povoar `pessoas`,
+   * de preferência por gatilho no banco, que pega os dois sistemas sem
+   * depender de ninguém lembrar — ver `docs/decisoes/010`.
    */
   private async pessoaPeloCadastro(cpf: string): Promise<Pessoa | null> {
     const { data } = await this.db
@@ -241,13 +246,42 @@ export class RepositorioSupabase implements Repositorio {
     return this.pessoaPorId(idDaPessoa(cpf))
   }
 
+  /*
+   * ─── O CADASTRO VENCE A TABELA DE IDENTIDADE ──────────────────────────────
+   *
+   * Parece invertido, e não é. `pessoas` é um RETRATO tirado uma vez pela
+   * migração 001, em 22/09/2026. `funcionarios` continua vivo: o SITE — que
+   * é quem sobe a foto de perfil, corrige nome e troca telefone — escreve só
+   * nele, e nem sabe que `pessoas` existe.
+   *
+   * Então tudo que mudou depois de 22/09 está no cadastro e NÃO está na
+   * tabela de identidade. Em 23/09/2026 isso apareceu assim: o Filipe pôs
+   * foto pelo site, ela aparecia na lista da equipe (que lê `funcionarios`) e
+   * não aparecia na ficha (que lia `pessoas`) — a mesma pessoa, com e sem
+   * rosto, em duas telas do mesmo app.
+   *
+   * `pessoas` continua sendo consultada e serve de rede: se um dia não houver
+   * cadastro, a identidade ainda existe. Mas quando os dois têm resposta,
+   * vale o vivo.
+   *
+   * Isto é seguro para a LGPD: `excluirMinhaConta` anonimiza as DUAS tabelas
+   * na mesma transação, então ler do cadastro não ressuscita nome de quem
+   * pediu exclusão.
+   */
   async pessoaPorId(id: string): Promise<Pessoa | null> {
     const cpf = cpfDoId(id)
     if (!cpf) return null
 
-    const { data: p } = await this.db
-      .from('pessoas').select('cpf, nome, telefone, foto_path').eq('cpf', cpf).maybeSingle()
-    if (!p) return this.pessoaPeloCadastro(cpf)
+    // Em paralelo: duas consultas custam o tempo de uma.
+    const [identidade, cadastro] = await Promise.all([
+      this.db.from('pessoas').select('cpf, nome, telefone, foto_path').eq('cpf', cpf).maybeSingle(),
+      this.pessoaPeloCadastro(cpf),
+    ])
+
+    if (cadastro) return cadastro
+
+    const p = identidade.data
+    if (!p) return null
 
     return {
       id,
