@@ -344,6 +344,30 @@ test('Suporte de Sistema vai e volta pela API — criar, listar, editar e revoga
   assert.equal(final.expirado, true)
 })
 
+test('meus dados vai e volta pela API — traz o evento e a batida registrada', async () => {
+  const m = montar()
+  await entrar(m)
+  const p = (await m.cliente.minhasParticipacoes())[0]!
+
+  const arquivo = await m.cliente.meusDados()
+  assert.ok(arquivo.nome.endsWith('.json'))
+  assert.ok(arquivo.url)
+
+  const token = arquivo.url.split('/').pop()!
+  const resposta = await m.app.request(`/arquivos/${token}`)
+  const dados = await resposta.json() as { participacoes: { evento: string }[] }
+  assert.ok(dados.participacoes.some(part => part.evento === p.eventoNome))
+})
+
+test('meus dados é só para conta de colaborador', async () => {
+  const m = montar()
+  const login = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
+
+  await assert.rejects(m.cliente.meusDados(), /só para conta de colaborador/)
+})
+
 test('excluir minha conta vai e volta pela API — anonimiza e derruba a sessão', async () => {
   const m = montar()
   await entrar(m)

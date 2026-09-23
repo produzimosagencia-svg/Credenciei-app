@@ -37,7 +37,7 @@ import { avisosPendentes, marcarAvisoVisto } from './rotas/avisos.js'
 import {
   marcarNotificacaoComoLida, marcarTodasComoLidas, minhasNotificacoes, salvarPreferenciasDeAvisos,
 } from './rotas/notificacoes.js'
-import { excluirMinhaConta } from './rotas/conta.js'
+import { excluirMinhaConta, meusDados } from './rotas/conta.js'
 import { painelDaEquipe } from './rotas/equipe.js'
 import { painel } from './rotas/painel.js'
 import { conferirPorCpf, eventosParaEscanear, registrarPorQr } from './rotas/escanear.js'
@@ -308,6 +308,13 @@ export function criarServidor(amb: Ambiente) {
       return c.json({ erro: 'Esta ação é só para conta de colaborador.' }, 400)
     }
     return c.json(await excluirMinhaConta(amb.repo, amb.sessoes, c.get('pessoaId')))
+  })
+
+  app.get('/v1/minha-conta/dados', async c => {
+    if (c.get('papel') !== 'colaborador') {
+      return c.json({ erro: 'Esta ação é só para conta de colaborador.' }, 400)
+    }
+    return protegido(c, () => meusDados(amb.repo, amb.arquivos, c.get('pessoaId')))
   })
 
   // ── Entrar num evento ───────────────────────────────────────────────────

@@ -89,6 +89,13 @@ export interface ClienteApi {
    */
   excluirMinhaConta(): Promise<{ erro?: string }>
   /**
+   * "Baixar meus dados" — LGPD, direito de acesso/portabilidade. Um
+   * arquivo (JSON) com tudo que o sistema sabe sobre a pessoa: dados
+   * pessoais, todo evento em que já trabalhou, toda batida, contestação
+   * em aberto, aviso recebido, e as preferências de notificação.
+   */
+  meusDados(): Promise<ArquivoDePlanilha>
+  /**
    * O código do QR para a etapa de hoje daquele evento.
    *
    * `liberado` decide se a tela mostra o QR ou o embaça — decisão do Juan,

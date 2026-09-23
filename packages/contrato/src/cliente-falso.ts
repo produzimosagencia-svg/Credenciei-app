@@ -1453,6 +1453,16 @@ export class ClienteFalso implements ClienteApi {
     return {}
   }
 
+  async meusDados(): Promise<ArquivoDePlanilha> {
+    await this.rede()
+    this.exigirSessao()
+    if (this.quemEntrou.papel !== 'colaborador') {
+      throw new Error('Esta ação é só para conta de colaborador.')
+    }
+    const hoje = diaBRT(new Date(this.agora()))
+    return { nome: `meus-dados-${hoje}.json`, url: `${ENDERECO_DE_ARQUIVOS}/meus-dados` }
+  }
+
   async meuQr(participacaoId: string) {
     await this.rede()
     this.exigirParticipacao(participacaoId)

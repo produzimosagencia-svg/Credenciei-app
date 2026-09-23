@@ -333,6 +333,12 @@ export class ClienteHttp implements ClienteApi {
     return r.corpo as unknown as { erro?: string }
   }
 
+  async meusDados(): Promise<ArquivoDePlanilha> {
+    const r = await this.pedir('/v1/minha-conta/dados')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos gerar seus dados.'))
+    return r.corpo as unknown as ArquivoDePlanilha
+  }
+
   async meuQr(participacaoId: string) {
     const r = await this.pedir(`/v1/participacoes/${encodeURIComponent(participacaoId)}/qr`)
     if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos gerar seu QR.'))

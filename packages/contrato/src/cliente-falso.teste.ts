@@ -364,6 +364,21 @@ test('sem sessão, nem colaborador exclui', async () => {
   await assert.rejects(() => c.excluirMinhaConta(), /Sessão expirada/)
 })
 
+// ─── Meus dados (LGPD, portabilidade) ──────────────────────────────────────
+
+test('colaborador baixa os próprios dados', async () => {
+  const c = await logado()
+  const arquivo = await c.meusDados()
+  assert.ok(arquivo.nome.endsWith('.json'))
+  assert.ok(arquivo.url)
+})
+
+test('conta de painel não usa meus dados', async () => {
+  const c = new ClienteFalso()
+  await entrarComo(c, 'admin')
+  await assert.rejects(() => c.meusDados(), /só para conta de colaborador/)
+})
+
 // ─── QR ─────────────────────────────────────────────────────────────────────
 
 test('o QR muda de etapa junto com o dia', async () => {
