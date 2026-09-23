@@ -118,7 +118,16 @@ test('revogar desativa e expira na hora — diferente de excluir, o histórico c
   const r = await revogarSuporte(cenario.repo, cenario.master.id, criado.id!)
   assert.equal(r.erro, undefined)
 
-  const dados = await dadosDeSuporte(cenario.repo, cenario.master.id, AGORA)
+  /*
+   * Este é o único teste do arquivo que NÃO usa o relógio congelado.
+   *
+   * `revogarSuporte` marca o vencimento como "ontem" pelo relógio DE VERDADE
+   * — é uma revogação, acontece agora. Comparar isso com o `AGORA` fixo de
+   * 22/09/2026 só dava certo enquanto hoje era 22/09: no dia seguinte,
+   * "ontem" virou o próprio 22/09 e o teste passou a falhar sozinho, sem
+   * ninguém ter mexido em nada. Foi o que aconteceu em 23/09/2026.
+   */
+  const dados = await dadosDeSuporte(cenario.repo, cenario.master.id, new Date())
   const revogado = dados.suportes.find(s => s.id === criado.id)!
   assert.equal(revogado.ativo, false)
   assert.equal(revogado.expirado, true)

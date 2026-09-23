@@ -5,6 +5,10 @@
     "packages/*",
     "apps/*"
   ],
+  "//engines": "Versão travada pra quem CONSTRÓI a API fora daqui: sem isto, o construtor escolhe a versão que quiser (já vimos Node 18 de padrão), e a API roda com um Node diferente do que foi testado.",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "teste": "npm run teste --workspaces --if-present",
     "tipos": "npm run tipos --workspaces --if-present",
