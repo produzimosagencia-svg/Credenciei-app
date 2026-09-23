@@ -25,6 +25,35 @@ test('o colaborador só vê o que é dele', () => {
   }
 })
 
+test('o produtor só vê Gastos — nada do painel de credenciamento', () => {
+  /*
+   * O produto dele é outro: ele é cliente do módulo Gastos, não gente que
+   * administra evento. No site isso é um shell separado, com o comentário
+   * "o Produtor não conhece o /admin" — aqui é o menu não ter Painel, e
+   * `index.tsx` abrir Gastos no lugar. Um item de credenciamento vazando pra
+   * cá levaria um cliente pago a tocar num botão e receber "não".
+   */
+  const dele = rotulos('produtor')
+  assert.deepEqual(dele, ['Gastos', 'Lista e filtros', 'Dashboard', 'Avisos'])
+
+  for (const proibido of ['Painel', 'Escanear QR', 'Acessos', 'Organizações', 'Relatórios']) {
+    assert.equal(dele.includes(proibido), false, `produtor não podia ver ${proibido}`)
+  }
+})
+
+test('o master alcança Gastos, sem perder o painel', () => {
+  // Ele entra no módulo pra dar suporte — mesma régua de `podeRegistrarGastos`.
+  const dele = rotulos('master')
+  assert.equal(dele.includes('Gastos'), true)
+  assert.equal(dele.includes('Painel'), true)
+})
+
+test('quem não é produtor nem master não vê Gastos', () => {
+  for (const papel of ['admin', 'supervisor', 'operador_portao', 'suporte']) {
+    assert.equal(rotulos(papel).includes('Gastos'), false, `${papel} não podia ver Gastos`)
+  }
+})
+
 test('o supervisor acompanha, mas não tem Escanear QR', () => {
   // Foi decisão do Juan: quem credencia é o posto de credenciamento. O menu
   // precisa dizer o mesmo que a permissão, senão ele toca e leva um "não".

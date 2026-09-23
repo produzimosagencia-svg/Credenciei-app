@@ -48,6 +48,8 @@ const TELAS = [
   { nome: 'meu-pagamento', rota: '/meu-pagamento', titulo: 'Meu pagamento' },
   { nome: 'meu-historico', rota: '/meu-historico', titulo: 'Meu histórico' },
   { nome: 'avisos', rota: '/avisos', titulo: 'Avisos' },
+  { nome: 'gastos-lista', rota: '/gastos-lista', titulo: 'Lista e filtros' },
+  { nome: 'gastos-painel', rota: '/gastos-painel', titulo: 'Dashboard' },
 ] as const
 
 export default function Dentro() {

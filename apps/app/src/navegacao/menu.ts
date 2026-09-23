@@ -17,8 +17,9 @@
 // Painel, e o item levaria para a mesma tela em que a pessoa já está.
 
 import {
-  ehMaster, papelDoAlvo, podeAcompanhar, podeBloquearCpf, podeEscanear, podeGerenciarEventos,
-  podeGerenciarUsuarios, podeGerenciarVeiculos, type AlvoPermissao,
+  ehMaster, ehProdutor, papelDoAlvo, podeAcompanhar, podeBloquearCpf, podeEscanear,
+  podeGerenciarEventos, podeGerenciarUsuarios, podeGerenciarVeiculos, podeRegistrarGastos,
+  type AlvoPermissao,
 } from '@credenciei/dominio'
 
 export type ItemDoMenu = {
@@ -53,6 +54,29 @@ export type GrupoDoMenu = {
 export function menuDoPainel(alvo: AlvoPermissao): GrupoDoMenu[] {
   const grupos: GrupoDoMenu[] = []
   const papel = papelDoAlvo(alvo) ?? ''
+
+  /*
+   * O Produtor só tem Gastos, e a tela inicial dele É Gastos.
+   *
+   * No site ele tem um shell próprio (`app/gastos/layout.tsx`) e o comentário
+   * de lá diz por quê: o pedido foi "não parecer um sistema financeiro", e a
+   * lista de vinte itens do painel é o oposto disso. Lá está escrito também
+   * que "o Produtor não conhece o /admin" — aqui isso vira o menu não ter
+   * Painel nenhum, e `index.tsx` abrir Gastos para ele.
+   *
+   * Master também alcança Gastos (entra pra dar suporte), mas pelo menu
+   * normal, mais abaixo — ele continua tendo o painel inteiro.
+   */
+  if (ehProdutor(papel)) {
+    return [{
+      itens: [
+        { rota: '/', rotulo: 'Gastos', icone: 'Wallet', pronta: true },
+        { rota: '/gastos-lista', rotulo: 'Lista e filtros', icone: 'ClipboardList', pronta: true },
+        { rota: '/gastos-painel', rotulo: 'Dashboard', icone: 'ChartPie', pronta: true },
+        { rota: '/avisos', rotulo: 'Avisos', icone: 'Megaphone', pronta: true },
+      ],
+    }]
+  }
 
   const principal: ItemDoMenu[] = [
     { rota: '/', rotulo: 'Painel', icone: 'Home', pronta: true },
@@ -111,6 +135,12 @@ export function menuDoPainel(alvo: AlvoPermissao): GrupoDoMenu[] {
   // suporte — que só vê o que ele mesmo fez (a régua mora no servidor).
   if (podeGerenciarUsuarios(papel) || papel === 'suporte') {
     principal.push({ rota: '/auditoria', rotulo: 'Trilha de auditoria', icone: 'History', pronta: true })
+  }
+
+  // Gastos é do Produtor, mas o master alcança pra dar suporte — mesma régua
+  // de `podeRegistrarGastos`, que é `produtor || master`.
+  if (podeRegistrarGastos(alvo)) {
+    principal.push({ rota: '/gastos-lista', rotulo: 'Gastos', icone: 'Wallet', pronta: true })
   }
 
   // Todo mundo que tem conta recebe aviso — o supervisor leva alerta de

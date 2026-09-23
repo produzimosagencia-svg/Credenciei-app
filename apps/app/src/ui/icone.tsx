@@ -28,8 +28,11 @@ import CircleAlert from 'lucide-react-native/icons/circle-alert'
 import CircleCheckBig from 'lucide-react-native/icons/circle-check-big'
 import CalendarDays from 'lucide-react-native/icons/calendar-days'
 import Check from 'lucide-react-native/icons/check'
+import ChartPie from 'lucide-react-native/icons/chart-pie'
+import ChevronDown from 'lucide-react-native/icons/chevron-down'
 import ChevronLeft from 'lucide-react-native/icons/chevron-left'
 import ChevronRight from 'lucide-react-native/icons/chevron-right'
+import ChevronUp from 'lucide-react-native/icons/chevron-up'
 import ClipboardCheck from 'lucide-react-native/icons/clipboard-check'
 import ClipboardList from 'lucide-react-native/icons/clipboard-list'
 import ClipboardPen from 'lucide-react-native/icons/clipboard-pen'
@@ -103,8 +106,11 @@ const ICONES: Record<string, LucideIcon> = {
   CameraOff,
   Check,
   CheckCircle: CircleCheckBig,
+  ChartPie,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   ClipboardCheck,
   ClipboardList,
   ClipboardPen,
