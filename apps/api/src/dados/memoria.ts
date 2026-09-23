@@ -578,6 +578,14 @@ export class RepositorioEmMemoria implements Repositorio {
     return `https://storage.falso.local/presencas/${encodeURIComponent(caminho)}`
   }
 
+  async urlsDasFotos(caminhos: string[]): Promise<Map<string, string>> {
+    const mapa = new Map<string, string>()
+    for (const c of new Set(caminhos.filter(Boolean))) {
+      mapa.set(c, `https://storage.falso.local/presencas/${encodeURIComponent(c)}`)
+    }
+    return mapa
+  }
+
   async gravarRegistro(r: NovoRegistro) {
     /*
      * Recusa id repetido, como uma chave primária faria.

@@ -129,6 +129,11 @@ export async function equipeDoSetor(
 
   pessoas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
+  // Caminho vira URL em lote — mesma correção e mesmo motivo de
+  // `painelDaEquipe`: cru a imagem não carrega, e um a um volta o N+1.
+  const urls = await repo.urlsDasFotos(pessoas.map(p => p.fotoUrl ?? '').filter(Boolean))
+  for (const p of pessoas) p.fotoUrl = p.fotoUrl ? urls.get(p.fotoUrl) ?? null : null
+
   const contar = (campo: 'entrada' | 'meio' | 'fim') => pessoas.filter(p => p[campo]).length
   const comPendencia = pessoas.filter(
     p => p.statusEntrada === 'fechado' || p.statusMeio === 'fechado' || p.statusFim === 'fechado'

@@ -1090,6 +1090,24 @@ export class RepositorioSupabase implements Repositorio {
     return data.signedUrl
   }
 
+  async urlsDasFotos(caminhos: string[]): Promise<Map<string, string>> {
+    const unicos = [...new Set(caminhos.filter(Boolean))]
+    if (unicos.length === 0) return new Map()
+
+    const { data, error } = await this.db.storage
+      .from(RepositorioSupabase.BUCKET_DE_FOTOS)
+      .createSignedUrls(unicos, 15 * 60)
+    if (error || !data) return new Map()
+
+    const mapa = new Map<string, string>()
+    for (const item of data) {
+      // `error` por item: o Storage responde caminho a caminho, e um arquivo
+      // que sumiu não pode tirar os outros do ar.
+      if (item.signedUrl && !item.error && item.path) mapa.set(item.path, item.signedUrl)
+    }
+    return mapa
+  }
+
   async gravarRegistro(r: NovoRegistro): Promise<Registro> {
     const part = await this.participacaoPorId(r.participacaoId)
     if (!part) throw new Error('Participação não encontrada.')

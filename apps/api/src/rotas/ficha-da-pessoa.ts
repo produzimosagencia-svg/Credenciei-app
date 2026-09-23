@@ -97,7 +97,18 @@ export async function fichaDaPessoa(
     nome: pessoa.nome,
     cpf: pessoa.cpf,
     telefone: pessoa.telefone,
-    fotoUrl: pessoa.fotoPath,
+    /*
+     * O CAMINHO precisa virar URL, como a foto da batida logo acima.
+     *
+     * Estava sendo entregue cru, e a tela tentava carregar "perfis/abc.jpg"
+     * como se fosse endereço — resultado: a pessoa cadastrava a foto pelo
+     * site e a ficha não mostrava nada. Achado em 23/09/2026.
+     *
+     * Quem sobe essa foto é o SITE, no bucket `presencas` (o mesmo da selfie
+     * do meio, confirmado em `lib/actions.ts`: o remove de lá usa
+     * `storage.from('presencas')`). Por isso `urlDaFoto` serve pras duas.
+     */
+    fotoUrl: pessoa.fotoPath ? await repo.urlDaFoto(pessoa.fotoPath) : null,
     empresa: participacao.empresa ?? null,
     funcao: participacao.funcao,
     eventoNome: evento.nome,

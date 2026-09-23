@@ -551,6 +551,17 @@ export interface Repositorio {
    * mais no Storage.
    */
   urlDaFoto(caminho: string): Promise<string | null>
+  /**
+   * As URLs de VÁRIAS fotos, numa chamada só.
+   *
+   * `urlDaFoto` assina uma por vez, e assinar é ida à rede. Numa lista de
+   * equipe com 2.000 pessoas isso seriam 2.000 chamadas — o mesmo N+1 que
+   * foi eliminado destas telas em 22/09. Quem monta lista usa esta.
+   *
+   * Caminho que falhar simplesmente não entra no mapa: foto quebrada não
+   * pode derrubar a lista inteira de quem está no portão.
+   */
+  urlsDasFotos(caminhos: string[]): Promise<Map<string, string>>
   gravarRegistro(r: NovoRegistro): Promise<Registro>
   /**
    * Apaga um registro — só usado para REABRIR um turno (a saída que a

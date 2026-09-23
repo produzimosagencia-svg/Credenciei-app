@@ -88,6 +88,17 @@ export async function painelDaEquipe(
 
   pessoas.sort((a, b) => peso(a) - peso(b) || a.nome.localeCompare(b.nome, 'pt-BR'))
 
+  /*
+   * Os CAMINHOS das fotos viram URLs aqui, numa chamada só.
+   *
+   * Até 23/09/2026 o caminho ia cru pra tela, que tentava carregá-lo como
+   * endereço e não mostrava nada. Assinar um a um consertaria a imagem e
+   * traria de volta o N+1 que foi eliminado desta tela em 22/09 — por isso
+   * `urlsDasFotos`, em lote.
+   */
+  const urls = await repo.urlsDasFotos(pessoas.map(p => p.fotoUrl ?? '').filter(Boolean))
+  for (const p of pessoas) p.fotoUrl = p.fotoUrl ? urls.get(p.fotoUrl) ?? null : null
+
   return {
     eventoNome: evento.nome,
     equipeNome: equipe.nome,
