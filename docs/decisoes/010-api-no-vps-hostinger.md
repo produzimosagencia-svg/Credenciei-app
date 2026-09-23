@@ -131,8 +131,33 @@ adicional. O que **não** dá: redundância.
   `/etc/cron.d/credenciei` chama `/usr/local/bin/credenciei-avisos` de 15 em
   15 minutos (as seis rotas de lembrete) e `credenciei-limpeza` às 04:17 (a
   foto vencida, ADR 003). O segredo fica em `/root/.credenciei-manutencao`,
-  modo 600, gravado com `printf` e não `echo` — a quebra de linha do `echo`
-  entraria no cabeçalho e daria 401.
+  modo 600, gravado sem quebra de linha — ela entraria no cabeçalho e daria
+  401.
+
+### Duas lições de operação, pagas com tempo
+
+**O `SEGREDO_MANUTENCAO` vive em dois lugares, e copiar à mão falhou.** Ele
+precisa ser idêntico no EasyPanel (que a API lê) e no arquivo do servidor (que
+o cron lê). Copiar 64 caracteres da tela perdeu um, e o sintoma foi 401 nas
+seis rotas — sem pista nenhuma de que era um caractere a menos. A forma certa
+tira o humano do meio:
+
+```sh
+docker exec "$(docker ps -q -f name=projetos_github_credenciei)" \
+  printenv SEGREDO_MANUTENCAO | tr -d '\n' > /root/.credenciei-manutencao
+chmod 600 /root/.credenciei-manutencao
+```
+
+Para conferir que dois segredos batem sem revelar nenhum, compare o hash:
+`sha256sum /root/.credenciei-manutencao` no servidor, e
+`node -e 'console.log(require("crypto").createHash("sha256").update(process.env.SEGREDO_MANUTENCAO).digest("hex"))'`
+no terminal do contêiner.
+
+**A primeira versão do `credenciei-avisos` mentia.** Cada `curl` tinha um
+`|| logger` que engolia a falha, e o script saía como sucesso sempre — deu
+seis 401 seguidos e imprimiu `OK` no fim. Um agendador que sempre "dá certo"
+esconde exatamente o que deveria denunciar. Agora ele conta as falhas e sai
+diferente de zero.
 
 ## Pendente
 
