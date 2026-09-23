@@ -134,6 +134,41 @@ adicional. O que **não** dá: redundância.
   modo 600, gravado sem quebra de linha — ela entraria no cabeçalho e daria
   401.
 
+### ⚠️ O impasse que travou os deploys por três horas
+
+**Sintoma**: o build dizia `### Success`, o webhook entregava ✅, o botão
+"Implantar" respondia — e o que estava no ar continuava sendo a versão de
+horas antes. Silenciosamente.
+
+**Causa**: a porta publicada (3001 → 3000) fica em **modo host**, que prende a
+porta no nó. Com **um nó só** e **"Tempo de inatividade zero" ligado**, o
+Swarm tenta subir a tarefa nova ANTES de derrubar a velha — e a nova nunca
+entra, porque a porta ainda é da velha:
+
+```
+docker service ps projetos_github_credenciei --no-trunc
+
+ERROR: "no suitable node (host-mode port already in use on 1 node)"
+```
+
+Todas as tarefas novas ficam `Pending` para sempre, e a antiga segue
+`Running`. Do lado de fora, parece que o deploy simplesmente não faz nada.
+
+**Correção**: desligar **"Tempo de inatividade zero"** (Avançado → Implantar).
+O Swarm passa a parar a tarefa antiga antes de subir a nova, liberando a
+porta. O custo são alguns segundos de indisponibilidade por deploy — barato
+perto de ter deploy que não aplica.
+
+**Não religue essa chave** enquanto a porta 3001 estiver publicada em modo
+host. As duas coisas são incompatíveis num servidor de um nó só.
+
+**Como diagnosticar de novo, se acontecer**: `/saude` devolve `desdeQuando`,
+que é quando o processo subiu. Se ele for de horas atrás depois de um deploy,
+é este impasse — confirme com o `docker service ps` acima. Esse campo existe
+por causa deste episódio: sem ele, a instância velha responde `ok: true`
+igual à nova, e o diagnóstico vai para o lugar errado (foi o que aconteceu
+por três horas, procurando bug em código que já estava corrigido).
+
 ### Duas lições de operação, pagas com tempo
 
 **O `SEGREDO_MANUTENCAO` vive em dois lugares, e copiar à mão falhou.** Ele
