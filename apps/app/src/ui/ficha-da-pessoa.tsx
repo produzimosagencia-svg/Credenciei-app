@@ -12,7 +12,7 @@
 // confere o fechamento.
 
 import { useMemo, useState } from 'react'
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import QRCode from 'react-native-qrcode-svg'
 import { formatCpf, formatTelefone, formatarBR, NOME_DA_FASE } from '@credenciei/dominio'
@@ -54,7 +54,11 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
       borderColor: uso.borda,
       alignItems: 'center',
       justifyContent: 'center',
+      overflow: 'hidden',
     },
+    // `overflow: hidden` no retrato + tamanho cheio aqui: é o que recorta a
+    // foto no círculo em vez de deixá-la quadrada por cima da borda.
+    retratoFoto: { width: '100%', height: '100%', borderRadius: 999 },
     iniciais: { ...texto.corpoForte, color: uso.tintaMedia },
     identidadeTexto: { flex: 1, minWidth: 0 },
     fechar: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
@@ -225,8 +229,18 @@ export function FichaDaPessoaModal({
       <View style={e.fora}>
         <View style={e.topo}>
           <View style={e.identidade}>
+            {/*
+              A foto, quando existe; as iniciais quando não.
+              Até 23/09/2026 esta tela desenhava SEMPRE as iniciais — a API
+              devolvia `fotoUrl` e ninguém lia. Quem pusesse foto pelo site
+              via o rosto no painel web e um círculo cinza aqui.
+            */}
             <View style={e.retrato}>
-              <Text style={e.iniciais}>{ficha ? iniciaisDe(ficha.nome) : '··'}</Text>
+              {ficha?.fotoUrl ? (
+                <Image source={{ uri: ficha.fotoUrl }} style={e.retratoFoto} />
+              ) : (
+                <Text style={e.iniciais}>{ficha ? iniciaisDe(ficha.nome) : '··'}</Text>
+              )}
             </View>
             <View style={e.identidadeTexto}>
               <TituloDeCartao>{ficha?.nome ?? 'Carregando…'}</TituloDeCartao>

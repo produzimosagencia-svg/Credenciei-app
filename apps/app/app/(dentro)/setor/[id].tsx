@@ -19,7 +19,7 @@
 
 import { useMemo, useState } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
 import { formatCpf, formatTelefone, formatarBR, podeBloquearCpf } from '@credenciei/dominio'
 import type { PessoaDoSetor, TipoBatida } from '@credenciei/contrato'
 import { usePedido } from '../../../src/dados/pedido'
@@ -243,8 +243,13 @@ function LinhaDaPessoa({
       accessibilityLabel={`Abrir a ficha de ${pessoa.nome}`}
       style={({ pressed }) => [e.pessoa, pressed && e.pessoaTocada]}
     >
+      {/* Foto quando existe, iniciais quando não — ver `ficha-da-pessoa.tsx`. */}
       <View style={e.retrato}>
-        <Text style={e.iniciais}>{iniciaisDe(pessoa.nome)}</Text>
+        {pessoa.fotoUrl ? (
+          <Image source={{ uri: pessoa.fotoUrl }} style={e.retratoFoto} />
+        ) : (
+          <Text style={e.iniciais}>{iniciaisDe(pessoa.nome)}</Text>
+        )}
       </View>
 
       <View style={e.pessoaTexto}>
@@ -406,7 +411,9 @@ function criarEstilos(cor: Tokens['cor'], uso: Tokens['uso']) {
     borderColor: uso.borda,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
+  retratoFoto: { width: '100%', height: '100%', borderRadius: 999 },
   iniciais: { ...texto.xxs, fontFamily: tipo.semi, color: cor.neutro600 },
   pessoaTexto: { flex: 1, minWidth: 0, gap: 2 },
   pessoaTopo: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
