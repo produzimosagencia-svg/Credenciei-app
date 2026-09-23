@@ -73,7 +73,7 @@ test('quem já bateu entrada não recebe lembrete', async () => {
   repo.registros.push({
     id: 'reg-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T18:00:00-03:00', recebidoEm: '2026-09-05T18:00:01-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
 
   const { enviados, enviarPush } = coletor()
@@ -160,7 +160,7 @@ test('quem já bateu saída (registrada no dia principal) não recebe lembrete',
   repo.registros.push({
     id: 'reg-saida', participacaoId: participacao.id, tipo: 'fim', dataRef: '2026-09-05',
     registradoEm: '2026-09-06T06:00:00-03:00', recebidoEm: '2026-09-06T06:00:01-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
 
   const { enviados, enviarPush } = coletor()
@@ -192,7 +192,7 @@ function comEntrada(registradoEm = '2026-09-05T18:00:00-03:00') {
   const cenario = cenarioHenriqueEJuliano()
   cenario.repo.registros.push({
     id: 'reg-entrada', participacaoId: cenario.participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
-    registradoEm, recebidoEm: registradoEm, fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    registradoEm, recebidoEm: registradoEm, fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
   return cenario
 }
@@ -241,7 +241,7 @@ test('quem já fez o meio não recebe lembrete', async () => {
   repo.registros.push({
     id: 'reg-meio', participacaoId: participacao.id, tipo: 'meio', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T22:30:00-03:00', recebidoEm: '2026-09-05T22:30:00-03:00',
-    fotoPath: 'foto.jpg', lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: 'foto.jpg', lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
 
   const { enviados, enviarPush } = coletor()
@@ -326,7 +326,7 @@ test('sem pendência, sem aviso ao supervisor', async () => {
   repo.registros.push({
     id: 'reg-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T18:00:00-03:00', recebidoEm: '2026-09-05T18:00:01-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
 
   const { enviados, enviarPush } = coletor()

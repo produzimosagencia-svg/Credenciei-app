@@ -69,7 +69,7 @@ test('quem bateu a entrada aparece na visão "entrada"', async () => {
   repo.registros.push({
     id: 'r-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
   const a = await atividades(repo, admin.id, 'ev-hj', { visao: 'entrada', dia: '2026-09-05' })
   assert.deepEqual(nomes(a.linhas), ['João da Silva'])
@@ -82,7 +82,7 @@ test('entrada sem saída é "presentes"; com saída, some da lista', async () =>
   repo.registros.push({
     id: 'r-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
   const antes = await atividades(repo, admin.id, 'ev-hj', { visao: 'presentes', dia: '2026-09-05' })
   assert.deepEqual(nomes(antes.linhas), ['João da Silva'])
@@ -90,7 +90,7 @@ test('entrada sem saída é "presentes"; com saída, some da lista', async () =>
   repo.registros.push({
     id: 'r-2', participacaoId: participacao.id, tipo: 'fim', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T23:00:00-03:00', recebidoEm: '2026-09-05T23:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
   const depois = await atividades(repo, admin.id, 'ev-hj', { visao: 'presentes', dia: '2026-09-05' })
   assert.deepEqual(depois.linhas, [])
@@ -101,7 +101,7 @@ test('batida do registro assistido chega com manual:true', async () => {
   repo.registros.push({
     id: 'r-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: true, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: true, origem: 'app', justificativa: null,
   })
   const a = await atividades(repo, admin.id, 'ev-hj', { visao: 'entrada', dia: '2026-09-05' })
   assert.equal(a.linhas[0]?.manual, true)
@@ -128,7 +128,7 @@ test('quem entrou não aparece em "ainda não chegaram", mesmo depois da hora', 
   repo.registros.push({
     id: 'r-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
   const a = await atividades(
     repo, admin.id, 'ev-hj', { visao: 'faltam', dia: '2026-09-05' }, new Date('2026-09-06T00:01:00-03:00'),
@@ -141,7 +141,7 @@ test('não fizeram o meio: só depois da janela individual (entrada + 6h) fechar
   repo.registros.push({
     id: 'r-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
   // Entrada 19h + 4h (abre) + 2h (duração) = janela fecha às 01h do dia 6.
   const antes = await atividades(
@@ -162,7 +162,7 @@ test('setor que não exige o meio nunca cobra "não fizeram o meio"', async () =
   repo.registros.push({
     id: 'r-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
   const a = await atividades(
     repo, admin.id, 'ev-hj', { visao: 'sem_meio', dia: '2026-09-05' }, new Date('2026-09-07T00:00:00-03:00'),
@@ -176,7 +176,7 @@ test('dia que não pede o meio nunca cobra "não fizeram o meio", mesmo com o se
   repo.registros.push({
     id: 'r-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
   const a = await atividades(
     repo, admin.id, 'ev-hj', { visao: 'sem_meio', dia: '2026-09-05' }, new Date('2026-09-07T00:00:00-03:00'),
@@ -189,7 +189,7 @@ test('não fez o descredenciamento: entrou e não saiu, depois do fim do dia', a
   repo.registros.push({
     id: 'r-1', participacaoId: participacao.id, tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
   // Janela de saída do dia principal fecha às 08:00 do dia 6.
   const antes = await atividades(
@@ -244,12 +244,12 @@ test('supervisor só vê a própria equipe, nem outro setor do mesmo evento', as
     {
       id: 'r-joao', participacaoId: 'part-joao', tipo: 'entrada', dataRef: '2026-09-05',
       registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
-      fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+      fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
     },
     {
       id: 'r-marcia', participacaoId: 'part-marcia', tipo: 'entrada', dataRef: '2026-09-05',
       registradoEm: '2026-09-05T19:00:00-03:00', recebidoEm: '2026-09-05T19:00:00-03:00',
-      fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+      fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
     },
   )
   const a = await atividades(repo, supervisor.id, 'ev-hj', { visao: 'entrada', dia: '2026-09-05' })

@@ -589,7 +589,11 @@ export class RepositorioEmMemoria implements Repositorio {
     if (this.registros.some(x => x.id === r.id)) {
       throw new Error(`registro duplicado: ${r.id}`)
     }
-    const gravado: Registro = { ...r, recebidoEm: r.recebidoEm ?? new Date().toISOString() }
+    const gravado: Registro = {
+      ...r,
+      recebidoEm: r.recebidoEm ?? new Date().toISOString(),
+      justificativa: r.justificativa ?? null,
+    }
     this.registros.push(gravado)
     return gravado
   }

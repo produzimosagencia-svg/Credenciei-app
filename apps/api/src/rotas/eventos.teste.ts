@@ -202,7 +202,7 @@ test('dia com batida fora da escala aparece mesmo assim', async () => {
   repo.registros.push({
     id: 'fora', participacaoId: 'part-joao', tipo: 'entrada',
     dataRef: '2026-09-01', registradoEm: '2026-09-01T08:00:00-03:00',
-    recebidoEm: '2026-09-01T08:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    recebidoEm: '2026-09-01T08:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
 
   const dias = await meusDias(repo, 'pes-joao', 'part-joao')
@@ -224,7 +224,7 @@ test('batida fora da escala nunca é cancelada — cancelado só existe pra dia 
   repo.registros.push({
     id: 'fora', participacaoId: 'part-joao', tipo: 'entrada',
     dataRef: '2026-09-01', registradoEm: '2026-09-01T08:00:00-03:00',
-    recebidoEm: '2026-09-01T08:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    recebidoEm: '2026-09-01T08:00:00-03:00', fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
   const dias = await meusDias(repo, 'pes-joao', 'part-joao')
   assert.equal(dias.find(d => d.data === '2026-09-01')!.cancelado, false)
@@ -235,12 +235,12 @@ test('batida assistida (feita pelo supervisor em nome da pessoa) fica marcada', 
   repo.registros.push({
     id: 'e', participacaoId: 'part-joao', tipo: 'entrada', dataRef: '2026-09-03',
     registradoEm: '2026-09-03T08:00:00-03:00', recebidoEm: '2026-09-03T08:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: true, origem: 'assistido',
+    fotoPath: null, lat: null, lng: null, manual: true, origem: 'assistido', justificativa: null,
   })
   repo.registros.push({
     id: 'f', participacaoId: 'part-joao', tipo: 'fim', dataRef: '2026-09-03',
     registradoEm: '2026-09-03T18:00:00-03:00', recebidoEm: '2026-09-03T18:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
 
   const dia = (await meusDias(repo, 'pes-joao', 'part-joao')).find(d => d.data === '2026-09-03')!

@@ -44,6 +44,24 @@ export type PedidoDeBatida = {
  */
 export const DIVERGENCIA_TOLERADA_MS = 18 * 60 * 60 * 1000
 
+/**
+ * O que fica gravado na saída de quem não bateu o meio.
+ *
+ * ─── A SAÍDA NÃO EXIGE MAIS O MEIO ──────────────────────────────────────────
+ *
+ * Havia uma trava aqui, e o site a removeu em 11/09/2026: ela prendia
+ * justamente quem mais precisava sair — quem perdeu o meio de verdade ficava
+ * sem conseguir registrar a saída até alguém destravar pelo ponto assistido.
+ * Enquanto a trava existiu só nesta rota, a mesma pessoa saía pelo portão
+ * (`escanear.ts` já não exigia) e era recusada pela própria credencial.
+ *
+ * O que substituiu a trava é isto: a ausência não IMPEDE mais nada, mas
+ * continua escrita na batida, para quem acerta o pagamento ver. Texto igual
+ * ao do site (`JUSTIFICATIVA_SEM_MEIO`, em `lib/actions.ts`) — é o mesmo
+ * banco, e o relatório não pode ter duas frases para o mesmo fato.
+ */
+export const JUSTIFICATIVA_SEM_MEIO = 'Saída registrada sem registro de meio.'
+
 export type ResultadoInterno = RespostaDeBatida & {
   /** Marcado quando o relógio do aparelho não é plausível. */
   relogioSuspeito?: boolean
@@ -120,13 +138,6 @@ export async function registrarBatida(
       new Date(pedido.registradoEm),
     )
     if (!v.ok) return { situacao: 'recusado', motivo: v.erro }
-
-    if (pedido.tipo === 'fim' && !doDia.some(r => r.tipo === 'meio')) {
-      return {
-        situacao: 'recusado',
-        motivo: 'Registre o meio antes de sair. Abra sua credencial, tire a selfie do meio e volte aqui.',
-      }
-    }
   }
 
   // Etapa já registrada hoje por OUTRO envio: sucesso, não erro. Do ponto de
@@ -160,6 +171,9 @@ export async function registrarBatida(
     lat: pedido.lat ?? null,
     lng: pedido.lng ?? null,
     manual: false,
+    ...(pedido.tipo === 'fim' && !doDia.some(r => r.tipo === 'meio')
+      ? { justificativa: JUSTIFICATIVA_SEM_MEIO }
+      : {}),
   }
 
   const gravado = await repo.gravarRegistro(novo)

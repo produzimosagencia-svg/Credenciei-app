@@ -17,10 +17,9 @@
 //
 // ─── O QUE ESTE ARQUIVO NÃO FAZ AINDA ───────────────────────────────────────
 //
-// Bloqueio de CPF (`bloquear-cpf`) e o fechamento automático do vínculo na
-// saída do dia principal (`descredenciar`) ainda são só do servidor de
-// mentira — a API real ainda não tem as tabelas/rotas por trás. Ver
-// `docs/backlog.md`.
+// O fechamento automático do vínculo na saída do dia principal
+// (`descredenciar`) ainda é só do servidor de mentira — a API real ainda não
+// tem a rota por trás. Ver `docs/backlog.md`.
 
 import {
   avaliarEntradaSaida, diaBRT, ehMaster, faseAtualDoQR, faseConfere, formatarBR,
@@ -30,6 +29,7 @@ import type {
   ConferenciaPorCpf, EventoEscaneavel, PessoaLida, ResultadoDaLeitura,
 } from '@credenciei/contrato'
 import type { Repositorio } from '../dados/repositorio.js'
+import { JUSTIFICATIVA_SEM_MEIO } from './batidas.js'
 
 async function exigirPodeEscanear(repo: Repositorio, pessoaId: string) {
   const perfil = await repo.perfilPorId(pessoaId)
@@ -115,6 +115,25 @@ export async function registrarPorQr(
         + 'recredenciar no painel do setor.',
     }
   }
+  /*
+   * CPF barrado pelo supervisor (ver `bloquear-cpf`). Copiado de
+   * `resolverRegistro` do sistema web, 22/09/2026 — lá o portão confere e
+   * aqui não conferia, então a mesma pessoa era barrada no site e passava no
+   * app, no mesmo evento.
+   *
+   * Descredenciar já não bastava: o bloqueio existe justamente para quem foi
+   * barrada DEPOIS de se cadastrar e continua com o QR válido no celular.
+   *
+   * A mensagem é para o OPERADOR, não para ela — ele está com a pessoa na
+   * frente e precisa saber o que fazer. O site diz "neste setor"; aqui diz
+   * evento, que é o escopo real do bloqueio nas duas bases.
+   */
+  if (pessoa?.cpf && await repo.existeBloqueio(eventoId, pessoa.cpf)) {
+    return {
+      situacao: 'recusado',
+      mensagem: 'Esta pessoa está bloqueada neste evento. Não libere a entrada — procure o supervisor do setor.',
+    }
+  }
 
   const registros = await repo.registrosDaParticipacao(participacao.id)
   const paraInferencia: RegistroParaInferencia[] = registros.map(r => ({
@@ -175,6 +194,12 @@ export async function registrarPorQr(
     lat: null,
     lng: null,
     manual: false,
+    // A saída não exige o meio (ver `JUSTIFICATIVA_SEM_MEIO`), mas o
+    // fechamento precisa enxergar a falta — no site é o mesmo texto, gravado
+    // no mesmo lugar.
+    ...(momento === 'fim' && !registros.some(r => r.tipo === 'meio' && r.dataRef === dataRef)
+      ? { justificativa: JUSTIFICATIVA_SEM_MEIO }
+      : {}),
   })
 
   return {

@@ -1539,10 +1539,10 @@ export class ClienteFalso implements ClienteApi {
         new Date(envio.registradoEm),
       )
       if (!v.ok) return { situacao: 'recusado', motivo: v.erro }
-
-      if (envio.tipo === 'fim' && !doDia.some(b => b.tipo === 'meio')) {
-        return { situacao: 'recusado', motivo: 'Registre o meio antes de sair. Abra sua credencial, tire a selfie do meio e volte aqui.' }
-      }
+      // A saída NÃO exige mais o meio — o site tirou a trava em 11/09/2026
+      // porque ela prendia quem perdeu o meio de verdade. A ausência vira
+      // observação na batida, não recusa; ver `JUSTIFICATIVA_SEM_MEIO`, na
+      // API.
     }
 
     if (doDia.some(b => b.tipo === envio.tipo)) {

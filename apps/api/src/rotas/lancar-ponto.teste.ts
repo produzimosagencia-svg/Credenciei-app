@@ -62,12 +62,12 @@ test('as batidas de gente em setores DIFERENTES não se misturam — uma consult
   cenario.repo.registros.push({
     id: 'r-joao', participacaoId: 'part-joao', tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T08:00:00-03:00', recebidoEm: '2026-09-05T08:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
   cenario.repo.registros.push({
     id: 'r-maria', participacaoId: 'part-maria', tipo: 'entrada', dataRef: '2026-09-05',
     registradoEm: '2026-09-05T09:00:00-03:00', recebidoEm: '2026-09-05T09:00:00-03:00',
-    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app',
+    fotoPath: null, lat: null, lng: null, manual: false, origem: 'app', justificativa: null,
   })
 
   const dados = await dadosParaLancarPonto(cenario.repo, cenario.admin.id, cenario.evento.id, AGORA)

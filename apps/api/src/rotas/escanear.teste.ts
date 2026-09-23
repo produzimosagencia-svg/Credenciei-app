@@ -11,6 +11,7 @@ import { ed25519 } from '@noble/curves/ed25519'
 import { gerarCodigoQR, gerarCodigoQREd25519 } from '@credenciei/dominio'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import { conferirPorCpf, eventosParaEscanear, registrarPorQr } from './escanear.js'
+import { JUSTIFICATIVA_SEM_MEIO } from './batidas.js'
 import type { Evento } from '../dados/repositorio.js'
 
 const SEGREDO = 'segredo-de-teste'
@@ -128,6 +129,10 @@ test('o crachá certo registra a entrada, e a saída não exige mais o meio', as
   assert.equal(saida.situacao, 'registrado')
   if (saida.situacao !== 'registrado') return
   assert.equal(saida.momento, 'fim')
+
+  // Não impede, mas fica escrito: é o que o acerto de pagamento lê depois.
+  const gravada = repo.registros.find(r => r.tipo === 'fim')
+  assert.equal(gravada?.justificativa, JUSTIFICATIVA_SEM_MEIO)
 })
 
 test('o registro gravado pelo scanner tem origem "app" — os dois relógios ficam rastreáveis', async () => {
@@ -181,6 +186,39 @@ test('participação já descredenciada não passa mais', async () => {
   assert.equal(r.situacao, 'recusado')
   if (r.situacao !== 'recusado') return
   assert.match(r.mensagem, /descredenciada/)
+})
+
+/*
+ * O bloqueio é a trava de quem foi barrada DEPOIS de se cadastrar: a
+ * participação continua ativa e o QR no celular dela continua válido. Se o
+ * portão não conferisse, o site recusaria e o app deixaria entrar — mesma
+ * pessoa, mesmo evento, mesmo minuto.
+ */
+test('CPF bloqueado não passa no portão, mesmo com crachá válido e participação ativa', async () => {
+  const { repo, admin, pessoa } = cenarioHenriqueEJuliano()
+  await repo.criarBloqueio({
+    eventoId: 'ev-hj', cpf: pessoa.cpf, motivo: 'Brigou com a equipe',
+    bloqueadoPorId: admin.id, bloqueadoPorNome: 'Marina',
+  })
+
+  const r = await registrarPorQr(repo, SEGREDO, null, admin.id, 'ev-hj', cracha('evento'), new Date('2026-09-05T19:00:00-03:00'))
+
+  assert.equal(r.situacao, 'recusado')
+  if (r.situacao !== 'recusado') return
+  assert.match(r.mensagem, /Não libere a entrada/)
+  assert.equal((await repo.registrosDaParticipacao('part-joao')).length, 0, 'nada foi gravado')
+})
+
+test('bloqueio de OUTRO evento não barra: o escopo é o evento, não a pessoa', async () => {
+  const { repo, admin, pessoa } = comSegundaOrganizacao()
+  await repo.criarBloqueio({
+    eventoId: 'ev-outra', cpf: pessoa.cpf, motivo: null,
+    bloqueadoPorId: admin.id, bloqueadoPorNome: 'Marina',
+  })
+
+  const r = await registrarPorQr(repo, SEGREDO, null, admin.id, 'ev-hj', cracha('evento'), new Date('2026-09-05T19:00:00-03:00'))
+
+  assert.equal(r.situacao, 'registrado')
 })
 
 // ─── Conferir pelo CPF ──────────────────────────────────────────────────────

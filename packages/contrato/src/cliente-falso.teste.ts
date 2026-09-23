@@ -151,14 +151,15 @@ test('o meio sem entrada é recusado', async () => {
   assert.match(r.situacao === 'recusado' ? r.motivo : '', /Registre primeiro a sua entrada/)
 })
 
-test('a saída sem o meio é recusada', async () => {
-  // Pedido explicitamente: o horário do meio precisa estar gravado para dar
-  // para justificar a jornada com a pessoa depois.
+test('a saída sem o meio passa — a trava saiu do site em 11/09/2026', async () => {
+  // Ela prendia justamente quem perdeu o meio de verdade, que ficava sem
+  // conseguir registrar a saída. A ausência continua visível no histórico; só
+  // deixou de IMPEDIR.
   const c = await comParticipacao()
   await c.registrarBatida(bater('entrada', '2026-09-03T08:00:00-03:00'))
 
   const r = await c.registrarBatida(bater('fim', '2026-09-03T18:00:00-03:00'))
-  assert.match(r.situacao === 'recusado' ? r.motivo : '', /Registre o meio antes de sair/)
+  assert.equal(r.situacao, 'registrado')
 })
 
 test('dia que não é de trabalho recusa a batida', async () => {

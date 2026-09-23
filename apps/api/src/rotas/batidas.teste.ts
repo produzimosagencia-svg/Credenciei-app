@@ -7,7 +7,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
-import { contestarBatida, registrarBatida, registrarEntradaLivre, DIVERGENCIA_TOLERADA_MS } from './batidas.js'
+import {
+  contestarBatida, registrarBatida, registrarEntradaLivre,
+  DIVERGENCIA_TOLERADA_MS, JUSTIFICATIVA_SEM_MEIO,
+} from './batidas.js'
 
 const bate = (
   tipo: 'entrada' | 'meio' | 'fim',
@@ -135,12 +138,32 @@ test('a recusa do meio não conta a fórmula', async () => {
   assert.ok(!/4|quatro\s+horas|4h/i.test(motivo), `vazou a regra: "${motivo}"`)
 })
 
-test('a saída exige o meio', async () => {
+/*
+ * A trava que existia aqui prendia quem perdeu o meio de verdade: sem ela no
+ * portão (`escanear.ts`) e com ela na credencial, a mesma pessoa saía por um
+ * caminho e era recusada pelo outro. O site tirou a trava em 11/09/2026 — o
+ * que ficou é a observação, para o acerto de pagamento não perder o fato.
+ */
+test('a saída sem o meio passa, mas fica escrita na batida', async () => {
   const { repo } = cenarioHenriqueEJuliano()
   await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-03T08:00:00-03:00'))
 
   const semMeio = await registrarBatida(repo, 'pes-joao', bate('fim', '2026-09-03T18:00:00-03:00'))
-  assert.match(semMeio.situacao === 'recusado' ? semMeio.motivo : '', /Registre o meio antes de sair/)
+  assert.equal(semMeio.situacao, 'registrado')
+
+  const doDia = await repo.registrosDoDia('part-joao', '2026-09-03')
+  assert.equal(doDia.find(r => r.tipo === 'fim')?.justificativa, JUSTIFICATIVA_SEM_MEIO)
+})
+
+test('com o meio batido, a saída não ganha observação nenhuma', async () => {
+  const { repo } = cenarioHenriqueEJuliano()
+  await registrarBatida(repo, 'pes-joao', bate('entrada', '2026-09-03T08:00:00-03:00'))
+  await registrarBatida(repo, 'pes-joao', bate('meio', '2026-09-03T12:30:00-03:00'))
+
+  await registrarBatida(repo, 'pes-joao', bate('fim', '2026-09-03T18:00:00-03:00'))
+
+  const doDia = await repo.registrosDoDia('part-joao', '2026-09-03')
+  assert.equal(doDia.find(r => r.tipo === 'fim')?.justificativa, null)
 })
 
 test('dia que não é de trabalho recusa', async () => {

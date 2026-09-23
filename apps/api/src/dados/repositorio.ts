@@ -263,9 +263,19 @@ export type Registro = {
    * nunca escreve nesta coluna). Ver `db/migracoes/003-dois-relogios.sql`.
    */
   origem: 'app' | 'assistido' | 'web'
+  /**
+   * O que o fechamento precisa ler de relance sobre ESTA batida — hoje só a
+   * saída sem meio (`JUSTIFICATIVA_SEM_MEIO`, em `rotas/batidas.ts`).
+   *
+   * Mesma coluna que o site escreve. Ela existe porque a saída deixou de
+   * EXIGIR o meio (site, 11/09/2026): a ausência não impede mais ninguém de
+   * sair, mas continua tendo que aparecer para quem acerta o pagamento.
+   */
+  justificativa: string | null
 }
 
-export type NovoRegistro = Omit<Registro, 'recebidoEm'> & { recebidoEm?: string }
+export type NovoRegistro = Omit<Registro, 'recebidoEm' | 'justificativa'>
+  & { recebidoEm?: string; justificativa?: string | null }
 
 export interface Repositorio {
   // ── Identidade ──────────────────────────────────────────────────────────

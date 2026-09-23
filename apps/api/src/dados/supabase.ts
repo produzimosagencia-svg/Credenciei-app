@@ -1055,6 +1055,7 @@ export class RepositorioSupabase implements Repositorio {
         longitude: r.lng,
         dispositivo: 'app',
         registro_manual: r.manual,
+        justificativa: r.justificativa ?? null,
       }])
       .select(CAMPOS_REGISTRO)
       .single()
@@ -1572,8 +1573,20 @@ export class RepositorioSupabase implements Repositorio {
     return (data ?? []).map(paraBloqueio)
   }
 
+  /*
+   * Falha de consulta responde "não bloqueado", DE PROPÓSITO — mesma escolha
+   * do site (`cpfEstaBloqueado`). O portão chama isto a cada crachá lido: se
+   * um erro aqui virasse recusa, o dia em que a tabela sumisse ou a consulta
+   * falhasse o sistema barraria TODO MUNDO no portão, que é o oposto do que
+   * se quer de uma lista de exceção.
+   */
   async existeBloqueio(eventoId: string, cpf: string): Promise<boolean> {
-    const { data } = await this.db.from('cpfs_bloqueados').select('id').eq('evento_id', eventoId).eq('cpf', cpf).limit(1)
+    const { data, error } = await this.db
+      .from('cpfs_bloqueados').select('id').eq('evento_id', eventoId).eq('cpf', cpf).limit(1)
+    if (error) {
+      console.error('[existeBloqueio] consulta falhou — tratando como não bloqueado:', error.message)
+      return false
+    }
     return !!data?.length
   }
 
@@ -2685,7 +2698,7 @@ const CAMPOS_FUNCIONARIO =
   'valor_receber, pago, pago_em, foto_perfil_path, qr_token, fornecedor_id, cidade, created_at, chave_pix'
 
 const CAMPOS_REGISTRO =
-  'id, funcionario_id, tipo, data_ref, created_at, recebido_em, origem, foto_url, latitude, longitude, registro_manual'
+  'id, funcionario_id, tipo, data_ref, created_at, recebido_em, origem, foto_url, latitude, longitude, registro_manual, justificativa'
 
 function paraEvento(l: Record<string, unknown>): Evento {
   const org = l.organizacoes as { nome?: string } | null
@@ -2761,6 +2774,7 @@ function paraRegistro(l: Record<string, unknown>): Registro {
     lat: (l.latitude as number | null) ?? null,
     lng: (l.longitude as number | null) ?? null,
     manual: l.registro_manual === true,
+    justificativa: (l.justificativa as string | null) ?? null,
   }
 }
 
