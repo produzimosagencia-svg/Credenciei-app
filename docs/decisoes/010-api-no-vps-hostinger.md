@@ -1,7 +1,6 @@
 # 010 — A API sai do Render e vai para o VPS da Hostinger
 
-**Decidido em** 23/09/2026 por Juan · **Estado:** aceito, infraestrutura pronta,
-troca do app pendente
+**Decidido em** 23/09/2026 por Juan · **Estado:** aceito, em produção
 
 ## Contexto
 
@@ -122,21 +121,28 @@ tinha garantia — só era problema de outra pessoa.
 O que a mudança dá: não dorme mais, latência menor, controle, custo zero
 adicional. O que **não** dá: redundância.
 
+## Feito depois que esta ADR foi escrita (23/09/2026, mesmo dia)
+
+- **O app aponta para o endereço novo.** `apps/app/eas.json` define
+  `EXPO_PUBLIC_API_URL` nos perfis `preview` e `production`. Descobrimos no
+  caminho que ele **não definia em perfil nenhum** — qualquer APK gerado
+  sairia falando com o servidor falso, sem avisar.
+- **O agendador virou `crontab` neste servidor**, no lugar do cron-job.org:
+  `/etc/cron.d/credenciei` chama `/usr/local/bin/credenciei-avisos` de 15 em
+  15 minutos (as seis rotas de lembrete) e `credenciei-limpeza` às 04:17 (a
+  foto vencida, ADR 003). O segredo fica em `/root/.credenciei-manutencao`,
+  modo 600, gravado com `printf` e não `echo` — a quebra de linha do `echo`
+  entraria no cabeçalho e daria 401.
+
 ## Pendente
 
-- **Apontar o app** (`EXPO_PUBLIC_API_URL`) para `https://api.credenciei.com.br`
-  e republicar. Até isso, o aplicativo continua no Render e a API nova não
-  recebe ninguém.
 - **Rotacionar os segredos**: `SUPABASE_SERVICE_ROLE_KEY`, `WHATSAPP_TOKEN`,
   `GEMINI_API_KEY`, `SEGREDO_MANUTENCAO` foram expostos num chat durante a
   configuração. `SEGREDO_QR` fica por último e com data marcada — trocá-lo
   invalida todo crachá em circulação. Antes de trocar a chave do Supabase,
   conferir se `CREDENCIAL_SEGREDO` existe na Vercel: sem ela, o site assina o
   QR com a própria chave do Supabase, e a troca derrubaria as credenciais.
-- **O agendador dos lembretes** vira um `crontab` neste servidor, no lugar do
-  cron-job.org.
-- **Desligar o UptimeRobot** depois que o app estiver apontado — não há mais
-  instância dormindo para acordar.
+- **Desligar o UptimeRobot** — não há mais instância dormindo para acordar.
 - **Evolution API** (`evolution_api`, `evolution_postgres`) roda neste VPS e
   **não foi tocada**. O Juan acredita não usar mais, mas o site ainda escolhe
   o canal por `WHATSAPP_PROVEDOR`: se o valor for `evolution`, desligar corta
