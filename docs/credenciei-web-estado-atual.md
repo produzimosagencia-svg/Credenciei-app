@@ -5,6 +5,21 @@ versão antiga usada como referência** — o site mudou muito (134 commits em
 12 dias, 31/08 a 11/09) e este documento é o retrato de agora, não de
 memória de conversa anterior.
 
+**22/09/2026**: pra regras de negócio, permissões e módulos, prefira os
+quatro documentos de referência mais novos e mais fundos — este aqui
+continua útil pro panorama de identidade visual e "o que mudou desde a
+última vez que o app olhou":
+[credenciei-web-regras-de-negocio.md](credenciei-web-regras-de-negocio.md),
+[credenciei-web-permissoes-autenticacao.md](credenciei-web-permissoes-autenticacao.md),
+[credenciei-web-modulos.md](credenciei-web-modulos.md),
+[credenciei-web-funcoes-integracoes.md](credenciei-web-funcoes-integracoes.md).
+Duas correções pontuais encontradas nessa investigação: Auditoria tem
+**21 tipos de ação** em uso (não 18 — 19 têm rótulo, 2 caem em fallback de
+texto cru); e a seção 4.1 abaixo ("Base de funcionários virou toggle")
+ganhou depois um módulo bem maior, "Encontrar colaborador"
+(`/admin/encontrar`), cross-organização e exclusivo do master — ver
+[credenciei-web-modulos.md §12](credenciei-web-modulos.md#12--encontrar-colaborador--base-regional-de-cpfs).
+
 Levantado por 4 investigações paralelas, só leitura, direto no código de
 `c:\Dev\credenciei` (HEAD `fcd7dd3`). Nada foi alterado lá — é proibido, e
 continua proibido.
