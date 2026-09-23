@@ -98,37 +98,42 @@ o `node:crypto` real — não com um valor escrito à mão.
 
 ## Onde a API roda de verdade
 
-Desde 21/09/2026 a API está publicada — antes disso ela só existia na
-máquina de quem desenvolvia, `npm run dev` local, sem nenhum jeito de o app
-falar com ela fora de casa.
+Desde 23/09/2026 a API roda no **VPS da Hostinger**, em
+`https://api.credenciei.com.br`. Antes disso esteve no Render (21 a 23/09), e
+antes só existia na máquina de quem desenvolvia. O porquê da mudança, o
+desenho completo e o procedimento de volta estão em
+`docs/decisoes/010-api-no-vps-hostinger.md` — leia antes de mexer em
+hospedagem.
 
 - **GitHub**: `https://github.com/produzimosagencia-svg/Credenciei-app` —
-  repositório **privado**, criado nesse dia especificamente para viabilizar
-  a publicação (reverte, só nesse ponto, a decisão antiga de "repositório
-  remoto: não criar" — o código continua visível só pra quem o Juan
-  convidar). Um `git push origin main` sobe o código; não há deploy
-  automático de outro lugar.
-- **Render** (plano gratuito): `https://credenciei-app.onrender.com` — puxa
-  direto do GitHub e publica sozinho a cada `git push` (auto-deploy). Build
-  command `npm install` (raiz do monorepo, resolve os pacotes `@credenciei/*`
-  via npm workspaces), start command `npm run start --workspace=@credenciei/api`
-  (script `start`, que roda `tsx src/principal.ts` — diferente do `dev`,
-  que usa `tsx watch` e não serve pra produção). Variáveis de ambiente
-  (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SEGREDO_QR`, e as do
-  WhatsApp) configuradas direto no painel do Render, nunca commitadas.
-- **UptimeRobot** (plano gratuito): visita `credenciei-app.onrender.com` a
-  cada 5 minutos. Existe só por causa de uma característica do plano
-  gratuito do Render — a instância "dorme" depois de 15 minutos sem uso, e
-  a próxima pessoa a abrir o app esperaria 30-60s ela acordar. Sem essa
-  visita periódica, isso aconteceria bem no meio de alguém tentando bater
-  ponto num evento de verdade. Se um dia isso ainda incomodar, a saída
-  definitiva é o plano pago do Render (~US$ 7/mês), que não dorme nunca.
+  repositório **privado**. Um `git push origin main` sobe o código.
+- **VPS Hostinger** (KVM 2, IP `187.77.251.119`, Campinas, pago até
+  julho/2028), com **EasyPanel** publicando a cada `git push`. O caminho do
+  pedido é `nginx (host) → 127.0.0.1:3001 → contêiner:3000` — o EasyPanel
+  desta instalação **não tem Traefik**, e quem roteia é o nginx. Variáveis de
+  ambiente no painel do EasyPanel, nunca commitadas.
+- **⚠️ O VPS não é só nosso.** Rodam nele, e não podem ser derrubados: o
+  **CondoDesk** (`condodesk.net`, outro sistema do Juan, em produção, servido
+  pelo mesmo nginx) e a **Evolution API** (gateway de WhatsApp — conferir
+  `WHATSAPP_PROVEDOR` na Vercel antes de desligar).
+- **Render** (plano gratuito): `https://credenciei-app.onrender.com` — **fica
+  no ar por tempo indeterminado como plano B**. É grátis e é o único lugar
+  pra onde voltar. A volta é trocar o registro `api` na Vercel de `A` para
+  `CNAME → credenciei-app.onrender.com`; leva ~1 minuto (o TTL é 60s de
+  propósito) e **não exige republicar o app**, porque ele aponta pro nosso
+  domínio e nunca pro do provedor.
+- **UptimeRobot**: existia só pra impedir o Render de dormir. **Perdeu a
+  razão de ser** — desligar.
 
-**Para MOSTRAR algo pro Juan a partir de agora**, o caminho mais simples
-passou a ser apontar o app pra API publicada, em vez de subir uma local:
-`EXPO_PUBLIC_API_URL=https://credenciei-app.onrender.com npm run web --workspace=@credenciei/app`.
-O caminho antigo (API local, seção acima) continua válido — é o que se usa
-quando a mudança sendo testada ainda não foi publicada.
+**Para MOSTRAR algo pro Juan**, aponte o app pra API publicada:
+`EXPO_PUBLIC_API_URL=https://api.credenciei.com.br npm run web --workspace=@credenciei/app`.
+O caminho da API local (seção acima) continua válido pra testar o que ainda
+não foi publicado.
+
+**Build do aplicativo**: `apps/app/eas.json` define `EXPO_PUBLIC_API_URL` nos
+perfis `preview` e `production`. Sem isso o APK sai falando com o servidor
+falso e não avisa — o app abre, mostra um evento de 41 pessoas e parece
+funcionar.
 
 ---
 

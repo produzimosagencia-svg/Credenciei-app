@@ -4,15 +4,35 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "//": [
+      "EXPO_PUBLIC_API_URL é o que decide se o aplicativo fala com a API de",
+      "verdade ou com o servidor falso (ver apps/app/src/dados/cliente.ts).",
+      "O Expo troca essa variável por valor NA HORA DE EMPACOTAR — então ela",
+      "precisa estar aqui, e não no ambiente de quem roda o build.",
+      "",
+      "Sem ela, o build sai com o servidor de mentira e NÃO AVISA: o app",
+      "abre, mostra um evento com 41 pessoas e parece funcionar. Foi assim",
+      "que o Juan confundiu demonstração com produção em 13/09/2026.",
+      "",
+      "'development' fica de fora de propósito: quem desenvolve escolhe o",
+      "servidor na linha de comando, e o padrão sem variável (servidor falso)",
+      "é o que deixa trabalhar sem internet e sem tocar no banco real."
+    ],
     "development": {
       "developmentClient": true,
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.credenciei.com.br"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.credenciei.com.br"
+      }
     }
   },
   "submit": {
