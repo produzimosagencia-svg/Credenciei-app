@@ -43,6 +43,7 @@ import {
   TituloDaTela, TituloDeCartao,
 } from '../../src/ui/componentes'
 import { Icone } from '../../src/ui/icone'
+import { MuralDeAvisos } from '../../src/ui/mural-de-avisos'
 import { corDaEtapa, espaco, raio, texto, tipo } from '../../src/ui/tema'
 import { useTema, type Tokens } from '../../src/ui/tema-contexto'
 
@@ -178,6 +179,13 @@ export default function Credencial() {
 
       {dados ? (
         <>
+          {/*
+            O recado da produção vem por cima de tudo, antes de a pessoa
+            mexer na credencial — é para isso que ele existe. Some sozinho
+            quando não há nada pendente. Ver `mural-de-avisos.tsx`.
+          */}
+          <MuralDeAvisos eventoId={dados.participacao.eventoId} />
+
           <Legenda>{dados.participacao.eventoNome}</Legenda>
           <Respiro />
 

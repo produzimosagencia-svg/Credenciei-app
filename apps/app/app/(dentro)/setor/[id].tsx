@@ -33,6 +33,7 @@ import {
 } from '../../../src/ui/componentes'
 import { Icone } from '../../../src/ui/icone'
 import { FichaDaPessoaModal } from '../../../src/ui/ficha-da-pessoa'
+import { MuralDeAvisos } from '../../../src/ui/mural-de-avisos'
 import { BotaoDePlanilha } from '../../../src/ui/planilha'
 import { corDaEtapa, espaco, raio, texto, tipo } from '../../../src/ui/tema'
 import { useTema, type Tokens } from '../../../src/ui/tema-contexto'
@@ -86,6 +87,13 @@ export default function EquipeDoSetor() {
 
       {dados && contagem ? (
         <>
+          {/*
+            O supervisor recebe o mesmo recado da produção que o colaborador
+            — no site o modal aparece nos dois contextos, e aqui é a tela
+            equivalente ao painel do setor.
+          */}
+          <MuralDeAvisos eventoId={dados.eventoId} />
+
           <TituloDaTela>{dados.setorNome}</TituloDaTela>
           <Legenda>{dados.eventoNome}</Legenda>
           <Respiro />

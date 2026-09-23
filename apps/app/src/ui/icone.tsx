@@ -50,6 +50,7 @@ import Lock from 'lucide-react-native/icons/lock'
 import LogIn from 'lucide-react-native/icons/log-in'
 import LogOut from 'lucide-react-native/icons/log-out'
 import MapPin from 'lucide-react-native/icons/map-pin'
+import Megaphone from 'lucide-react-native/icons/megaphone'
 import MessageCircle from 'lucide-react-native/icons/message-circle'
 import Moon from 'lucide-react-native/icons/moon'
 import Pencil from 'lucide-react-native/icons/pencil'
@@ -123,6 +124,7 @@ const ICONES: Record<string, LucideIcon> = {
   LogIn,
   LogOut,
   MapPin,
+  Megaphone,
   MessageCircle,
   Moon,
   MoreHorizontal: Ellipsis,
