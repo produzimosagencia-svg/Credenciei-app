@@ -55,6 +55,7 @@ import LogOut from 'lucide-react-native/icons/log-out'
 import MapPin from 'lucide-react-native/icons/map-pin'
 import Megaphone from 'lucide-react-native/icons/megaphone'
 import MessageCircle from 'lucide-react-native/icons/message-circle'
+import Mic from 'lucide-react-native/icons/mic'
 import Moon from 'lucide-react-native/icons/moon'
 import Pencil from 'lucide-react-native/icons/pencil'
 import Plus from 'lucide-react-native/icons/plus'
@@ -65,6 +66,7 @@ import Radio from 'lucide-react-native/icons/radio'
 import RefreshCw from 'lucide-react-native/icons/refresh-cw'
 import ScanSearch from 'lucide-react-native/icons/search'
 import Send from 'lucide-react-native/icons/send'
+import Sparkles from 'lucide-react-native/icons/sparkles'
 import ShieldBan from 'lucide-react-native/icons/shield-ban'
 import ShieldCheck from 'lucide-react-native/icons/shield-check'
 import Settings from 'lucide-react-native/icons/settings'
@@ -132,6 +134,7 @@ const ICONES: Record<string, LucideIcon> = {
   MapPin,
   Megaphone,
   MessageCircle,
+  Mic,
   Moon,
   MoreHorizontal: Ellipsis,
   Pencil,
@@ -145,6 +148,7 @@ const ICONES: Record<string, LucideIcon> = {
   Search: ScanSearch,
   Send,
   ShieldBan,
+  Sparkles,
   ShieldCheck,
   Settings,
   RotateCcw,

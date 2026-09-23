@@ -58,6 +58,12 @@
         {
           "color": "#FF4A0F"
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "O Credenciei usa o microfone só quando você aperta para gravar um gasto falando. Nada é gravado sozinho, e você pode lançar o gasto digitando."
+        }
       ]
     ],
     "experiments": {

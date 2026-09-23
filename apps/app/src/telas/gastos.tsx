@@ -28,6 +28,7 @@ import {
   Aviso, Botao, Campo, Carregando, Cartao, Corpo, Escolha, Indicador, Legenda,
   Respiro, Selo, Separador, Tela, TituloDaTela, TituloDeCartao,
 } from '../ui/componentes'
+import { GravadorDeGasto } from '../ui/gravador-de-gasto'
 import { Icone } from '../ui/icone'
 import { emReais } from '../ui/dinheiro'
 import { espaco, raio, texto, tipo } from '../ui/tema'
@@ -35,6 +36,11 @@ import { useTema, type Tokens } from '../ui/tema-contexto'
 
 /** O rótulo do "gasto sem evento" — mesma ideia do `EVENTO_INTERNO` do site. */
 const ROTULO_INTERNO = 'Interno (sem evento)'
+
+function nomeDoEvento(eventos: EventoParaGasto[], id: string): string {
+  if (id === EVENTO_INTERNO) return ROTULO_INTERNO
+  return eventos.find(ev => ev.id === id)?.nome ?? ROTULO_INTERNO
+}
 
 export function Gastos() {
   const { cliente } = useSessao()
@@ -79,6 +85,20 @@ export function Gastos() {
             eventos={dados.eventos}
             escolhido={dados.escolhido}
             aoEscolher={setEventoId}
+          />
+
+          <Respiro altura={espaco.s} />
+
+          {/*
+            Falar vem antes de digitar, e é o botão maior da tela — é o pedido
+            original do módulo: "aperta o botão, fala, confirma". O formulário
+            logo abaixo é a saída quando o microfone não colabora, e é pra ele
+            que todo erro do gravador aponta.
+          */}
+          <GravadorDeGasto
+            eventoId={dados.escolhido}
+            eventoNome={nomeDoEvento(dados.eventos, dados.escolhido)}
+            aoSalvar={() => setVersao(v => v + 1)}
           />
 
           <Respiro altura={espaco.s} />
