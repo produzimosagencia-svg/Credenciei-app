@@ -155,6 +155,49 @@ export class RepositorioSupabase implements Repositorio {
    * de dado mais correta, sem mudar a forma da identidade externa.
    */
 
+  /*
+   * ─── QUEM NÃO ESTÁ EM `pessoas` AINDA ASSIM EXISTE ────────────────────────
+   *
+   * A `pessoas` foi POVOADA uma vez, pela migração 001, com as 2.029 pessoas
+   * que havia em `funcionarios` naquele dia. Ninguém escreve nela desde
+   * então: `criarPessoa` existe e nunca é chamada, e o SITE — que continua
+   * cadastrando gente pelo link público — nem sabe que essa tabela existe.
+   *
+   * Sem este caminho de volta, toda pessoa cadastrada depois de 22/09/2026
+   * fica sem identidade: a ficha não abre, o login por WhatsApp não acha o
+   * telefone, e "baixar meus dados" falha. Descoberto em 23/09/2026, quando
+   * o Juan cadastrou alguém pelo app e a ficha respondeu "não encontramos
+   * esta pessoa" — na véspera de um evento.
+   *
+   * A regra aqui é a MESMA da migração 001: para um CPF, vale o cadastro
+   * mais recente (`created_at desc`). Assim as duas fontes contam a mesma
+   * história, e quem tem linha em `pessoas` continua sendo lido de lá — que
+   * é o dado mais correto quando existe.
+   *
+   * Isto é remendo de LEITURA, não a correção de fundo. O certo é a escrita
+   * povoar `pessoas` (de preferência por gatilho no banco, que pega os dois
+   * sistemas) — ver `docs/decisoes/010`.
+   */
+  private async pessoaPeloCadastro(cpf: string): Promise<Pessoa | null> {
+    const { data } = await this.db
+      .from('funcionarios')
+      .select('nome, cpf, telefone, foto_perfil_path')
+      .eq('cpf', cpf)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    const f = data?.[0]
+    if (!f) return null
+
+    return {
+      id: idDaPessoa(cpf),
+      nome: (f.nome as string | null) ?? '',
+      cpf,
+      telefone: (f.telefone as string | null) ?? null,
+      fotoPath: (f.foto_perfil_path as string | null) ?? null,
+    }
+  }
+
   async pessoaPorTelefone(telefone: string): Promise<Pessoa | null> {
     const d = soDigitos(telefone)
     if (d.length < 10) return null
@@ -171,15 +214,27 @@ export class RepositorioSupabase implements Repositorio {
       .limit(1)
 
     const p = data?.[0]
-    if (!p?.cpf) return null
-
-    return {
-      id: idDaPessoa(p.cpf as string),
-      nome: p.nome as string,
-      cpf: p.cpf as string,
-      telefone: (p.telefone as string | null) ?? null,
-      fotoPath: (p.foto_path as string | null) ?? null,
+    if (p?.cpf) {
+      return {
+        id: idDaPessoa(p.cpf as string),
+        nome: p.nome as string,
+        cpf: p.cpf as string,
+        telefone: (p.telefone as string | null) ?? null,
+        fotoPath: (p.foto_path as string | null) ?? null,
+      }
     }
+
+    // Sem linha em `pessoas`: procura pelo cadastro. É o que permite entrar
+    // no app a quem foi cadastrado depois da migração.
+    const { data: cadastros } = await this.db
+      .from('funcionarios')
+      .select('cpf')
+      .like('telefone', `%${finais}`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    const cpf = cadastros?.[0]?.cpf as string | undefined
+    return cpf ? this.pessoaPeloCadastro(cpf) : null
   }
 
   async pessoaPorCpf(cpf: string): Promise<Pessoa | null> {
@@ -192,7 +247,7 @@ export class RepositorioSupabase implements Repositorio {
 
     const { data: p } = await this.db
       .from('pessoas').select('cpf, nome, telefone, foto_path').eq('cpf', cpf).maybeSingle()
-    if (!p) return null
+    if (!p) return this.pessoaPeloCadastro(cpf)
 
     return {
       id,
