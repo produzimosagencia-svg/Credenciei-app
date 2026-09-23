@@ -143,6 +143,27 @@ test('o meio ABRE num horário, mas não FECHA', async () => {
   assert.equal(tarde.situacao, 'registrado')
 })
 
+test('o meio da madrugada pertence ao dia da ENTRADA, não ao do relógio', async () => {
+  /*
+   * O turno que atravessa a meia-noite é o caso central deste sistema: show
+   * que começa 22:00 e termina de madrugada. O meio abre entrada + 4h, então
+   * quem entrou às 22:00 do dia 5 bate o meio às 02:00 do dia 6 — e ele
+   * pertence ao dia 5, que é o turno que ainda está aberto.
+   *
+   * Se o dia saísse do relógio, o servidor procuraria a entrada no dia 6, não
+   * acharia, e recusaria com "registre primeiro a sua entrada" — para a
+   * pessoa que acabou de entrar. É a mesma regra que o site aplica em
+   * `resolverRegistro` (`entradaDoTurno` manda no `dataRef`).
+   */
+  const { repo } = cenarioHenriqueEJuliano()
+  comEntrada(repo, '2026-09-05T22:00:00-03:00')
+
+  const r = await registrarBatida(repo, 'pes-joao', bate('2026-09-06T02:10:00-03:00'))
+
+  assert.equal(r.situacao, 'registrado')
+  assert.equal(repo.registros.find(x => x.tipo === 'meio')?.dataRef, '2026-09-05')
+})
+
 test('a recusa do meio não conta a fórmula', async () => {
   // Dizer "abre 4h depois da entrada" ensina a burlar: bastaria bater a
   // entrada, ir embora e voltar no minuto certo.

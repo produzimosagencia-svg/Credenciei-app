@@ -262,6 +262,18 @@ test('o histórico mostra todos os dias, inclusive os sem batida', async () => {
   assert.equal(dias.find(d => d.data === '2026-09-06')!.etapa, 'desmontagem')
 })
 
+test('o meio da madrugada pertence ao dia da ENTRADA, não ao do relógio', async () => {
+  // O turno que atravessa a meia-noite é o caso central do sistema: quem
+  // entrou 22:00 do dia 5 bate o meio 02:00 do dia 6 (abre entrada + 4h), e
+  // ele é do dia 5. Mesma régua da API — os dois não podem divergir.
+  const c = await comEntradaEm('2026-09-05T22:00:00-03:00')
+
+  const r = await c.registrarBatida(bater('2026-09-06T02:10:00-03:00'))
+
+  assert.equal(r.situacao, 'registrado')
+  assert.ok((await c.meusDias('part-1')).find(d => d.data === '2026-09-05')!.meio)
+})
+
 test('o meio esperado é calculado a partir da entrada real', async () => {
   const c = await comEntradaEm('2026-09-03T08:30:00-03:00')
 

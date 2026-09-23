@@ -13,7 +13,7 @@
 // A pessoa bateu no horário certo e seria recusada por causa da rede dela.
 
 import {
-  avaliarEntradaSaida, diaBRT, janelaMeio, type EventoJanelas,
+  avaliarEntradaSaida, diaBRT, diaDeReferenciaAssistida, janelaMeio, type EventoJanelas,
 } from '@credenciei/dominio'
 import type { RespostaDeBatida } from '@credenciei/contrato'
 import type { NovoRegistro, Repositorio } from '../dados/repositorio.js'
@@ -100,14 +100,29 @@ export async function registrarBatida(
   if (!evento) return { situacao: 'recusado', motivo: 'Evento não encontrado.' }
 
   /*
-   * O dia da batida sai do relógio do APARELHO, não do servidor.
+   * A que dia de trabalho o meio pertence — duas coisas somadas.
    *
-   * Quem bateu 23:50 sem sinal e sincronizou 00:10 pertence ao dia anterior.
-   * Usar o relógio do servidor jogaria a batida para o dia seguinte, onde
-   * provavelmente não há dia de trabalho — e ela seria recusada.
+   * 1. O relógio que conta é o do APARELHO, não o do servidor. Quem bateu
+   *    23:50 sem sinal e sincronizou 00:10 pertence ao dia anterior; usar o
+   *    relógio do servidor jogaria a batida para o dia seguinte, onde
+   *    provavelmente não há dia de trabalho, e ela seria recusada.
+   *
+   * 2. O meio pertence ao TURNO AINDA ABERTO, não ao dia do calendário — é o
+   *    turno que atravessa a meia-noite, que é o caso central deste sistema.
+   *    Quem entrou 22:00 do dia 5 bate o meio 02:00 do dia 6 (abre entrada +
+   *    4h), e ele é do dia 5. Sem isto o servidor procurava a entrada no dia
+   *    6, não achava, e recusava com "registre primeiro a sua entrada" — para
+   *    quem tinha acabado de entrar. Mesma régua do site (`entradaDoTurno`,
+   *    em `resolverRegistro`).
    */
-  const dataRef = diaBRT(pedido.registradoEm)
-  const doDia = await repo.registrosDoDia(part.id, dataRef)
+  const registros = await repo.registrosDaParticipacao(part.id)
+  const dataRef = diaDeReferenciaAssistida(
+    registros.map(r => ({ id: r.id, tipo: r.tipo, em: r.registradoEm, dataRef: r.dataRef })),
+    'meio',
+    diaBRT(pedido.registradoEm),
+    new Date(pedido.registradoEm),
+  )
+  const doDia = registros.filter(r => r.dataRef === dataRef)
 
   /*
    * ── 3. As regras do meio ────────────────────────────────────────────────

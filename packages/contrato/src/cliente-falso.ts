@@ -24,7 +24,7 @@
 
 import {
   avaliarEntradaSaida, CAPACIDADES, categoriaValida, chaveDaPermissao, conferirHorariosDoEvento,
-  dadosDosGraficosDeGastos, diaBRT, distanciaEntreCpfs, ehMaster,
+  dadosDosGraficosDeGastos, diaBRT, diaDeReferenciaAssistida, distanciaEntreCpfs, ehMaster,
   EVENTO_INTERNO, faseAtualDoQR, faseConfere, faseDoDia, formatarBR, formatCpf, gerarCodigoQR,
   inferirMomentoDoScanner, janelaMeio, kpisDeGastos, lerCodigoDeEvento, lerCodigoQR, liberacaoDoQR, PAPEIS_CONFIGURAVEIS,
   podeAcompanhar, podeEscanear, podeGerenciarEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
@@ -934,7 +934,7 @@ const NOTIFICACOES_DO_SUPERVISOR: Notificacao[] = [
 
 const SEGREDO_DE_MENTIRA = 'segredo-do-cliente-falso'
 
-type BatidaGravada = { id: string; tipo: string; em: string; data: string }
+type BatidaGravada = { id: string; tipo: TipoBatida; em: string; data: string }
 
 /**
  * Compara nome ignorando acento e maiúscula.
@@ -1517,10 +1517,18 @@ export class ClienteFalso implements ClienteApi {
       return { situacao: 'duplicado', em: ja?.em ?? envio.registradoEm }
     }
 
-    const data = diaBRT(envio.registradoEm)
-    const dia = DIAS.find(d => d.data === data) ?? null
+    /*
+     * O meio pertence ao TURNO AINDA ABERTO, não ao dia do calendário — quem
+     * entrou 22:00 do dia 5 bate o meio 02:00 do dia 6, e ele é do dia 5.
+     * Mesma função que a API usa, para os dois não divergirem.
+     */
+    const data = diaDeReferenciaAssistida(
+      this.batidas.map(b => ({ id: b.id, tipo: b.tipo, em: b.em, dataRef: b.data })),
+      'meio',
+      diaBRT(envio.registradoEm),
+      new Date(envio.registradoEm),
+    )
     const doDia = this.batidas.filter(b => b.data === data)
-    void dia // só o meio passa por aqui, e o meio não olha o tipo do dia
 
     /*
      * Só o MEIO — mesma régua da API (ver `EnvioDeBatida`, no contrato). A
