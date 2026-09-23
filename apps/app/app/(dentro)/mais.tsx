@@ -10,7 +10,7 @@
 
 import { useRouter } from 'expo-router'
 import { useMemo, useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, Share, StyleSheet, Text, View } from 'react-native'
 import { NOME_DO_PAPEL } from '@credenciei/dominio'
 import { mensagemDoErro, usePedido } from '../../src/dados/pedido'
 import { useSessao } from '../../src/sessao/contexto'
@@ -33,6 +33,11 @@ export default function Mais() {
   const [confirmandoExclusao, setConfirmandoExclusao] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
   const [erroDeExclusao, setErroDeExclusao] = useState<string | null>(null)
+  const [baixando, setBaixando] = useState(false)
+  const [confirmandoRevogacao, setConfirmandoRevogacao] = useState(false)
+  const [revogando, setRevogando] = useState(false)
+  const [revogado, setRevogado] = useState(false)
+  const [erroDeDados, setErroDeDados] = useState<string | null>(null)
 
   const grupos = menuDe(alvo ?? sessao?.papel ?? 'colaborador')
 
@@ -107,6 +112,113 @@ export default function Mais() {
 
       <Respiro altura={espaco.m} />
       <Botao titulo="Sair da conta" onPress={() => { void sair() }} tipo="secundario" />
+
+      {/*
+        LGPD, os dois direitos que NÃO apagam nada — por isso ficam acima da
+        zona de risco, e não dentro dela. Acesso/portabilidade (levar seus
+        dados embora) e revogar o consentimento da busca regional (sair da
+        vitrine sem sair da plataforma). Construídos em 22/09/2026.
+      */}
+      {sessao?.papel === 'colaborador' ? (
+        <>
+          <Respiro altura={espaco.g} />
+          <Etiqueta>MEUS DADOS</Etiqueta>
+          <Respiro altura={espaco.s} />
+
+          <Cartao>
+            <Botao
+              titulo="Baixar meus dados"
+              tipo="secundario"
+              ocupado={baixando}
+              onPress={async () => {
+                setErroDeDados(null)
+                setBaixando(true)
+                try {
+                  const arquivo = await cliente.meusDados()
+                  /*
+                   * Compartilhar, não baixar — mesma escolha da planilha da
+                   * equipe: no celular "baixar" some numa pasta que ninguém
+                   * acha, e compartilhar abre a folha do sistema.
+                   */
+                  await Share.share({ message: `Meus dados — ${arquivo.nome}\n${arquivo.url}`, url: arquivo.url })
+                } catch (err) {
+                  setErroDeDados(mensagemDoErro(err))
+                } finally {
+                  setBaixando(false)
+                }
+              }}
+            />
+            <Respiro altura={espaco.xs} />
+            <Legenda>
+              Um arquivo com tudo que guardamos sobre você: cadastro, eventos,
+              dias trabalhados e valores.
+            </Legenda>
+
+            <Respiro altura={espaco.s} />
+            <Separador />
+            <Respiro altura={espaco.s} />
+
+            {!confirmandoRevogacao ? (
+              <>
+                <Botao
+                  titulo="Sair da busca de colaboradores"
+                  tipo="fantasma"
+                  onPress={() => setConfirmandoRevogacao(true)}
+                />
+                <Respiro altura={espaco.xs} />
+                <Legenda>
+                  Hoje produtores da sua região podem te encontrar pelo CPF ou
+                  nome para te convidar. Sua conta e seu histórico não mudam.
+                </Legenda>
+              </>
+            ) : (
+              <>
+                <Aviso tipo="aviso">
+                  Você deixa de aparecer para quem procura equipe na sua região.
+                  Sua conta continua, e você segue nos eventos em que já está.
+                </Aviso>
+                <Respiro altura={espaco.s} />
+                <Botao
+                  titulo="Confirmar"
+                  ocupado={revogando}
+                  onPress={async () => {
+                    setErroDeDados(null)
+                    setRevogando(true)
+                    try {
+                      const r = await cliente.revogarConsentimentoDeBase()
+                      if (r.erro) return setErroDeDados(r.erro)
+                      setConfirmandoRevogacao(false)
+                      setRevogado(true)
+                    } catch (err) {
+                      setErroDeDados(mensagemDoErro(err))
+                    } finally {
+                      setRevogando(false)
+                    }
+                  }}
+                />
+                <Respiro altura={espaco.s} />
+                <Botao titulo="Cancelar" tipo="fantasma" onPress={() => setConfirmandoRevogacao(false)} />
+              </>
+            )}
+
+            {revogado ? (
+              <>
+                <Respiro altura={espaco.s} />
+                <Aviso tipo="sucesso">
+                  Pronto — você não aparece mais na busca por região.
+                </Aviso>
+              </>
+            ) : null}
+
+            {erroDeDados ? (
+              <>
+                <Respiro altura={espaco.s} />
+                <Aviso tipo="erro">{erroDeDados}</Aviso>
+              </>
+            ) : null}
+          </Cartao>
+        </>
+      ) : null}
 
       {/*
         Só para colaborador — conta de painel (admin/supervisor) não tem

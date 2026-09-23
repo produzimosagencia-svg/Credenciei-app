@@ -163,6 +163,10 @@ export function menuDoColaborador(): GrupoDoMenu[] {
       { rota: '/credencial', rotulo: 'Minha credencial', icone: 'QrCode', pronta: true },
       { rota: '/meus-dias', rotulo: 'Meus dias', icone: 'ClipboardCheck', pronta: true },
       { rota: '/meu-pagamento', rotulo: 'Meu pagamento', icone: 'Wallet', pronta: true },
+      // Depois do pagamento de propósito: o de cima é o evento de agora, este
+      // é o "por onde já passei". Quem abre o app no dia do evento procura o
+      // primeiro.
+      { rota: '/meu-historico', rotulo: 'Meu histórico', icone: 'History', pronta: true },
     ],
   }]
 }
