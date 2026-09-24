@@ -543,6 +543,15 @@ const EVENTOS_DO_PRODUTOR_DE_MENTIRA = ['ev-1', 'ev-2']
  */
 type OrcamentoGuardado = Omit<OrcamentoDetalhado, 'total'>
 
+/*
+ * O contador de ids, separado do tamanho da lista.
+ *
+ * `orc-${lista.length + 1}` parece equivalente e não é: criar (vira 3),
+ * excluir (volta a 2) e criar de novo devolveria `orc-3` de novo, com dois
+ * orçamentos diferentes disputando o mesmo id. Id nunca se reusa — nem aqui.
+ */
+let proximoIdDeOrcamento = 3
+
 const ORCAMENTOS_DE_MENTIRA: OrcamentoGuardado[] = [
   {
     id: 'orc-1',
@@ -4977,7 +4986,7 @@ export class ClienteFalso implements ClienteApi {
     const erro = conferirOrcamento(dados)
     if (erro) return { erro }
 
-    const id = `orc-${ORCAMENTOS_DE_MENTIRA.length + 1}`
+    const id = `orc-${proximoIdDeOrcamento++}`
     ORCAMENTOS_DE_MENTIRA.unshift({
       ...paraOrcamentoGuardado(dados),
       id,
@@ -5026,11 +5035,14 @@ export class ClienteFalso implements ClienteApi {
     const o = ORCAMENTOS_DE_MENTIRA.find(x => x.id === id)
     if (!o) return { erro: 'Este orçamento não existe mais.' }
 
-    const novoId = `orc-${ORCAMENTOS_DE_MENTIRA.length + 1}`
+    const novoId = `orc-${proximoIdDeOrcamento++}`
     // A cópia sempre nasce RASCUNHO: duplicar um orçamento já aprovado e
     // manter o carimbo faria a lista mostrar duas aprovações para uma venda.
     ORCAMENTOS_DE_MENTIRA.unshift({
       ...o,
+      // Os itens vão COPIADOS: `...o` traria o mesmo array, e mexer nos itens
+      // de um dos dois mexeria nos do outro.
+      itens: o.itens.map(i => ({ ...i })),
       id: novoId,
       numero: Math.max(0, ...ORCAMENTOS_DE_MENTIRA.map(x => x.numero)) + 1,
       status: 'rascunho',

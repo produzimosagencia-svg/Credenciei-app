@@ -12,6 +12,7 @@ import {
   ClienteFalso, CONTAS_DE_DEMONSTRACAO, credenciaisDeDemonstracao,
   SENHA_DE_DEMONSTRACAO, type ComportamentoFalso,
 } from './cliente-falso.js'
+import type { DadosDoOrcamento } from './tipos.js'
 
 const CODIGO_DO_EVENTO = 'HJK-2026-K7M2'
 
@@ -3517,3 +3518,103 @@ test('só quem gerencia usuários ou é suporte vê a trilha', async () => {
   await entrarComo(c, 'supervisor')
   await assert.rejects(() => c.auditoria(), /permissão/)
 })
+
+// ─── Orçamentos (comercial) ─────────────────────────────────────────────────
+//
+// Só master: são os valores comerciais da própria agência, não de um evento.
+// Trazido do site em 23/09/2026.
+
+test('nenhum papel além do master entra em Orçamentos', async () => {
+  const admin = await noPortao()
+  await assert.rejects(() => admin.listarOrcamentos(), /permissão/i)
+
+  const supervisor = new ClienteFalso()
+  await entrarComo(supervisor, 'supervisor')
+  await assert.rejects(() => supervisor.listarOrcamentos(), /permissão/i)
+})
+
+test('o total da listagem é recalculado, não um número guardado', async () => {
+  /*
+   * O falso guarda o orçamento SEM total, de propósito: a API real recalcula a
+   * cada leitura, e um falso que guardasse o total seria mais tolerante que o
+   * de verdade — escondendo justamente a divergência que ele existe pra achar.
+   */
+  const c = await comoMaster()
+  const lista = await c.listarOrcamentos()
+  const orc1 = lista.find(o => o.id === 'orc-1')
+  // 1200 + 18 + 400 = 1618 × 3 dias = 4854, mais 350 de crachás, menos 500.
+  assert.equal(orc1?.valorTotal, 4704)
+})
+
+test('criar, editar, duplicar e excluir passam pela mesma régua do site', async () => {
+  const c = await comoMaster()
+  const antes = (await c.listarOrcamentos()).length
+
+  assert.match(
+    (await c.criarOrcamento(orcamentoDeTeste({ responsavel: '  ' }))).erro ?? '',
+    /Informe o responsável/,
+  )
+  assert.match(
+    (await c.criarOrcamento(orcamentoDeTeste({ valorTecnico: -1 }))).erro ?? '',
+    /negativ/i,
+  )
+
+  const { id, erro } = await c.criarOrcamento(orcamentoDeTeste())
+  assert.equal(erro, undefined)
+  assert.equal((await c.listarOrcamentos()).length, antes + 1)
+
+  const aberto = await c.orcamentoPorId(id!)
+  // Linha sem descrição não entra; 1000 + 2 + 300 = 1302 × 2 dias, mais 500.
+  assert.deepEqual(aberto?.itens.map(i => i.descricao), ['Projetor'])
+  assert.equal(aberto?.total, 1302 * 2 + 500)
+
+  const copia = await c.duplicarOrcamento(id!)
+  assert.equal((await c.orcamentoPorId(copia.id!))?.status, 'rascunho')
+  assert.notEqual(copia.id, id)
+
+  // Mexer nos itens da cópia não pode mexer nos do original.
+  await c.editarOrcamento(copia.id!, orcamentoDeTeste({ itens: [] }))
+  assert.equal((await c.orcamentoPorId(id!))?.itens.length, 1)
+
+  assert.equal((await c.excluirOrcamento(id!)).erro, undefined)
+  assert.equal((await c.excluirOrcamento(copia.id!)).erro, undefined)
+  assert.equal((await c.listarOrcamentos()).length, antes)
+})
+
+test('id de orçamento nunca se reusa, mesmo depois de excluir', async () => {
+  // O id vinha do tamanho da lista: criar, excluir e criar de novo devolvia o
+  // mesmo id pra dois orçamentos diferentes.
+  const c = await comoMaster()
+  const primeiro = await c.criarOrcamento(orcamentoDeTeste())
+  await c.excluirOrcamento(primeiro.id!)
+  const segundo = await c.criarOrcamento(orcamentoDeTeste())
+  assert.notEqual(segundo.id, primeiro.id)
+  await c.excluirOrcamento(segundo.id!)
+})
+
+test('o desconto é aparado na gravação, não só na exibição', async () => {
+  const c = await comoMaster()
+  const { id } = await c.criarOrcamento(orcamentoDeTeste({ desconto: 99999, itens: [] }))
+  const aberto = await c.orcamentoPorId(id!)
+  assert.equal(aberto?.desconto, 1302 * 2)
+  assert.equal(aberto?.total, 0)
+  await c.excluirOrcamento(id!)
+})
+
+function orcamentoDeTeste(mudanca: Partial<DadosDoOrcamento> = {}): DadosDoOrcamento {
+  return {
+    nomeEvento: 'Fantástico Mundo do Lukão',
+    responsavel: 'Lucas Andrade',
+    telefone: '27999990000',
+    dataEvento: '2026-11-14',
+    valorDia: 1000,
+    valorFuncionario: 2,
+    valorTecnico: 300,
+    dias: 2,
+    desconto: 0,
+    observacoes: null,
+    status: 'rascunho',
+    itens: [{ descricao: 'Projetor', valor: 500 }, { descricao: '', valor: 300 }],
+    ...mudanca,
+  }
+}
