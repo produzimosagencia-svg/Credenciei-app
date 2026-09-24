@@ -3,9 +3,10 @@ import assert from 'node:assert/strict'
 import { cenarioHenriqueEJuliano } from '../dados/memoria.js'
 import {
   criarOrcamento, duplicarOrcamento, editarOrcamento, excluirOrcamento, listarOrcamentos,
-  orcamentoPorId,
+  orcamentoPorId, pdfDoOrcamento,
 } from './orcamentos.js'
 import type { DadosDoOrcamento } from '@credenciei/contrato'
+import { ArquivosEmMemoria } from '../arquivos.js'
 
 const BASE: DadosDoOrcamento = {
   nomeEvento: 'Fantástico Mundo do Lukão',
@@ -171,4 +172,37 @@ test('duplicar o que não existe avisa', async () => {
   const { repo, master } = cenarioHenriqueEJuliano()
   const r = await duplicarOrcamento(repo, master.id, 'nao-existe')
   assert.match(r.erro ?? '', /não existe/i)
+})
+
+// ─── PDF ────────────────────────────────────────────────────────────────────
+
+test('o PDF sai com link pronto pra compartilhar', async () => {
+  const { repo, master } = cenarioHenriqueEJuliano()
+  const arquivos = new ArquivosEmMemoria('http://api.local')
+  const { id } = await criarOrcamento(repo, master.id, BASE)
+
+  const r = await pdfDoOrcamento(repo, master.id, id!, arquivos)
+  assert.ok('url' in r, 'erro' in r ? r.erro : '')
+  assert.equal(r.nome, 'orcamento-000001.pdf')
+  assert.match(r.url, /^http:\/\/api\.local\/arquivos\//)
+
+  // O link serve o PDF de verdade, não um JSON de erro.
+  const token = r.url.split('/').pop()!
+  const guardado = arquivos.buscar(token)
+  assert.equal(guardado?.tipo, 'application/pdf')
+  assert.equal(guardado?.bytes.subarray(0, 5).toString('latin1'), '%PDF-')
+})
+
+test('quem não é master não gera PDF — o documento tem os valores da agência', async () => {
+  const { repo, master, admin } = cenarioHenriqueEJuliano()
+  const arquivos = new ArquivosEmMemoria('http://api.local')
+  const { id } = await criarOrcamento(repo, master.id, BASE)
+  await assert.rejects(() => pdfDoOrcamento(repo, admin.id, id!, arquivos), /acesso/i)
+})
+
+test('PDF de orçamento que não existe avisa, em vez de gerar folha em branco', async () => {
+  const { repo, master } = cenarioHenriqueEJuliano()
+  const r = await pdfDoOrcamento(repo, master.id, 'nao-existe', new ArquivosEmMemoria('http://api.local'))
+  assert.ok('erro' in r)
+  assert.match(r.erro, /não existe/i)
 })

@@ -1312,6 +1312,12 @@ export class ClienteHttp implements ClienteApi {
     return r.corpo as unknown as { id?: string }
   }
 
+  async pdfDoOrcamento(id: string): Promise<{ nome: string; url: string } | { erro: string }> {
+    const r = await this.pedir(`/v1/orcamentos/${encodeURIComponent(id)}/pdf`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos montar o PDF.') }
+    return r.corpo as unknown as { nome: string; url: string } | { erro: string }
+  }
+
   async urlComprovanteGasto(id: string): Promise<{ url: string | null; erro?: string }> {
     const r = await this.pedir(`/v1/gastos/${encodeURIComponent(id)}/comprovante`)
     if (r.status >= 400) return { url: null, erro: this.erroDe(r, 'Não conseguimos abrir o comprovante.') }

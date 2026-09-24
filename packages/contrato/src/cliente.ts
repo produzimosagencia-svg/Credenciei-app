@@ -863,4 +863,11 @@ export interface ClienteApi {
    * outro evento, e refazer os cinco valores na mão é onde entra erro.
    */
   duplicarOrcamento(id: string): Promise<{ id?: string; erro?: string }>
+
+  /**
+   * O PDF da proposta — o mesmo documento que o site gera, montado no
+   * servidor. Volta o LINK, não os bytes: é ele que a pessoa repassa pelo
+   * WhatsApp, e ele expira em 15 minutos.
+   */
+  pdfDoOrcamento(id: string): Promise<{ nome: string; url: string } | { erro: string }>
 }

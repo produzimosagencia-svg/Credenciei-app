@@ -89,7 +89,7 @@ import {
 } from './rotas/gastos.js'
 import {
   criarOrcamento, duplicarOrcamento, editarOrcamento, excluirOrcamento, listarOrcamentos,
-  orcamentoPorId,
+  orcamentoPorId, pdfDoOrcamento,
 } from './rotas/orcamentos.js'
 import { dadosParaLancarPonto, eventosParaLancarPonto, lancarPontoManual } from './rotas/lancar-ponto.js'
 import { colaboradoresDoEvento, eventosParaEditarColaborador } from './rotas/editar-colaborador.js'
@@ -913,6 +913,14 @@ export function criarServidor(amb: Ambiente) {
    */
   app.post('/v1/orcamentos/:id/excluir', async c =>
     protegido(c, () => excluirOrcamento(amb.repo, c.get('pessoaId'), c.req.param('id'))))
+
+  /*
+   * POST e não GET, mesmo só lendo: o PDF é GERADO a cada pedido (a data de
+   * emissão no cabeçalho é a de hoje), e um GET convida cache de navegador e
+   * de proxy num documento que não pode vir velho.
+   */
+  app.post('/v1/orcamentos/:id/pdf', async c =>
+    protegido(c, () => pdfDoOrcamento(amb.repo, c.get('pessoaId'), c.req.param('id'), amb.arquivos)))
 
   app.post('/v1/orcamentos/:id/duplicar', async c =>
     protegido(c, () => duplicarOrcamento(amb.repo, c.get('pessoaId'), c.req.param('id'))))

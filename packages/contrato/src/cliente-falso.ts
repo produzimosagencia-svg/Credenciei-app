@@ -5051,6 +5051,26 @@ export class ClienteFalso implements ClienteApi {
     return { id: novoId }
   }
 
+  async pdfDoOrcamento(id: string): Promise<{ nome: string; url: string } | { erro: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrcamentos, 'gerar o PDF do orçamento')
+
+    const o = ORCAMENTOS_DE_MENTIRA.find(x => x.id === id)
+    if (!o) return { erro: 'Este orçamento não existe mais.' }
+
+    /*
+     * Endereço de mentira, PDF nenhum — mesma escolha de `exportarGastosXlsx`.
+     *
+     * Montar o PDF de verdade aqui exigiria o jsPDF dentro do contrato, que
+     * é compartilhado com o aplicativo: uma biblioteca de ~400KB embarcada no
+     * celular pra gerar um arquivo que quem gera é o servidor. O que o falso
+     * precisa provar é a FORMA da resposta e quem pode pedir — e isso ele
+     * prova.
+     */
+    return { nome: `orcamento-${String(o.numero).padStart(6, '0')}.pdf`, url: 'https://demonstracao.credenciei.app/orcamento-demo.pdf' }
+  }
+
   async excluirGasto(id: string): Promise<{ erro?: string }> {
     await this.rede()
     this.exigirSessao()

@@ -3618,3 +3618,16 @@ function orcamentoDeTeste(mudanca: Partial<DadosDoOrcamento> = {}): DadosDoOrcam
     ...mudanca,
   }
 }
+
+test('o PDF do falso devolve a forma certa, e só pro master', async () => {
+  const c = await comoMaster()
+  const r = await c.pdfDoOrcamento('orc-1')
+  assert.ok('url' in r, 'erro' in r ? r.erro : '')
+  assert.equal(r.nome, 'orcamento-000001.pdf')
+
+  const admin = await noPortao()
+  await assert.rejects(() => admin.pdfDoOrcamento('orc-1'), /permissão/i)
+
+  const sumido = await c.pdfDoOrcamento('nao-existe')
+  assert.ok('erro' in sumido)
+})

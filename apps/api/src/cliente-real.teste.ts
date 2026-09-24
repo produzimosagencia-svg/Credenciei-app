@@ -748,6 +748,37 @@ test('orçamento vai e volta pela API — criar, abrir, editar, duplicar, exclui
   assert.equal((await m.cliente.listarOrcamentos()).length, 1)
 })
 
+test('o PDF do orçamento vai e volta pela API, e o arquivo baixa de verdade', async () => {
+  const m = montar()
+  const login = await m.cliente.entrarComSenha('juan@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
+
+  const criado = await m.cliente.criarOrcamento({
+    nomeEvento: 'Fantástico Mundo do Lukão',
+    responsavel: 'Lucas Andrade',
+    telefone: '27999990000',
+    dataEvento: '2026-11-14',
+    valorDia: 1000, valorFuncionario: 2, valorTecnico: 300,
+    dias: 1, desconto: 0,
+    observacoes: null, status: 'gerado',
+    itens: [],
+  })
+  assert.equal(criado.erro, undefined)
+
+  const pdf = await m.cliente.pdfDoOrcamento(criado.id!)
+  assert.ok('url' in pdf, 'erro' in pdf ? pdf.erro : '')
+  assert.match(pdf.nome, /^orcamento-\d{6}\.pdf$/)
+
+  // O endereço devolvido é de verdade: bate na mesma API, sem token, e o
+  // corpo é o PDF — não um JSON de erro com cara de sucesso.
+  const resposta = await m.app.request(pdf.url)
+  assert.equal(resposta.status, 200)
+  assert.equal(resposta.headers.get('content-type'), 'application/pdf')
+  const bytes = Buffer.from(await resposta.arrayBuffer())
+  assert.equal(bytes.subarray(0, 5).toString('latin1'), '%PDF-')
+})
+
 test('quem não é master leva não em Orçamentos, pela API', async () => {
   // Marina é admin — os valores comerciais da agência não são dela.
   const m = montar()

@@ -6,13 +6,15 @@
 // `valor_total`. Um orçamento salvo por uma versão antiga do código deixa a
 // coluna mentindo, e o número errado iria direto pro cliente.
 //
-// ─── POR QUE COMPARTILHAR TEXTO, E NÃO UM PDF ───────────────────────────────
+// ─── O PDF VEM DO SERVIDOR, NÃO DAQUI ───────────────────────────────────────
 //
-// O site gera PDF com jsPDF, que é biblioteca de navegador e não roda em
-// React Native. Enquanto não existir um gerador aqui, o caminho honesto é o
-// que a agência já usa na prática: mandar a proposta escrita pelo WhatsApp. A
-// folha de compartilhar do celular entrega isso sem nenhuma dependência nova,
-// e o PDF continua saindo pelo site quando for preciso.
+// Achei primeiro que o PDF do site fosse de navegador (jsPDF) e não desse pra
+// ter no celular. Estava errado: `lib/orcamentos-pdf.ts` roda em NODE, no
+// servidor — ele lê a logo do disco com `fs`. Então a API monta o mesmo
+// documento com o mesmo código (`apps/api/src/orcamento-pdf.ts`), e a tela só
+// pede e compartilha o link, como já faz com a planilha de relatórios. Nada
+// de dependência nativa nova, nada de build novo do aplicativo, e o cliente
+// recebe a MESMA proposta venha ela do site ou do app.
 
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useState } from 'react'
@@ -39,6 +41,7 @@ export default function UmOrcamento() {
   const [editando, setEditando] = useState(false)
   const [confirmandoExclusao, setConfirmandoExclusao] = useState(false)
   const [ocupado, setOcupado] = useState(false)
+  const [gerandoPdf, setGerandoPdf] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
   const { pedido, recarregar } = usePedido(
@@ -59,6 +62,27 @@ export default function UmOrcamento() {
       setErro(mensagemDoErro(err))
     } finally {
       setOcupado(false)
+    }
+  }
+
+  async function gerarPdf() {
+    setErro(null)
+    setGerandoPdf(true)
+    try {
+      const r = await cliente.pdfDoOrcamento(String(id))
+      if ('erro' in r) return setErro(r.erro)
+      /*
+       * Compartilhar o LINK, não baixar — mesma escolha da planilha de
+       * relatórios e do "Baixar meus dados": no celular, "baixar" some numa
+       * pasta que ninguém acha, e este arquivo existe justamente pra sair
+       * daqui pro cliente. O link vale 15 minutos.
+       */
+      await Share.share({ message: `${r.nome}
+${r.url}`, url: r.url })
+    } catch (err) {
+      setErro(mensagemDoErro(err))
+    } finally {
+      setGerandoPdf(false)
     }
   }
 
@@ -131,8 +155,20 @@ export default function UmOrcamento() {
               <Botao titulo="Editar" onPress={() => setEditando(true)} />
               <Respiro altura={espaco.s} />
               <Botao
-                titulo="Enviar proposta"
+                titulo="Enviar proposta em PDF"
                 tipo="secundario"
+                ocupado={gerandoPdf}
+                onPress={() => { void gerarPdf() }}
+              />
+              <Respiro altura={espaco.s} />
+              {/*
+                O texto continua como segunda opção: o PDF é o documento, mas
+                quem só quer mandar os números por mensagem não precisa abrir
+                anexo nenhum — e ele funciona sem esperar o servidor montar.
+              */}
+              <Botao
+                titulo="Enviar como texto"
+                tipo="fantasma"
                 onPress={() => { void Share.share({ message: propostaEmTexto(orcamento) }) }}
               />
               <Respiro altura={espaco.s} />

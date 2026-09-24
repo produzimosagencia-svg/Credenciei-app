@@ -1,6 +1,6 @@
 # Backlog
 
-**318 tasks · 184 no MVP · 228 concluídas (72%)**
+**319 tasks · 184 no MVP · 229 concluídas (72%)**
 
 **Só o MVP: 161 de 184 (88%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -157,7 +157,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 17 | Painel no app | 48 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09". Toda a epic fala com a API real agora: organizações, veículos, bloqueio de CPF, base de funcionários, encontrar colaborador, relatórios, cartaz da portaria, criar setor, equipe do setor, trocar senha, excluir acesso e criar acesso de admin — número não recontado por falta de lista tarefa a tarefa desta epic |
 | 18 | Configurar evento | 17 | 17 | ✓ | Completo: editar evento, dias de trabalho, batida do meio e criar evento, reais e ligados pelo `ClienteHttp` |
 | 19 | Gastos (produto do Produtor) | 6 | 6 | — | Backend inteiro pronto e testado (22/09) — papel `produtor`, lançamento manual e por voz, lista+filtros, painel e exportação `.xlsx`. Tela construída em 22/09, INTEIRA: falar (expo-audio), digitar, lista com filtros, dashboard e exportação. Só falta a GEMINI_API_KEY no Render pra transcrição funcionar de verdade — ver "Bloqueado" |
-| 20 | Orçamentos (comercial) | 7 | 7 | — | **Completa** — construída em 23/09/2026, de ponta a ponta: regra (`packages/dominio/src/orcamentos.ts`, 8 testes), contrato, `ClienteHttp`/cliente-falso, repositório (memória + Supabase, tabelas `orcamentos`/`orcamento_itens` que o site já usa), rotas `/v1/orcamentos*` (14 testes) e três telas (lista com filtro por status, criar, e a proposta com editar/duplicar/excluir/enviar). Só master, mesma capacidade do site. Fora de escopo por ora: o PDF — jsPDF é de navegador e não roda em React Native; o app compartilha a proposta em texto (o que a agência faz na prática pelo WhatsApp) e o PDF continua saindo pelo site |
+| 20 | Orçamentos (comercial) | 8 | 8 | — | **Completa** — construída em 23/09/2026, de ponta a ponta: regra (`packages/dominio/src/orcamentos.ts`, 8 testes), contrato, `ClienteHttp`/cliente-falso, repositório (memória + Supabase, tabelas `orcamentos`/`orcamento_itens` que o site já usa), rotas `/v1/orcamentos*` (14 testes) e três telas (lista com filtro por status, criar, e a proposta com editar/duplicar/excluir/enviar). Só master, mesma capacidade do site. O PDF entrou em 24/09: a API monta o MESMO documento do site, com o mesmo jsPDF em Node (`apps/api/src/orcamento-pdf.ts`), e o app compartilha o link — paridade provada comparando o texto impresso dos dois geradores |
 
 ---
 
@@ -1719,6 +1719,43 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > o que a agência faz na prática, mandar pelo WhatsApp — e o PDF continua
 > saindo pelo site. **Epic 20 entra 7/7; o total do backlog vai de 311 pra
 > 318.**
+>
+> **24/09/2026 — o PDF entrou, e eu estava errado sobre por que ele não
+> dava.** Escrevi na véspera que o PDF ficaria fora porque "jsPDF é
+> biblioteca de navegador". Não é: `lib/orcamentos-pdf.ts` do site roda em
+> NODE — ele lê a logo do disco com `fs` e é servido por uma rota
+> (`app/api/orcamentos/[id]/pdf/route.ts`). Bastava olhar o arquivo antes de
+> concluir. O Juan pediu o PDF no celular e a solução era a mais simples das
+> três que eu tinha considerado.
+>
+> Agora `apps/api/src/orcamento-pdf.ts` é cópia por valor desse gerador:
+> mesma biblioteca, mesma margem, mesma paleta, mesma ordem de seções. O app
+> chama `POST /v1/orcamentos/:id/pdf` e recebe `{ nome, url }` — o mesmo
+> padrão da planilha de relatórios, link opaco que vale 15 minutos — e
+> compartilha pela folha do celular. **Nenhuma dependência nativa nova,
+> nenhum build novo do aplicativo**: quem já tem o APK ganha o PDF assim que
+> a API subir. O envio em texto continua, como segunda opção.
+>
+> **A paridade foi PROVADA, não assumida**: um script gerou o mesmo orçamento
+> pelos dois geradores e comparou o texto impresso caractere a caractere. Na
+> primeira rodada divergiu — o site escreve U+00A0 (espaço não-quebrável)
+> entre "R$" e o número, porque o `brl` de lá é `toLocaleString('pt-BR')`, e
+> o meu escrevia espaço comum. Diferença invisível na tela, PDF diferente no
+> cliente. Alinhado, com teste que prende o caractere. Continuo sem
+> `toLocaleString` aqui de propósito: a Vercel garante ICU completo, o
+> contêiner do Nixpacks não, e um Node `small-icu` devolveria "R$ 3,000.00"
+> calado num documento que vai pro cliente.
+>
+> **Achado no caminho, corrigido nos dois lados: a proposta pesava 2,4 MB.**
+> O jsPDF embute o bitmap CRU das imagens da marca quando o `addImage` não
+> recebe compressão. Com `'FAST'` (Flate, sem perda nenhuma) o mesmo
+> documento vai a **64 KB — 38 vezes menor, pixel por pixel idêntico**. Isso
+> estava em produção no site desde sempre; importa mais no app, onde o
+> caminho normal é o WhatsApp de dentro de um evento, no 4G disputado por
+> duas mil pessoas. Corrigido aqui e em `lib/orcamentos-pdf.ts` do site, com
+> o motivo escrito nos dois. O teste agora prende uma FAIXA de tamanho: piso
+> pra logo que some, teto pra compressão que se perde. **Epic 20 vai a 8/8;
+> o backlog, a 319 tasks. 1.204 testes.**
 
 ## Bloqueado, esperando o Juan
 

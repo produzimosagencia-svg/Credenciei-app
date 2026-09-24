@@ -14,6 +14,8 @@ import {
   subtotalDoOrcamento, totalDoOrcamento,
 } from '@credenciei/dominio'
 import type { DadosDoOrcamento, OrcamentoDetalhado, ResumoDoOrcamento } from '@credenciei/contrato'
+import type { Arquivos } from '../arquivos.js'
+import { montarPdfDoOrcamento, nomeDoPdfDoOrcamento, PDF_MIME } from '../orcamento-pdf.js'
 import type {
   NovoOrcamentoNoRepositorio, OrcamentoComItensNoRepositorio, OrcamentoNoRepositorio,
   Perfil, Repositorio,
@@ -154,6 +156,36 @@ export async function excluirOrcamento(
 ): Promise<{ erro?: string }> {
   await exigirOrcamentos(repo, pessoaId)
   return repo.excluirOrcamento(id)
+}
+
+/**
+ * O PDF da proposta, pronto pra mandar pro cliente.
+ *
+ * Devolve `{ nome, url }` em vez dos bytes — mesmo padrão da planilha de
+ * relatórios e pelo mesmo motivo: o celular não tem onde pôr um arquivo que
+ * chega no corpo de uma resposta JSON, e o que a pessoa quer é o LINK, que
+ * ela repassa pelo WhatsApp. O link é opaco e expira em 15 minutos.
+ */
+export async function pdfDoOrcamento(
+  repo: Repositorio, pessoaId: string, id: string, arquivos: Arquivos,
+): Promise<{ nome: string; url: string } | { erro: string }> {
+  await exigirOrcamentos(repo, pessoaId)
+
+  const guardado = await repo.orcamentoPorId(id)
+  if (!guardado) return { erro: 'Este orçamento não existe mais.' }
+
+  try {
+    const orcamento = paraDetalhe(guardado)
+    const nome = nomeDoPdfDoOrcamento(orcamento.numero)
+    const url = await arquivos.guardar(
+      `orcamentos/${orcamento.id}/${nome}`, PDF_MIME, montarPdfDoOrcamento(orcamento),
+    )
+    return { nome, url }
+  } catch (e) {
+    // O PDF é o produto final: falhar calado aqui é pior que em qualquer
+    // outro lugar — a pessoa acharia que mandou a proposta e não mandou.
+    return { erro: e instanceof Error ? e.message : 'Não consegui montar o PDF.' }
+  }
 }
 
 /**
