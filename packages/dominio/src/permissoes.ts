@@ -251,3 +251,14 @@ export const podeExcluirDaEquipe = (papel?: string) =>
  */
 export const podeRegistrarGastos = capacidade('registrar_gastos', papel =>
   papel === 'produtor' || papel === 'master')
+
+/**
+ * Pode montar e ver orçamento.
+ *
+ * Só o master — cópia de `podeGerenciarOrcamentos` em
+ * `c:\Dev\credenciei\lib\permissions.ts`, com o motivo que está no
+ * catálogo de lá: "abre valores comerciais e propostas — dado sensível da
+ * agência". Quem opera um evento não precisa ver quanto a agência cobra.
+ */
+export const podeGerenciarOrcamentos = capacidade('gerenciar_orcamentos', papel =>
+  papel === 'master')

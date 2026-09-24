@@ -1,6 +1,6 @@
 # Backlog
 
-**311 tasks · 184 no MVP · 221 concluídas (71%)**
+**318 tasks · 184 no MVP · 228 concluídas (72%)**
 
 **Só o MVP: 161 de 184 (88%).** É o número que responde "quando dá para usar" —
 o outro inclui push, publicação, web e escala, que vêm depois.
@@ -157,6 +157,7 @@ do app ainda navegável contra o servidor falso é só o que a Fase 3 lista.
 | 17 | Painel no app | 48 | 53 | ✓ | O achado de 11/09 entrou aqui — ver "Mapeado em 11/09". Toda a epic fala com a API real agora: organizações, veículos, bloqueio de CPF, base de funcionários, encontrar colaborador, relatórios, cartaz da portaria, criar setor, equipe do setor, trocar senha, excluir acesso e criar acesso de admin — número não recontado por falta de lista tarefa a tarefa desta epic |
 | 18 | Configurar evento | 17 | 17 | ✓ | Completo: editar evento, dias de trabalho, batida do meio e criar evento, reais e ligados pelo `ClienteHttp` |
 | 19 | Gastos (produto do Produtor) | 6 | 6 | — | Backend inteiro pronto e testado (22/09) — papel `produtor`, lançamento manual e por voz, lista+filtros, painel e exportação `.xlsx`. Tela construída em 22/09, INTEIRA: falar (expo-audio), digitar, lista com filtros, dashboard e exportação. Só falta a GEMINI_API_KEY no Render pra transcrição funcionar de verdade — ver "Bloqueado" |
+| 20 | Orçamentos (comercial) | 7 | 7 | — | **Completa** — construída em 23/09/2026, de ponta a ponta: regra (`packages/dominio/src/orcamentos.ts`, 8 testes), contrato, `ClienteHttp`/cliente-falso, repositório (memória + Supabase, tabelas `orcamentos`/`orcamento_itens` que o site já usa), rotas `/v1/orcamentos*` (14 testes) e três telas (lista com filtro por status, criar, e a proposta com editar/duplicar/excluir/enviar). Só master, mesma capacidade do site. Fora de escopo por ora: o PDF — jsPDF é de navegador e não roda em React Native; o app compartilha a proposta em texto (o que a agência faz na prática pelo WhatsApp) e o PDF continua saindo pelo site |
 
 ---
 
@@ -1686,6 +1687,38 @@ jeito (a linha acima é só a versão enxuta, essa sim trazida).
 > quem nunca autorizou nada não dá erro. 5 testes novos, 1 no
 > `cliente-falso`, 1 round-trip real. **Epic 14 sobe de 10/16 para
 > 11/16.**
+>
+> **23/09/2026 — Orçamentos (Epic 20) construído de ponta a ponta, telas
+> inclusive.** Trazido do site (`lib/orcamentos.ts`,
+> `lib/actions-orcamentos.ts`, `lib/orcamentos-constantes.ts`) pelo
+> procedimento da decisão 007: cópia por VALOR, com o comentário do porquê
+> junto. MESMAS tabelas de produção (`orcamentos`/`orcamento_itens`) — nada
+> de schema novo.
+>
+> A regra que importa e que era fácil perder na cópia: **valor do dia, por
+> funcionário e do técnico multiplicam pelos dias do evento; item adicional
+> NÃO** — é avulso, entra uma vez só. Cobrar um projetor três vezes porque
+> o evento tem três dias é erro que chega ao cliente. E o total é sempre
+> **recalculado** na abertura, nunca a coluna `valor_total` gravada: um
+> orçamento salvo por versão antiga do código deixa a coluna mentindo. As
+> duas regras estão em `packages/dominio/src/orcamentos.ts`, com 8 testes.
+>
+> Só master (`podeGerenciarOrcamentos`, mesma capacidade do site) — são os
+> valores comerciais da própria agência, não de um evento. No menu a entrada
+> fica FORA do bloco `ehMaster`, igual no site: a capacidade pode ser
+> liberada pra uma organização em Configurações, e se a entrada morasse
+> dentro do bloco a liberação daria acesso à tela sem dar caminho até ela.
+>
+> Rotas `/v1/orcamentos*` (listar, abrir, criar, editar, excluir, duplicar),
+> 14 testes; três telas: lista com filtro por status e total dos aprovados,
+> criar, e a proposta pronta com editar/duplicar/excluir/enviar.
+>
+> **O PDF ficou de fora, de propósito.** O site usa jsPDF, que é biblioteca
+> de navegador e não roda em React Native. Enquanto não existir um gerador
+> aqui, o app compartilha a proposta em TEXTO pela folha do celular — que é
+> o que a agência faz na prática, mandar pelo WhatsApp — e o PDF continua
+> saindo pelo site. **Epic 20 entra 7/7; o total do backlog vai de 311 pra
+> 318.**
 
 ## Bloqueado, esperando o Juan
 

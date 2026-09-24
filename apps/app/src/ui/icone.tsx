@@ -43,6 +43,7 @@ import Eye from 'lucide-react-native/icons/eye'
 import EyeOff from 'lucide-react-native/icons/eye-off'
 import FileDown from 'lucide-react-native/icons/file-down'
 import FileSpreadsheet from 'lucide-react-native/icons/file-spreadsheet'
+import FileText from 'lucide-react-native/icons/file-text'
 import FileUp from 'lucide-react-native/icons/file-up'
 import Hammer from 'lucide-react-native/icons/hammer'
 import House from 'lucide-react-native/icons/house'
@@ -122,6 +123,7 @@ const ICONES: Record<string, LucideIcon> = {
   EyeOff,
   FileDown,
   FileSpreadsheet,
+  FileText,
   FileUp,
   Hammer,
   Home: House,

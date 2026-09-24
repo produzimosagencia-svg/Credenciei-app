@@ -179,6 +179,9 @@ export default function Dentro() {
           { nome: 'suporte', titulo: 'Suporte de Sistema' },
           { nome: 'configuracoes', titulo: 'Configurações' },
           { nome: 'auditoria', titulo: 'Trilha de auditoria' },
+          { nome: 'orcamentos', titulo: 'Orçamentos' },
+          { nome: 'novo-orcamento', titulo: 'Novo orçamento' },
+          { nome: 'orcamento/[id]', titulo: 'Orçamento' },
         ].map(tela => (
           <Tabs.Screen
             key={tela.nome}

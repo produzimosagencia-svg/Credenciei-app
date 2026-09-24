@@ -29,6 +29,8 @@ import {
   inferirMomentoDoScanner, janelaMeio, kpisDeGastos, lerCodigoDeEvento, lerCodigoQR, liberacaoDoQR, PAPEIS_CONFIGURAVEIS,
   podeAcompanhar, podeEscanear, podeGerenciarEventos, podeGerenciarOrganizacoes, podeGerenciarUsuarios,
   podeGerenciarVeiculos, podeBloquearCpf, podeExcluir, podeExcluirDaEquipe, podeRegistrarGastos,
+  podeGerenciarOrcamentos, subtotalDoOrcamento, totalDoOrcamento, descontoQuePodeSerGravado,
+  statusDeOrcamentoValido,
   TOLERANCIA_DE_CPF, abreEm, conferenciaAberta,
   validarCpf,
   type RegistroParaInferencia,
@@ -37,7 +39,8 @@ import type { ClienteApi } from './cliente.js'
 import type {
   Acesso, ArquivoDePlanilha, AtividadeRecente, AtividadesDoEvento, AvisoPendente,
   BatidaAssistida, CandidatoLocalizado, CentralDeAvisos, ConferenciaPorCpf, ConfiguracaoDoEvento,
-  ConviteDoEvento, DadosDeNovoEvento, DiaDaParticipacao, EdicaoDoEvento, EnvioDeBatida,
+  ConviteDoEvento, DadosDeNovoEvento, DadosDoOrcamento, DiaDaParticipacao, EdicaoDoEvento,
+  EnvioDeBatida, OrcamentoDetalhado, ResumoDoOrcamento,
   EquipeDoSetor, Eu, EventoComSetores, EventoDetalhado, EventoEscaneavel,
   FichaDaPessoa, FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao,
   IndicadorDoPainel, LinhaPresenca,
@@ -529,6 +532,98 @@ const SUPORTES_DE_MENTIRA: {
  * e que ev-3 fica de fora da lista dele.
  */
 const EVENTOS_DO_PRODUTOR_DE_MENTIRA = ['ev-1', 'ev-2']
+
+/**
+ * Os orçamentos de mentira — mutável, mesmo padrão de `GASTOS_DE_MENTIRA`.
+ *
+ * Guardados SEM o total: ele é recalculado a cada leitura, do mesmo jeito que
+ * a API real faz. Guardar o total aqui deixaria o falso mais tolerante que o
+ * de verdade — e o servidor falso existe para achar divergência, não para
+ * escondê-la.
+ */
+type OrcamentoGuardado = Omit<OrcamentoDetalhado, 'total'>
+
+const ORCAMENTOS_DE_MENTIRA: OrcamentoGuardado[] = [
+  {
+    id: 'orc-1',
+    numero: 1,
+    nomeEvento: 'Henrique e Juliano - Kleber Andrade',
+    responsavel: 'Marina Alves',
+    telefone: '27999255959',
+    dataEvento: '2026-09-05',
+    valorDia: 1200,
+    valorFuncionario: 18,
+    valorTecnico: 400,
+    dias: 3,
+    desconto: 500,
+    observacoes: 'Inclui montagem na véspera.',
+    status: 'enviado',
+    itens: [{ id: 'it-1', descricao: 'Impressão de crachás', valor: 350 }],
+    criadoEm: '2026-08-28T14:00:00-03:00',
+  },
+  {
+    id: 'orc-2',
+    numero: 2,
+    nomeEvento: 'Manos da Vila',
+    responsavel: 'Juan Muzy',
+    telefone: '27999255959',
+    dataEvento: '2026-10-11',
+    valorDia: 900,
+    valorFuncionario: 15,
+    valorTecnico: 0,
+    dias: 1,
+    desconto: 0,
+    observacoes: null,
+    status: 'rascunho',
+    itens: [],
+    criadoEm: '2026-09-20T09:30:00-03:00',
+  },
+]
+
+/**
+ * As mesmas recusas da API real, na mesma ordem.
+ *
+ * Copiado de `montarOrcamento` em `lib/actions-orcamentos.ts` do site. O que
+ * o falso recusar, o de verdade tem que recusar igual — senão o app passa a
+ * confiar numa validação que só existe na demonstração.
+ */
+function conferirOrcamento(d: DadosDoOrcamento): string | null {
+  if (!d.nomeEvento.trim()) return 'Informe o nome do evento.'
+  if (!d.responsavel.trim()) return 'Informe o responsável.'
+  if (!d.telefone.trim()) return 'Informe o telefone.'
+  if (!d.dataEvento.trim()) return 'Informe a data do evento.'
+  if (d.valorDia < 0 || d.valorFuncionario < 0 || d.valorTecnico < 0) {
+    return 'Os valores não podem ser negativos.'
+  }
+  return null
+}
+
+/** Normaliza o que veio da tela — mesma régua da escrita do site. */
+function paraOrcamentoGuardado(d: DadosDoOrcamento): Omit<OrcamentoGuardado, 'id' | 'numero' | 'criadoEm'> {
+  // Item sem descrição ou sem valor é linha que a pessoa começou e desistiu:
+  // não vai pro orçamento, e não vira "R$ 0,00" no PDF do cliente.
+  const itens = d.itens
+    .map((i, n) => ({ id: `it-${n + 1}`, descricao: i.descricao.trim(), valor: Number(i.valor) || 0 }))
+    .filter(i => i.descricao && i.valor > 0)
+
+  const dias = Math.max(1, Math.round(Number(d.dias) || 1))
+  const subtotal = subtotalDoOrcamento({ ...d, dias, itens })
+
+  return {
+    nomeEvento: d.nomeEvento.trim(),
+    responsavel: d.responsavel.trim(),
+    telefone: d.telefone.trim() || null,
+    dataEvento: d.dataEvento.trim() || null,
+    valorDia: Number(d.valorDia) || 0,
+    valorFuncionario: Number(d.valorFuncionario) || 0,
+    valorTecnico: Number(d.valorTecnico) || 0,
+    dias,
+    desconto: descontoQuePodeSerGravado(d.desconto, subtotal),
+    observacoes: (d.observacoes ?? '').trim() || null,
+    status: statusDeOrcamentoValido(d.status),
+    itens,
+  }
+}
 
 /** Os lançamentos de Gastos de mentira — mutável, mesmo padrão de `SUPORTES_DE_MENTIRA`. */
 const GASTOS_DE_MENTIRA: Gasto[] = [
@@ -4844,6 +4939,104 @@ export class ClienteFalso implements ClienteApi {
     alvo.observacao = dados.observacao?.trim() || null
     if (dados.comprovanteBase64) { alvo.temComprovante = true; alvo.comprovanteNome = 'comprovante.jpg' }
     return {}
+  }
+
+  // ── Orçamentos ───────────────────────────────────────────────────────────
+
+  async listarOrcamentos(): Promise<ResumoDoOrcamento[]> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrcamentos, 'ver orçamentos')
+    return ORCAMENTOS_DE_MENTIRA
+      .map(o => ({
+        id: o.id,
+        numero: o.numero,
+        nomeEvento: o.nomeEvento,
+        responsavel: o.responsavel,
+        dataEvento: o.dataEvento,
+        status: o.status,
+        valorTotal: totalDoOrcamento(o),
+        criadoEm: o.criadoEm,
+      }))
+      .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
+  }
+
+  async orcamentoPorId(id: string): Promise<OrcamentoDetalhado | null> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrcamentos, 'ver orçamentos')
+    const o = ORCAMENTOS_DE_MENTIRA.find(x => x.id === id)
+    return o ? { ...o, total: totalDoOrcamento(o) } : null
+  }
+
+  async criarOrcamento(dados: DadosDoOrcamento): Promise<{ id?: string; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrcamentos, 'criar orçamento')
+
+    const erro = conferirOrcamento(dados)
+    if (erro) return { erro }
+
+    const id = `orc-${ORCAMENTOS_DE_MENTIRA.length + 1}`
+    ORCAMENTOS_DE_MENTIRA.unshift({
+      ...paraOrcamentoGuardado(dados),
+      id,
+      numero: Math.max(0, ...ORCAMENTOS_DE_MENTIRA.map(o => o.numero)) + 1,
+      criadoEm: new Date(this.agora()).toISOString(),
+    })
+    return { id }
+  }
+
+  async editarOrcamento(id: string, dados: DadosDoOrcamento): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrcamentos, 'editar orçamento')
+
+    const i = ORCAMENTOS_DE_MENTIRA.findIndex(o => o.id === id)
+    if (i === -1) return { erro: 'Este orçamento não existe mais.' }
+
+    const erro = conferirOrcamento(dados)
+    if (erro) return { erro }
+
+    const anterior = ORCAMENTOS_DE_MENTIRA[i]!
+    ORCAMENTOS_DE_MENTIRA[i] = {
+      ...paraOrcamentoGuardado(dados),
+      id: anterior.id,
+      numero: anterior.numero,
+      criadoEm: anterior.criadoEm,
+    }
+    return {}
+  }
+
+  async excluirOrcamento(id: string): Promise<{ erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrcamentos, 'excluir orçamento')
+    const i = ORCAMENTOS_DE_MENTIRA.findIndex(o => o.id === id)
+    if (i === -1) return { erro: 'Este orçamento já não existe.' }
+    ORCAMENTOS_DE_MENTIRA.splice(i, 1)
+    return {}
+  }
+
+  async duplicarOrcamento(id: string): Promise<{ id?: string; erro?: string }> {
+    await this.rede()
+    this.exigirSessao()
+    this.exigirPoder(podeGerenciarOrcamentos, 'duplicar orçamento')
+
+    const o = ORCAMENTOS_DE_MENTIRA.find(x => x.id === id)
+    if (!o) return { erro: 'Este orçamento não existe mais.' }
+
+    const novoId = `orc-${ORCAMENTOS_DE_MENTIRA.length + 1}`
+    // A cópia sempre nasce RASCUNHO: duplicar um orçamento já aprovado e
+    // manter o carimbo faria a lista mostrar duas aprovações para uma venda.
+    ORCAMENTOS_DE_MENTIRA.unshift({
+      ...o,
+      id: novoId,
+      numero: Math.max(0, ...ORCAMENTOS_DE_MENTIRA.map(x => x.numero)) + 1,
+      status: 'rascunho',
+      criadoEm: new Date(this.agora()).toISOString(),
+    })
+    return { id: novoId }
   }
 
   async excluirGasto(id: string): Promise<{ erro?: string }> {

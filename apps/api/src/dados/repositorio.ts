@@ -992,6 +992,23 @@ export interface Repositorio {
   /** URL assinada do comprovante — null se este gasto não tem anexo. */
   urlComprovanteGasto(id: string): Promise<string | null>
 
+  // ── Orçamentos (comercial) ───────────────────────────────────────────────
+  //
+  // MESMAS tabelas do site (`orcamentos`/`orcamento_itens`), que já rodam em
+  // produção — nada aqui cria schema. Só `master` (ver
+  // `podeGerenciarOrcamentos`): são os valores comerciais da própria agência.
+
+  listarOrcamentos(): Promise<OrcamentoNoRepositorio[]>
+
+  /** Com os itens, na ordem da coluna `posicao`. */
+  orcamentoPorId(id: string): Promise<OrcamentoComItensNoRepositorio | null>
+
+  criarOrcamento(dados: NovoOrcamentoNoRepositorio, criadoPorId: string): Promise<{ id: string }>
+
+  editarOrcamento(id: string, dados: NovoOrcamentoNoRepositorio): Promise<{ erro?: string }>
+
+  excluirOrcamento(id: string): Promise<{ erro?: string }>
+
   // ── Contestação de batida ────────────────────────────────────────────────
   //
   // O colaborador contesta a própria batida (errada ou que faltou) — recurso
@@ -1086,6 +1103,57 @@ export type GastoNoRepositorio = {
   temComprovante: boolean
   comprovanteNome: string | null
   criadoPorNome: string | null
+}
+
+/**
+ * Um orçamento sem os itens — o que a listagem precisa.
+ *
+ * `valorTotal` é a coluna gravada no último save. A listagem usa ela porque
+ * buscar os itens de todos só pra recalcular sairia caro; quem abre UM
+ * orçamento recebe o total recalculado (ver `orcamentoPorId`).
+ */
+export type OrcamentoNoRepositorio = {
+  id: string
+  numero: number
+  nomeEvento: string
+  responsavel: string
+  telefone: string | null
+  dataEvento: string | null
+  valorDia: number
+  valorFuncionario: number
+  valorTecnico: number
+  dias: number
+  desconto: number
+  valorTotal: number
+  observacoes: string | null
+  status: string
+  criadoEm: string
+}
+
+export type OrcamentoComItensNoRepositorio = OrcamentoNoRepositorio & {
+  itens: { id: string; descricao: string; valor: number }[]
+}
+
+/**
+ * O que vai pro banco, já validado e aparado pela rota — o repositório não
+ * valida nada, mesma divisão de `NovoGastoNoRepositorio`.
+ */
+export type NovoOrcamentoNoRepositorio = {
+  nomeEvento: string
+  responsavel: string
+  telefone: string
+  dataEvento: string
+  valorDia: number
+  valorFuncionario: number
+  valorTecnico: number
+  dias: number
+  desconto: number
+  /** Gravado na coluna `valor_total` pra listagem; nunca lido como verdade. */
+  valorTotal: number
+  observacoes: string | null
+  status: string
+  /** Sem id: gravar apaga os antigos e insere estes, na ordem da lista. */
+  itens: { descricao: string; valor: number }[]
 }
 
 export type EstadoDaConferencia = {

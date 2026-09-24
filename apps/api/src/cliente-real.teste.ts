@@ -707,6 +707,57 @@ test('relatório vai e volta pela API, e o arquivo baixa de verdade', async () =
   assert.ok(bytes.length > 0)
 })
 
+test('orçamento vai e volta pela API — criar, abrir, editar, duplicar, excluir', async () => {
+  const m = montar()
+  const login = await m.cliente.entrarComSenha('juan@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
+
+  const criado = await m.cliente.criarOrcamento({
+    nomeEvento: 'Fantástico Mundo do Lukão',
+    responsavel: 'Lucas Andrade',
+    telefone: '27999990000',
+    dataEvento: '2026-11-14',
+    valorDia: 1000, valorFuncionario: 2, valorTecnico: 300,
+    dias: 3, desconto: 100,
+    observacoes: null, status: 'rascunho',
+    itens: [{ descricao: 'Projetor', valor: 500 }],
+  })
+  assert.equal(criado.erro, undefined)
+
+  // 1302 × 3 dias = 3906, mais o projetor uma vez só, menos o desconto.
+  const aberto = await m.cliente.orcamentoPorId(criado.id!)
+  assert.equal(aberto?.total, 4306)
+  assert.equal(aberto?.numero, 1)
+
+  const lista = await m.cliente.listarOrcamentos()
+  assert.equal(lista.length, 1)
+
+  const editado = await m.cliente.editarOrcamento(criado.id!, {
+    ...aberto!, telefone: aberto!.telefone!, dataEvento: aberto!.dataEvento!,
+    status: 'enviado', itens: [],
+  })
+  assert.equal(editado.erro, undefined)
+  assert.equal((await m.cliente.orcamentoPorId(criado.id!))?.status, 'enviado')
+
+  const copia = await m.cliente.duplicarOrcamento(criado.id!)
+  assert.equal(copia.erro, undefined)
+  assert.equal((await m.cliente.orcamentoPorId(copia.id!))?.status, 'rascunho')
+
+  assert.equal((await m.cliente.excluirOrcamento(criado.id!)).erro, undefined)
+  assert.equal((await m.cliente.listarOrcamentos()).length, 1)
+})
+
+test('quem não é master leva não em Orçamentos, pela API', async () => {
+  // Marina é admin — os valores comerciais da agência não são dela.
+  const m = montar()
+  const login = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'segredo123')
+  assert.ok(login.sessao, login.erro)
+  m.guardarToken(login.sessao.token)
+
+  await assert.rejects(() => m.cliente.listarOrcamentos(), /acesso/i)
+})
+
 test('senha errada por HTTP devolve erro, não exceção', async () => {
   const m = montar()
   const r = await m.cliente.entrarComSenha('marina@produzimos.com.br', 'errada')

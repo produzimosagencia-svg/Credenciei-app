@@ -15,10 +15,10 @@ import type {
   EstadoDaConferencia, EstadoDaPortaria, Evento, EventoComContagens, ExcecaoDePermissao,
   FiltroDeAuditoria, FiltroDeGastosNoRepositorio, GastoNoRepositorio, LinhaConferenciaNoRepositorio, LinhaDeAuditoria, LinhaDoDia,
   NovaEntradaDeAuditoria, NovaOrganizacaoNoRepositorio, NovoAcessoNoRepositorio,
-  NovoBloqueioNoRepositorio, NovoGastoNoRepositorio,
+  NovoBloqueioNoRepositorio, NovoGastoNoRepositorio, NovoOrcamentoNoRepositorio,
   NovoAdminNoRepositorio, NovoEventoNoRepositorio, NovoRegistro, NovoSetorNoRepositorio,
   NovoSuporteNoRepositorio, NovoVeiculoNoRepositorio,
-  Organizacao,
+  OrcamentoComItensNoRepositorio, OrcamentoNoRepositorio, Organizacao,
   OrganizacaoComContagens, Participacao, ParticipacaoParaLocalizar, Perfil, Pessoa, PessoaDaBase, Registro,
   Repositorio, SetorComPessoas, SetorCriado, TrabalhoNaBase, Veiculo,
 } from './repositorio.js'
@@ -96,6 +96,10 @@ export class RepositorioEmMemoria implements Repositorio {
   produtorEventos: { produtorId: string; eventoId: string }[] = []
   /** Mesma tabela `gastos_evento` do site — `comprovantePath` só existe aqui pra simular o Storage. */
   gastos: (GastoNoRepositorio & { organizacaoIdSeInterno: string | null; comprovantePath: string | null })[] = []
+  /** Mesmas tabelas `orcamentos`/`orcamento_itens` do site, juntas numa estrutura só. */
+  orcamentos: OrcamentoComItensNoRepositorio[] = []
+  /** O `numero` é uma sequence no banco; aqui é um contador, com a mesma regra de nunca reusar. */
+  proximoNumeroDeOrcamento = 1
   /** Mesma tabela `suporte_escopo` do site — organização OU evento por linha, nunca os dois. */
   suporteEscopo: { perfilId: string; organizacaoId: string | null; eventoId: string | null }[] = []
   /** participacaoId → quando autorizou aparecer na busca regional (mesma coluna `funcionarios.consentimento_em` do site). */
@@ -1587,6 +1591,50 @@ export class RepositorioEmMemoria implements Repositorio {
     const g = this.gastos.find(x => x.id === id)
     if (!g?.comprovantePath) return null
     return `https://exemplo-de-teste.invalido/${g.comprovantePath}`
+  }
+
+  // ── Orçamentos ────────────────────────────────────────────────────────────
+
+  async listarOrcamentos(): Promise<OrcamentoNoRepositorio[]> {
+    return [...this.orcamentos]
+      .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
+      .map(({ itens: _i, ...o }) => o)
+  }
+
+  async orcamentoPorId(id: string): Promise<OrcamentoComItensNoRepositorio | null> {
+    const o = this.orcamentos.find(x => x.id === id)
+    // Cópia: sem ela, editar a lista de itens da resposta mexeria no "banco".
+    return o ? { ...o, itens: o.itens.map(i => ({ ...i })) } : null
+  }
+
+  async criarOrcamento(dados: NovoOrcamentoNoRepositorio, _criadoPorId: string): Promise<{ id: string }> {
+    const id = novoId('orcamento')
+    this.orcamentos.push({
+      id,
+      numero: this.proximoNumeroDeOrcamento++,
+      ...dados,
+      itens: dados.itens.map((i, n) => ({ id: `${id}-item-${n}`, ...i })),
+      criadoEm: new Date().toISOString(),
+    })
+    return { id }
+  }
+
+  async editarOrcamento(id: string, dados: NovoOrcamentoNoRepositorio): Promise<{ erro?: string }> {
+    const o = this.orcamentos.find(x => x.id === id)
+    if (!o) return { erro: 'Este orçamento não existe mais.' }
+    Object.assign(o, dados, {
+      // Os itens não têm identidade fora do orçamento: apagar e regravar, como
+      // o site faz — diff item a item não valeria a complexidade.
+      itens: dados.itens.map((i, n) => ({ id: `${id}-item-${n}`, ...i })),
+    })
+    return {}
+  }
+
+  async excluirOrcamento(id: string): Promise<{ erro?: string }> {
+    const i = this.orcamentos.findIndex(o => o.id === id)
+    if (i === -1) return { erro: 'Este orçamento já não existe.' }
+    this.orcamentos.splice(i, 1)
+    return {}
   }
 }
 

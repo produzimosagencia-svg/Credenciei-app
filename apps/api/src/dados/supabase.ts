@@ -42,7 +42,9 @@ import type {
   NovaEntradaDeAuditoria, NovaOrganizacaoNoRepositorio, NovoAcessoNoRepositorio,
   NovoAdminNoRepositorio,
   NovoBloqueioNoRepositorio, NovoEventoNoRepositorio, NovoGastoNoRepositorio, NovoRegistro, NovoSetorNoRepositorio,
+  NovoOrcamentoNoRepositorio,
   NovoSuporteNoRepositorio, NovoVeiculoNoRepositorio, OpcaoDeEscopoNoRepositorio,
+  OrcamentoComItensNoRepositorio, OrcamentoNoRepositorio,
   Organizacao, OrganizacaoComContagens, Participacao, ParticipacaoParaLocalizar, Perfil, Pessoa, PessoaDaBase,
   Registro, Repositorio, SetorComPessoas, SetorCriado, TrabalhoNaBase, Veiculo,
 } from './repositorio.js'
@@ -2785,6 +2787,94 @@ export class RepositorioSupabase implements Repositorio {
       .createSignedUrl(data.comprovante_path as string, 60 * 15)
     return assinada?.signedUrl ?? null
   }
+
+  // ── Orçamentos ────────────────────────────────────────────────────────────
+  //
+  // Tabelas `orcamentos` e `orcamento_itens`, as MESMAS do site. As colunas
+  // numéricas voltam como string do PostgREST quando são `numeric` — daí o
+  // `Number(...) || 0` em cada uma, igual ao `montar()` de `lib/orcamentos.ts`.
+
+  async listarOrcamentos(): Promise<OrcamentoNoRepositorio[]> {
+    const { data, error } = await this.db.from('orcamentos')
+      .select(CAMPOS_ORCAMENTO)
+      .order('created_at', { ascending: false })
+    if (error) throw new Error(`Não foi possível ler os orçamentos: ${error.message}`)
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map(paraOrcamento)
+  }
+
+  async orcamentoPorId(id: string): Promise<OrcamentoComItensNoRepositorio | null> {
+    const { data, error } = await this.db.from('orcamentos')
+      .select(CAMPOS_ORCAMENTO).eq('id', id).maybeSingle()
+    if (error) throw new Error(`Não foi possível ler este orçamento: ${error.message}`)
+    if (!data) return null
+
+    const { data: itens, error: erroItens } = await this.db.from('orcamento_itens')
+      .select('id, descricao, valor, posicao')
+      .eq('orcamento_id', id)
+      .order('posicao', { ascending: true })
+    if (erroItens) throw new Error(`Não foi possível ler os itens: ${erroItens.message}`)
+
+    return {
+      ...paraOrcamento(data as unknown as Record<string, unknown>),
+      itens: (itens ?? []).map((i: Record<string, unknown>) => ({
+        id: i.id as string,
+        descricao: i.descricao as string,
+        valor: Number(i.valor) || 0,
+      })),
+    }
+  }
+
+  /**
+   * Apaga os itens antigos e grava estes, na ordem da lista.
+   *
+   * Item não tem identidade fora do orçamento — é uma linha de descrição e
+   * valor. Diff item a item custaria código e não daria nada em troca; o site
+   * faz igual (`gravarItens` em `lib/actions-orcamentos.ts`).
+   */
+  private async regravarItensDoOrcamento(orcamentoId: string, itens: { descricao: string; valor: number }[]) {
+    await this.db.from('orcamento_itens').delete().eq('orcamento_id', orcamentoId)
+    if (!itens.length) return
+    const { error } = await this.db.from('orcamento_itens').insert(
+      itens.map((item, posicao) => ({
+        orcamento_id: orcamentoId, descricao: item.descricao, valor: item.valor, posicao,
+      })),
+    )
+    if (error) throw new Error(`Não foi possível salvar os itens: ${error.message}`)
+  }
+
+  async criarOrcamento(dados: NovoOrcamentoNoRepositorio, criadoPorId: string): Promise<{ id: string }> {
+    // `numero` fica de fora de propósito: é sequence no banco, igual ao site.
+    const { data, error } = await this.db.from('orcamentos')
+      .insert({ ...colunasDoOrcamento(dados), created_by: criadoPorId })
+      .select('id').single()
+    if (error || !data) {
+      throw new Error(`Não foi possível salvar este orçamento: ${error?.message ?? 'sem dados'}`)
+    }
+    await this.regravarItensDoOrcamento(data.id as string, dados.itens)
+    return { id: data.id as string }
+  }
+
+  async editarOrcamento(id: string, dados: NovoOrcamentoNoRepositorio): Promise<{ erro?: string }> {
+    const { data: atual } = await this.db.from('orcamentos').select('id').eq('id', id).maybeSingle()
+    if (!atual) return { erro: 'Este orçamento não existe mais.' }
+
+    const { error } = await this.db.from('orcamentos')
+      .update({ ...colunasDoOrcamento(dados), updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) return { erro: `Não foi possível salvar: ${error.message}` }
+
+    await this.regravarItensDoOrcamento(id, dados.itens)
+    return {}
+  }
+
+  async excluirOrcamento(id: string): Promise<{ erro?: string }> {
+    // Os itens saem junto pela FK em cascata; apagar aqui também é barato e
+    // não depende de como a FK foi declarada no banco de produção.
+    await this.db.from('orcamento_itens').delete().eq('orcamento_id', id)
+    const { error } = await this.db.from('orcamentos').delete().eq('id', id)
+    if (error) return { erro: `Não foi possível excluir: ${error.message}` }
+    return {}
+  }
 }
 
 // ─── Tradução ────────────────────────────────────────────────────────────────
@@ -2804,8 +2894,60 @@ const CAMPOS_FUNCIONARIO =
   'id, nome, cpf, telefone, cargo, empresa, ativo, descredenciado_em, ' +
   'valor_receber, pago, pago_em, foto_perfil_path, qr_token, fornecedor_id, cidade, created_at, chave_pix'
 
+const CAMPOS_ORCAMENTO =
+  'id, numero, nome_evento, responsavel, telefone, data_evento, ' +
+  'valor_dia, valor_funcionario, valor_tecnico, dias, desconto, valor_total, ' +
+  'observacoes, status, created_at'
+
 const CAMPOS_REGISTRO =
   'id, funcionario_id, tipo, data_ref, created_at, recebido_em, origem, foto_url, latitude, longitude, registro_manual, justificativa'
+
+/**
+ * Linha de `orcamentos` → o tipo do repositório.
+ *
+ * As colunas de dinheiro são `numeric` no Postgres e o PostgREST as devolve
+ * como STRING — sem o `Number(...)`, `valorDia + valorTecnico` viraria
+ * concatenação de texto e o orçamento sairia com um número absurdo. É a mesma
+ * conversão que o `montar()` do site faz, pelo mesmo motivo.
+ */
+function paraOrcamento(l: Record<string, unknown>): OrcamentoNoRepositorio {
+  return {
+    id: l.id as string,
+    numero: Number(l.numero) || 0,
+    nomeEvento: l.nome_evento as string,
+    responsavel: l.responsavel as string,
+    telefone: (l.telefone as string | null) ?? null,
+    dataEvento: (l.data_evento as string | null) ?? null,
+    valorDia: Number(l.valor_dia) || 0,
+    valorFuncionario: Number(l.valor_funcionario) || 0,
+    valorTecnico: Number(l.valor_tecnico) || 0,
+    // Piso de 1 dia: `dias` nulo ou zero apagaria as três diárias da conta.
+    dias: Math.max(1, Number(l.dias) || 1),
+    desconto: Number(l.desconto) || 0,
+    valorTotal: Number(l.valor_total) || 0,
+    observacoes: (l.observacoes as string | null) ?? null,
+    status: (l.status as string | null) ?? 'rascunho',
+    criadoEm: l.created_at as string,
+  }
+}
+
+/** O caminho de volta: o tipo do repositório → as colunas do banco. */
+function colunasDoOrcamento(d: NovoOrcamentoNoRepositorio): Record<string, unknown> {
+  return {
+    nome_evento: d.nomeEvento,
+    responsavel: d.responsavel,
+    telefone: d.telefone,
+    data_evento: d.dataEvento,
+    valor_dia: d.valorDia,
+    valor_funcionario: d.valorFuncionario,
+    valor_tecnico: d.valorTecnico,
+    dias: d.dias,
+    desconto: d.desconto,
+    valor_total: d.valorTotal,
+    observacoes: d.observacoes,
+    status: d.status,
+  }
+}
 
 function paraEvento(l: Record<string, unknown>): Evento {
   const org = l.organizacoes as { nome?: string } | null

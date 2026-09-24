@@ -21,6 +21,7 @@
 import { randomBytes } from 'node:crypto'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { statusDeOrcamentoValido } from '@credenciei/dominio'
 import type { Papel } from '@credenciei/dominio'
 import type { Sessoes } from './sessoes.js'
 import type { LimiteDeTentativas } from './limite.js'
@@ -86,11 +87,15 @@ import {
   criarGasto, editarGasto, eventosParaGastos, excluirGasto, exportarGastosXlsx, listarGastos,
   painelDeGastos, transcreverAudioDeGasto, urlComprovanteGasto, type InterpretarAudioDeGasto,
 } from './rotas/gastos.js'
+import {
+  criarOrcamento, duplicarOrcamento, editarOrcamento, excluirOrcamento, listarOrcamentos,
+  orcamentoPorId,
+} from './rotas/orcamentos.js'
 import { dadosParaLancarPonto, eventosParaLancarPonto, lancarPontoManual } from './rotas/lancar-ponto.js'
 import { colaboradoresDoEvento, eventosParaEditarColaborador } from './rotas/editar-colaborador.js'
 import { criarSuporte, dadosDeSuporte, editarSuporte, revogarSuporte } from './rotas/suporte.js'
 import { ArquivosEmMemoria, type Arquivos } from './arquivos.js'
-import type { Periodo, QuemNoRelatorio } from '@credenciei/contrato'
+import type { DadosDoOrcamento, Periodo, QuemNoRelatorio } from '@credenciei/contrato'
 import {
   atribuirPessoaAoEvento, baseDeFuncionarios, encontrarColaborador, fichaDaPessoaNaBase,
 } from './rotas/base-de-funcionarios.js'
@@ -891,6 +896,37 @@ export function criarServidor(amb: Ambiente) {
   app.get('/v1/gastos/:id/comprovante', async c =>
     protegido(c, () => urlComprovanteGasto(amb.repo, c.get('pessoaId'), c.req.param('id'))))
 
+  // ── Orçamentos (só master) ──────────────────────────────────────────────
+  app.get('/v1/orcamentos', async c =>
+    protegido(c, () => listarOrcamentos(amb.repo, c.get('pessoaId'))))
+
+  app.post('/v1/orcamentos', async c => {
+    const corpo = await c.req.json<Record<string, unknown>>()
+    return protegido(c, () => criarOrcamento(amb.repo, c.get('pessoaId'), dadosDoOrcamento(corpo)))
+  })
+
+  /*
+   * `/:id` depois de `/duplicar` e `/excluir` NÃO é ordem acidental — o Hono
+   * casa a primeira rota que bate, e um `/v1/orcamentos/:id` declarado antes
+   * engoliria `/v1/orcamentos/abc/duplicar`. Mesma armadilha de sempre com
+   * rota de parâmetro competindo com sub-caminho fixo.
+   */
+  app.post('/v1/orcamentos/:id/excluir', async c =>
+    protegido(c, () => excluirOrcamento(amb.repo, c.get('pessoaId'), c.req.param('id'))))
+
+  app.post('/v1/orcamentos/:id/duplicar', async c =>
+    protegido(c, () => duplicarOrcamento(amb.repo, c.get('pessoaId'), c.req.param('id'))))
+
+  app.get('/v1/orcamentos/:id', async c =>
+    protegido(c, () => orcamentoPorId(amb.repo, c.get('pessoaId'), c.req.param('id'))))
+
+  app.post('/v1/orcamentos/:id', async c => {
+    const corpo = await c.req.json<Record<string, unknown>>()
+    return protegido(c, () => editarOrcamento(
+      amb.repo, c.get('pessoaId'), c.req.param('id'), dadosDoOrcamento(corpo),
+    ))
+  })
+
   // ── Lançar ponto manual ─────────────────────────────────────────────────
   app.get('/v1/lancar-ponto/eventos', async c =>
     protegido(c, () => eventosParaLancarPonto(amb.repo, c.get('pessoaId'))))
@@ -1105,6 +1141,31 @@ export function criarServidor(amb: Ambiente) {
   })
 
   return app
+}
+
+/**
+ * O corpo cru do POST → `DadosDoOrcamento`.
+ *
+ * Só dá forma; quem confere obrigatório, negativo e desconto maior que o
+ * subtotal é `conferir()`, em `rotas/orcamentos.ts` — o mesmo lugar onde o
+ * site confere.
+ */
+function dadosDoOrcamento(corpo: Record<string, unknown>): DadosDoOrcamento {
+  const itens = Array.isArray(corpo.itens) ? corpo.itens as Record<string, unknown>[] : []
+  return {
+    nomeEvento: String(corpo.nomeEvento ?? ''),
+    responsavel: String(corpo.responsavel ?? ''),
+    telefone: String(corpo.telefone ?? ''),
+    dataEvento: String(corpo.dataEvento ?? ''),
+    valorDia: Number(corpo.valorDia) || 0,
+    valorFuncionario: Number(corpo.valorFuncionario) || 0,
+    valorTecnico: Number(corpo.valorTecnico) || 0,
+    dias: Number(corpo.dias) || 1,
+    desconto: Number(corpo.desconto) || 0,
+    observacoes: (corpo.observacoes as string | null) ?? null,
+    status: statusDeOrcamentoValido(corpo.status as string | null),
+    itens: itens.map(i => ({ descricao: String(i.descricao ?? ''), valor: Number(i.valor) || 0 })),
+  }
 }
 
 /**

@@ -28,7 +28,8 @@
 import type { ClienteApi } from './cliente.js'
 import type {
   Acesso, AtividadesDoEvento, AvisoPendente, BatidaAssistida, CandidatoLocalizado,
-  ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
+  ConferenciaPorCpf, ConviteDoEvento, DadosDoOrcamento, DiaDaParticipacao, EnvioDeBatida, Eu,
+  OrcamentoDetalhado, ResumoDoOrcamento,
   ArquivoDePlanilha, ConfiguracaoDoEvento, ConfiguracaoDoMeio, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada,
@@ -1268,6 +1269,47 @@ export class ClienteHttp implements ClienteApi {
     const r = await this.pedir(`/v1/gastos/${encodeURIComponent(id)}/excluir`, { metodo: 'POST' })
     if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos excluir este gasto.') }
     return {}
+  }
+
+  // ── Orçamentos ───────────────────────────────────────────────────────────
+
+  async listarOrcamentos(): Promise<ResumoDoOrcamento[]> {
+    const r = await this.pedir('/v1/orcamentos')
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos carregar os orçamentos.'))
+    return r.corpo as unknown as ResumoDoOrcamento[]
+  }
+
+  async orcamentoPorId(id: string): Promise<OrcamentoDetalhado | null> {
+    const r = await this.pedir(`/v1/orcamentos/${encodeURIComponent(id)}`)
+    // 404 é resposta, não falha: a tela mostra "não existe mais", que é
+    // diferente de "deu erro ao carregar".
+    if (r.status === 404) return null
+    if (r.status >= 400) throw new Error(this.erroDe(r, 'Não conseguimos carregar este orçamento.'))
+    return r.corpo as unknown as OrcamentoDetalhado
+  }
+
+  async criarOrcamento(dados: DadosDoOrcamento): Promise<{ id?: string; erro?: string }> {
+    const r = await this.pedir('/v1/orcamentos', { metodo: 'POST', corpo: dados })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar este orçamento.') }
+    return r.corpo as unknown as { id?: string }
+  }
+
+  async editarOrcamento(id: string, dados: DadosDoOrcamento): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/orcamentos/${encodeURIComponent(id)}`, { metodo: 'POST', corpo: dados })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos salvar este orçamento.') }
+    return {}
+  }
+
+  async excluirOrcamento(id: string): Promise<{ erro?: string }> {
+    const r = await this.pedir(`/v1/orcamentos/${encodeURIComponent(id)}/excluir`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos excluir este orçamento.') }
+    return {}
+  }
+
+  async duplicarOrcamento(id: string): Promise<{ id?: string; erro?: string }> {
+    const r = await this.pedir(`/v1/orcamentos/${encodeURIComponent(id)}/duplicar`, { metodo: 'POST' })
+    if (r.status >= 400) return { erro: this.erroDe(r, 'Não conseguimos duplicar este orçamento.') }
+    return r.corpo as unknown as { id?: string }
   }
 
   async urlComprovanteGasto(id: string): Promise<{ url: string | null; erro?: string }> {

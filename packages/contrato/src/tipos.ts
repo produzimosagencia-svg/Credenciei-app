@@ -16,7 +16,10 @@
 // perguntando pelo token, e responde sobre essa pessoa. É a diferença entre
 // "quem está pedindo pode ver isto?" e "isto existe?".
 
-import type { CategoriaGasto, DadosGraficosGastos, KpisGastos, OrigemGasto, Papel, StatusGasto } from '@credenciei/dominio'
+import type {
+  CategoriaGasto, DadosGraficosGastos, KpisGastos, OrigemGasto, Papel,
+  StatusGasto, StatusOrcamento,
+} from '@credenciei/dominio'
 import type { TipoBatida } from './comum.js'
 export type { CategoriaGasto, DadosGraficosGastos, KpisGastos, OrigemGasto, StatusGasto }
 
@@ -1708,4 +1711,70 @@ export type GastoExtraido = {
 export type PainelDeGastos = {
   kpis: KpisGastos
   graficos: DadosGraficosGastos
+}
+
+// ─── Orçamentos (comercial) ─────────────────────────────────────────────────
+//
+// A proposta que a agência manda pro cliente. Só master — abre valores
+// comerciais, que é dado sensível da própria agência (ver
+// `podeGerenciarOrcamentos`). Espelha `lib/orcamentos.ts` do site; as tabelas
+// `orcamentos` e `orcamento_itens` já existem no banco compartilhado.
+
+export type ItemDoOrcamento = {
+  /** Vazio enquanto a linha só existe na tela, antes de salvar. */
+  id: string
+  descricao: string
+  valor: number
+}
+
+export type ResumoDoOrcamento = {
+  id: string
+  numero: number
+  nomeEvento: string
+  responsavel: string
+  dataEvento: string | null
+  status: StatusOrcamento
+  /** A coluna gravada no último save — a listagem usa ela, que é barata. */
+  valorTotal: number
+  criadoEm: string
+}
+
+export type OrcamentoDetalhado = {
+  id: string
+  numero: number
+  nomeEvento: string
+  responsavel: string
+  telefone: string | null
+  dataEvento: string | null
+  valorDia: number
+  valorFuncionario: number
+  valorTecnico: number
+  /** Multiplica as três diárias. Itens avulsos NÃO entram nessa conta. */
+  dias: number
+  desconto: number
+  observacoes: string | null
+  status: StatusOrcamento
+  itens: ItemDoOrcamento[]
+  /**
+   * Recalculado na hora, nunca a coluna gravada — um orçamento salvo por
+   * versão antiga do código deixa `valor_total` mentindo.
+   */
+  total: number
+  criadoEm: string
+}
+
+export type DadosDoOrcamento = {
+  nomeEvento: string
+  responsavel: string
+  telefone: string
+  dataEvento: string
+  valorDia: number
+  valorFuncionario: number
+  valorTecnico: number
+  dias: number
+  desconto: number
+  observacoes: string | null
+  status: StatusOrcamento
+  /** Sem id: quem grava apaga os antigos e insere estes, na ordem da lista. */
+  itens: { descricao: string; valor: number }[]
 }

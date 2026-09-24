@@ -18,7 +18,8 @@
 
 import {
   ehMaster, ehProdutor, papelDoAlvo, podeAcompanhar, podeBloquearCpf, podeEscanear,
-  podeGerenciarEventos, podeGerenciarUsuarios, podeGerenciarVeiculos, podeRegistrarGastos,
+  podeGerenciarEventos, podeGerenciarOrcamentos, podeGerenciarUsuarios, podeGerenciarVeiculos,
+  podeRegistrarGastos,
   type AlvoPermissao,
 } from '@credenciei/dominio'
 
@@ -152,10 +153,22 @@ export function menuDoPainel(alvo: AlvoPermissao): GrupoDoMenu[] {
 
   // "Plataforma" continua rotulado: é o que só o dono da plataforma enxerga, e
   // separar deixa claro que não faz parte da operação de um evento.
+  const plataforma: ItemDoMenu[] = []
+
+  /*
+   * Orçamentos fica FORA do `ehMaster` abaixo, de propósito — mesma escolha do
+   * site (`AppShell.tsx`, grupo "Operacional"). `podeGerenciarOrcamentos` é
+   * uma capacidade, e capacidade pode ser liberada pra uma organização em
+   * Configurações; se a entrada morasse dentro do `ehMaster`, a liberação
+   * daria acesso à tela sem dar caminho até ela.
+   */
+  if (podeGerenciarOrcamentos(alvo)) {
+    plataforma.push({ rota: '/orcamentos', rotulo: 'Orçamentos', icone: 'FileText', pronta: true })
+  }
+
   if (ehMaster(papel)) {
-    grupos.push({
-      titulo: 'Plataforma',
-      itens: [
+    plataforma.push(
+      ...[
         { rota: '/organizacoes', rotulo: 'Organizações', icone: 'Building2', pronta: true },
         /*
          * Eram duas entradas — "Base de funcionários" e "Encontre
@@ -177,8 +190,10 @@ export function menuDoPainel(alvo: AlvoPermissao): GrupoDoMenu[] {
         // organização. Master-only, mesmo gate do site.
         { rota: '/configuracoes', rotulo: 'Configurações', icone: 'Settings', pronta: true },
       ],
-    })
+    )
   }
+
+  if (plataforma.length) grupos.push({ titulo: 'Plataforma', itens: plataforma })
 
   return grupos
 }

@@ -11,7 +11,8 @@
 
 import type {
   Acesso, AtividadesDoEvento, AvisoPendente, BatidaAssistida, CandidatoLocalizado,
-  ConferenciaPorCpf, ConviteDoEvento, DiaDaParticipacao, EnvioDeBatida, Eu,
+  ConferenciaPorCpf, ConviteDoEvento, DadosDoOrcamento, DiaDaParticipacao, EnvioDeBatida, Eu,
+  OrcamentoDetalhado, ResumoDoOrcamento,
   ArquivoDePlanilha, ConfiguracaoDoEvento, ConfiguracaoDoMeio, DadosDeNovoEvento, EdicaoDoEvento, EquipeDoSetor,
   EventoComSetores, EventoDetalhado, EventoEscaneavel, FichaDaPessoa,
   FichaLocalizada, FiltroDeAcessos, FinanceiroDaParticipacao, ListaDeAcessos,
@@ -843,4 +844,23 @@ export interface ClienteApi {
   // fluxo.
 
   registrarTokenDePush(token: string, plataforma: 'ios' | 'android'): Promise<{ erro?: string }>
+
+  // ── Orçamentos (comercial) ───────────────────────────────────────────────
+  //
+  // Só master. O servidor confere de novo — a régua aqui é o desenho, não a
+  // trava.
+
+  listarOrcamentos(): Promise<ResumoDoOrcamento[]>
+  /** `null` quando não existe (ou não é seu) — as duas respondem igual. */
+  orcamentoPorId(id: string): Promise<OrcamentoDetalhado | null>
+  criarOrcamento(dados: DadosDoOrcamento): Promise<{ id?: string; erro?: string }>
+  editarOrcamento(id: string, dados: DadosDoOrcamento): Promise<{ erro?: string }>
+  excluirOrcamento(id: string): Promise<{ erro?: string }>
+  /**
+   * Copia um orçamento inteiro como novo rascunho.
+   *
+   * Existe porque proposta se parece com proposta: o mesmo cliente pede
+   * outro evento, e refazer os cinco valores na mão é onde entra erro.
+   */
+  duplicarOrcamento(id: string): Promise<{ id?: string; erro?: string }>
 }

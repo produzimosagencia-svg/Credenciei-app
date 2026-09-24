@@ -143,3 +143,25 @@ test('o menu reage ao override — supervisor com "escanear" ligado pela organiz
   }).flatMap(g => g.itens).map(i => i.rotulo)
   assert.equal(comOverride.includes('Escanear QR'), true)
 })
+
+test('Orçamentos é do master — e é o primeiro do bloco Plataforma, como no site', () => {
+  const plataforma = menuDoPainel('master').find(g => g.titulo === 'Plataforma')
+  assert.equal(plataforma?.itens[0]?.rotulo, 'Orçamentos')
+  for (const papel of ['admin', 'supervisor', 'suporte', 'produtor', 'colaborador']) {
+    assert.equal(rotulos(papel).includes('Orçamentos'), false, papel)
+  }
+})
+
+test('liberar Orçamentos pra uma organização dá o caminho junto com o acesso', () => {
+  /*
+   * O motivo de a entrada ficar FORA do `ehMaster`: `gerenciar_orcamentos` é
+   * capacidade, e capacidade pode ser liberada em Configurações. Se a entrada
+   * morasse dentro do bloco de master, a liberação daria acesso à tela sem
+   * dar caminho até ela — a pessoa teria a permissão e nenhum jeito de chegar.
+   */
+  const comOverride = menuDe({
+    papel: 'admin', permissoesOrganizacao: { 'admin:gerenciar_orcamentos': true },
+  })
+  const plataforma = comOverride.find(g => g.titulo === 'Plataforma')
+  assert.deepEqual(plataforma?.itens.map(i => i.rotulo), ['Orçamentos'])
+})
